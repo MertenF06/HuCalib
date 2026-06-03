@@ -119,7 +119,7 @@ class MainWindow(QMainWindow):
         self._calibration_panel.set_board_settings(self._calibration_manager.board_settings())
         self._calibration_panel.set_spatial_grid_values(*self._calibration_manager.spatial_grid_shape)
         self._calibration_panel.set_workflow_mode("intrinsics")
-        self._refresh_threshold_controls_for_mode()
+        self._load_threshold_controls()
 
         self._load_existing_calibration()
         self._seed_startup_source_slots()
@@ -559,16 +559,14 @@ class MainWindow(QMainWindow):
     def _calibration_workflow_mode(self) -> str:
         return self._calibration_panel.current_workflow_mode()
 
-    def _refresh_threshold_controls_for_mode(self) -> None:
-        if self._calibration_workflow_mode() == "sync_extrinsics":
-            self._calibration_panel.set_acceptance_threshold_values(
-                min_quality=self._calibration_manager.sync_min_quality_score,
-                min_coverage_ratio=self._calibration_manager.sync_min_coverage_ratio,
-            )
-            return
+    def _load_threshold_controls(self) -> None:
+        """Populate the (separate) intrinsics and extrinsics threshold spinboxes
+        from the calibration manager. Both pairs are always shown."""
         self._calibration_panel.set_acceptance_threshold_values(
-            min_quality=self._calibration_manager.min_quality_score,
-            min_coverage_ratio=self._calibration_manager.min_coverage_ratio,
+            intrinsics_quality=self._calibration_manager.min_quality_score,
+            intrinsics_coverage_ratio=self._calibration_manager.min_coverage_ratio,
+            extrinsics_quality=self._calibration_manager.sync_min_quality_score,
+            extrinsics_coverage_ratio=self._calibration_manager.sync_min_coverage_ratio,
         )
 
     def _auto_capture_idle_text(self) -> str:
@@ -1821,9 +1819,10 @@ class MainWindow(QMainWindow):
 
         workflow_mode = self._calibration_workflow_mode()
         before_sync_sets = self._calibration_manager.synchronized_capture_count()
-        allow_relaxed_sync = (
-            self._calibration_panel.relaxed_sync_enabled() if workflow_mode == "sync_extrinsics" else False
-        )
+        # Sync/extrinsics capture always evaluates samples against the dedicated
+        # extrinsics thresholds (configured separately in advanced settings); the
+        # old "Relax Sync Thresholds" toggle has been removed.
+        allow_relaxed_sync = workflow_mode == "sync_extrinsics"
         if workflow_mode == "sync_extrinsics" and len(active_frames) < 2:
             if not auto_trigger:
                 self._show_warning("Sync / Extrinsics mode requires at least 2 active camera feeds.")
@@ -2339,30 +2338,32 @@ class MainWindow(QMainWindow):
             message = (
                 "Calibration workflow set to Intrinsics: per-camera samples use the intrinsics thresholds."
             )
-        self._refresh_threshold_controls_for_mode()
+        self._load_threshold_controls()
         self._calibration_panel.show_feedback(message, success=True)
         self._refresh_calibration_panel(force=True)
         self._update_calibration_preview(force=True)
 
-    def _on_acceptance_thresholds_changed(self, min_quality: float, min_coverage_ratio: float) -> None:
-        if self._calibration_workflow_mode() == "sync_extrinsics":
-            self._calibration_manager.set_sync_acceptance_thresholds(
-                min_quality_score=min_quality,
-                min_coverage_ratio=min_coverage_ratio,
-            )
-            message = (
-                "Sync thresholds updated: "
-                f"quality >= {min_quality:.2f}, coverage >= {min_coverage_ratio * 100.0:.1f}%."
-            )
-        else:
-            self._calibration_manager.set_intrinsics_acceptance_thresholds(
-                min_quality_score=min_quality,
-                min_coverage_ratio=min_coverage_ratio,
-            )
-            message = (
-                "Intrinsics thresholds updated: "
-                f"quality >= {min_quality:.2f}, coverage >= {min_coverage_ratio * 100.0:.1f}%."
-            )
+    def _on_acceptance_thresholds_changed(
+        self,
+        intrinsics_quality: float,
+        intrinsics_coverage_ratio: float,
+        extrinsics_quality: float,
+        extrinsics_coverage_ratio: float,
+    ) -> None:
+        self._calibration_manager.set_intrinsics_acceptance_thresholds(
+            min_quality_score=intrinsics_quality,
+            min_coverage_ratio=intrinsics_coverage_ratio,
+        )
+        self._calibration_manager.set_sync_acceptance_thresholds(
+            min_quality_score=extrinsics_quality,
+            min_coverage_ratio=extrinsics_coverage_ratio,
+        )
+        message = (
+            "Thresholds bijgewerkt — intrinsics: "
+            f"q >= {intrinsics_quality:.2f}, cov >= {intrinsics_coverage_ratio * 100.0:.1f}%; "
+            "extrinsics: "
+            f"q >= {extrinsics_quality:.2f}, cov >= {extrinsics_coverage_ratio * 100.0:.1f}%."
+        )
         self._calibration_panel.show_feedback(message, success=True)
         self._refresh_calibration_panel(force=True)
         self._update_calibration_preview(force=True)

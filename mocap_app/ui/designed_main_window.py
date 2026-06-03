@@ -891,7 +891,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
     auto_capture_start_requested = Signal()
     pattern_changed = Signal(str)
     board_settings_applied = Signal(object)
-    acceptance_thresholds_changed = Signal(float, float)
+    # intrinsics_quality, intrinsics_coverage_ratio, extrinsics_quality, extrinsics_coverage_ratio
+    acceptance_thresholds_changed = Signal(float, float, float, float)
     workflow_mode_changed = Signal(str)
     spatial_grid_changed = Signal(int, int)
     sources_changed = Signal(object)
@@ -1153,8 +1154,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._mirror_checkbox = _AggregateCheckBox("Mirror Preview")
         self._mirror_checkbox.setTristate(True)
         self._auto_capture_checkbox = QCheckBox("Auto Capture Valid Samples")
-        self._relaxed_sync_checkbox = QCheckBox("Relax Sync Thresholds")
-        self._relaxed_sync_checkbox.setChecked(True)
         # When enabled, opening a new project jumps to the Camera tab and a
         # finished (extrinsics) calibration jumps to the Results tab.
         self._auto_navigate_checkbox = QCheckBox("Automatisch tussen tabbladen wisselen")
@@ -1171,9 +1170,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._auto_max_extrinsics_spin = self._spin(0, 1000, 40)
         self._auto_max_extrinsics_spin.setSpecialValueText("No limit")
         self._auto_max_extrinsics_spin.setSuffix(" samples")
-        self._quality_spin = self._double_spin(0.0, 1.0, 0.25, 0.05, 2)
-        self._coverage_spin = self._double_spin(0.0, 25.0, 1.8, 0.2, 1)
-        self._coverage_spin.setSuffix(" %")
+        # Independent acceptance thresholds: intrinsics is strict per-camera,
+        # extrinsics covers synchronized multi-camera sets (usually more lenient).
+        self._intrinsics_quality_spin = self._double_spin(0.0, 1.0, 0.25, 0.05, 2)
+        self._intrinsics_coverage_spin = self._double_spin(0.0, 25.0, 1.8, 0.2, 1)
+        self._intrinsics_coverage_spin.setSuffix(" %")
+        self._extrinsics_quality_spin = self._double_spin(0.0, 1.0, 0.15, 0.05, 2)
+        self._extrinsics_coverage_spin = self._double_spin(0.0, 25.0, 1.0, 0.2, 1)
+        self._extrinsics_coverage_spin.setSuffix(" %")
         self._grid_cols_spin = self._spin(1, 20, 6)
         self._grid_rows_spin = self._spin(1, 20, 4)
 
@@ -1254,8 +1258,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._auto_cooldown_spin,
             self._auto_max_intrinsics_spin,
             self._auto_max_extrinsics_spin,
-            self._quality_spin,
-            self._coverage_spin,
+            self._intrinsics_quality_spin,
+            self._intrinsics_coverage_spin,
+            self._extrinsics_quality_spin,
+            self._extrinsics_coverage_spin,
             self._grid_cols_spin,
             self._grid_rows_spin,
         ]:
@@ -1439,9 +1445,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
         form.addRow("Cooldown", self._auto_cooldown_spin)
         form.addRow("Max Samples (Intrinsics)", self._auto_max_intrinsics_spin)
         form.addRow("Max Samples (Extrinsics)", self._auto_max_extrinsics_spin)
-        form.addRow("Relaxed Sync", self._relaxed_sync_checkbox)
-        form.addRow("Min Quality", self._quality_spin)
-        form.addRow("Min Coverage", self._coverage_spin)
+        form.addRow("Min Quality (Intrinsics)", self._intrinsics_quality_spin)
+        form.addRow("Min Coverage (Intrinsics)", self._intrinsics_coverage_spin)
+        form.addRow("Min Quality (Extrinsics)", self._extrinsics_quality_spin)
+        form.addRow("Min Coverage (Extrinsics)", self._extrinsics_coverage_spin)
         grid = QWidget()
         grid_layout = QHBoxLayout(grid)
         grid_layout.setContentsMargins(0, 0, 0, 0)
@@ -1920,8 +1927,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.workflow_mode_changed.emit(self.current_workflow_mode())
 
     def _emit_acceptance_thresholds_changed(self) -> None:
-        quality, coverage = self.acceptance_threshold_values()
-        self.acceptance_thresholds_changed.emit(quality, coverage)
+        intr_q, intr_cov, extr_q, extr_cov = self.acceptance_threshold_values()
+        self.acceptance_thresholds_changed.emit(intr_q, intr_cov, extr_q, extr_cov)
 
     def _emit_spatial_grid_changed(self) -> None:
         cols, rows = self.spatial_grid_values()
@@ -2505,9 +2512,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def set_auto_capture_status(self, message: str) -> None:
         self._auto_status.setText(message)
 
-    def relaxed_sync_enabled(self) -> bool:
-        return self._relaxed_sync_checkbox.isChecked()
-
     def overlay_enabled(self) -> bool:
         if not self._tiles:
             return self._overlay_checkbox.isChecked()
@@ -2539,16 +2543,30 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._grid_cols_spin.blockSignals(False)
         self._grid_rows_spin.blockSignals(False)
 
-    def set_acceptance_threshold_values(self, min_quality: float, min_coverage_ratio: float) -> None:
-        self._quality_spin.blockSignals(True)
-        self._coverage_spin.blockSignals(True)
-        self._quality_spin.setValue(float(min_quality))
-        self._coverage_spin.setValue(float(min_coverage_ratio) * 100.0)
-        self._quality_spin.blockSignals(False)
-        self._coverage_spin.blockSignals(False)
+    def set_acceptance_threshold_values(
+        self,
+        intrinsics_quality: float,
+        intrinsics_coverage_ratio: float,
+        extrinsics_quality: float,
+        extrinsics_coverage_ratio: float,
+    ) -> None:
+        for spin, value in (
+            (self._intrinsics_quality_spin, float(intrinsics_quality)),
+            (self._intrinsics_coverage_spin, float(intrinsics_coverage_ratio) * 100.0),
+            (self._extrinsics_quality_spin, float(extrinsics_quality)),
+            (self._extrinsics_coverage_spin, float(extrinsics_coverage_ratio) * 100.0),
+        ):
+            spin.blockSignals(True)
+            spin.setValue(value)
+            spin.blockSignals(False)
 
-    def acceptance_threshold_values(self) -> tuple[float, float]:
-        return float(self._quality_spin.value()), float(self._coverage_spin.value()) / 100.0
+    def acceptance_threshold_values(self) -> tuple[float, float, float, float]:
+        return (
+            float(self._intrinsics_quality_spin.value()),
+            float(self._intrinsics_coverage_spin.value()) / 100.0,
+            float(self._extrinsics_quality_spin.value()),
+            float(self._extrinsics_coverage_spin.value()) / 100.0,
+        )
 
     def load_root_directory(self, directory_path: Path | str) -> None:
         path = Path(directory_path)
