@@ -220,54 +220,11 @@ class _PreviewCanvas(QLabel):
     def _draw_overlay(self, painter: QtGui.QPainter, image_rect: QtCore.QRectF) -> None:
         if self._detection is None:
             return
+        # The textual feedback (source/samples/state/metrics) is shown in a label
+        # above the image, not painted over the camera picture. Only the spatial
+        # coverage grid and the detected-corner marks are drawn on the frame.
         self._draw_grid(painter, image_rect)
         self._draw_detection_marks(painter, image_rect)
-        self._draw_header(painter, image_rect)
-        self._draw_coverage_label(painter, image_rect)
-
-    def _draw_header(self, painter: QtGui.QPainter, image_rect: QtCore.QRectF) -> None:
-        detection = self._detection
-        if detection is None:
-            return
-        sample_count = int(self._overlay_state.get("sample_count", self._sample_count) or 0)
-        accepted = self._overlay_state.get("accepted")
-        state_text = "Detected" if detection.found else "Not detected"
-        if accepted is True:
-            state_text = "Accepted"
-        elif accepted is False:
-            state_text = "Rejected"
-        header = f"{detection.source_id} | samples:{sample_count} | {detection.pattern_type} | {state_text}"
-        metrics = (
-            f"corners:{detection.detected_corners} | "
-            f"quality:{detection.quality_score:.2f} | coverage:{detection.coverage_ratio * 100:.1f}%"
-        )
-        lines = [header, metrics]
-        if detection.diagnostics:
-            lines.append(detection.diagnostics[0])
-
-        scale = self._overlay_scale()
-        font = QtGui.QFont("Segoe UI")
-        font.setPixelSize(max(7, int(max(11, min(22, int(image_rect.height() / 34))) * scale)))
-        font.setBold(True)
-        small = QtGui.QFont("Segoe UI")
-        small.setPixelSize(max(7, int(font.pixelSize() * 0.78)))
-        margin = max(4, int(image_rect.height() * 0.016 * scale))
-        x = image_rect.left() + margin
-        y = image_rect.top() + margin
-        color = QtGui.QColor(255, 118, 76) if not detection.found else QtGui.QColor(95, 235, 140)
-        for index, text in enumerate(lines):
-            painter.setFont(font if index == 0 else small)
-            metrics_obj = QtGui.QFontMetrics(painter.font())
-            rect = QtCore.QRectF(
-                x,
-                y,
-                metrics_obj.horizontalAdvance(text) + 10,
-                metrics_obj.height() + 4,
-            )
-            painter.fillRect(rect, QtGui.QColor(0, 0, 0, 175))
-            painter.setPen(color if index == 0 else QtGui.QColor(245, 250, 255))
-            painter.drawText(rect.adjusted(5, 0, -5, 0), Qt.AlignmentFlag.AlignVCenter, text)
-            y += rect.height() + 1
 
     def _draw_grid(self, painter: QtGui.QPainter, image_rect: QtCore.QRectF) -> None:
         cols, rows = self._grid_shape()
@@ -347,29 +304,6 @@ class _PreviewCanvas(QLabel):
         radius = max(1.5, min(5.0, image_rect.height() / 160.0) * self._overlay_scale())
         for point in points:
             painter.drawEllipse(point, radius, radius)
-
-    def _draw_coverage_label(self, painter: QtGui.QPainter, image_rect: QtCore.QRectF) -> None:
-        visited = int(self._overlay_state.get("visited_cells", 0) or 0)
-        total = int(self._overlay_state.get("total_cells", 0) or 0)
-        ratio = float(self._overlay_state.get("coverage_ratio", 0.0) or 0.0)
-        if total <= 0:
-            cols, rows = self._grid_shape()
-            total = cols * rows
-        text = f"coverage grid {visited}/{total} ({ratio * 100.0:.0f}%)"
-        font = QtGui.QFont("Segoe UI")
-        font.setBold(True)
-        font.setPixelSize(max(7, int(max(10, min(18, int(image_rect.height() / 38))) * self._overlay_scale())))
-        painter.setFont(font)
-        metrics_obj = QtGui.QFontMetrics(font)
-        rect = QtCore.QRectF(
-            image_rect.left() + 8,
-            image_rect.bottom() - metrics_obj.height() - 10,
-            metrics_obj.horizontalAdvance(text) + 10,
-            metrics_obj.height() + 5,
-        )
-        painter.fillRect(rect, QtGui.QColor(0, 0, 0, 170))
-        painter.setPen(QtGui.QColor(245, 250, 255))
-        painter.drawText(rect.adjusted(5, 0, -5, 0), Qt.AlignmentFlag.AlignVCenter, text)
 
     def _grid_shape(self) -> tuple[int, int]:
         value = self._overlay_state.get("grid_shape", (6, 4))
@@ -481,12 +415,19 @@ class DesignedPreviewPopout(QDialog):
         controls.addWidget(self._undistort_button)
         controls.addWidget(self._delete_button)
 
+        # Feedback text above the image instead of painted over the camera picture.
+        self._status = QLabel("Wachten op livebeeld")
+        self._status.setWordWrap(True)
+        self._status.setContentsMargins(6, 0, 6, 0)
+        self._status.setStyleSheet("QLabel { color: #1f2937; font-size: 12px; }")
+
         self._image = _PreviewCanvas("Geen beeld")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         layout.addLayout(controls)
+        layout.addWidget(self._status)
         layout.addWidget(self._image)
 
         self._title_button.clicked.connect(self.rename_requested)
@@ -523,6 +464,8 @@ class DesignedPreviewPopout(QDialog):
         sample_count: int = 0,
     ) -> None:
         self._last_pixmap = pixmap
+        if status:
+            self._status.setText(status)
         self._image.set_frame_pixmap(pixmap)
         self._image.set_overlay_data(detection, overlay_state, status, sample_count)
 
@@ -636,8 +579,10 @@ class DesignedPreviewTile(QFrame):
         self._image = _PreviewCanvas("Geen beeld")
         self._image.setFixedSize(380, 285)
 
+        # Feedback text lives above the image (not drawn over the camera picture).
         self._status = QLabel("Wachten op livebeeld")
         self._status.setWordWrap(True)
+        self._status.setStyleSheet("QLabel { color: #1f2937; font-size: 11px; }")
         # Progress shows the percentage of captured samples relative to the max for
         # the active mode. Text is hidden; the bar turns green once the max is hit.
         self._sample_target = 0
@@ -652,8 +597,8 @@ class DesignedPreviewTile(QFrame):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(5)
         layout.addLayout(controls)
-        layout.addWidget(self._image)
         layout.addWidget(self._status)
+        layout.addWidget(self._image)
         layout.addWidget(self._progress)
 
         self.setFrameShape(QFrame.Shape.NoFrame)
