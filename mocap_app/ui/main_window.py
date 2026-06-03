@@ -34,7 +34,7 @@ from mocap_app.workers.calibration_solve_worker import IntrinsicsSolveWorker
 from mocap_app.workers.camera_probe_worker import CameraProbeWorker
 from mocap_app.workers.capture_worker import LiveCaptureWorker
 from mocap_app.workers.detection_worker import CalibrationDetectionWorker
-from mocap_app.workers.preview_render_worker import PreviewRenderWorker
+from mocap_app.workers.preview_render_worker import PreviewRenderWorker, resize_for_preview
 
 
 LOGGER = logging.getLogger(__name__)
@@ -953,29 +953,17 @@ class MainWindow(QMainWindow):
             return 1.0
 
     def _downscale_for_display(self, frame_bgr: Any) -> Any:
-        """Shrink a frame to the preview resolution for display only.
+        """Render a frame at the configured preview resolution for display only.
 
+        The frame is scaled (down *or* up) to fit the preview box while keeping
+        its aspect ratio, so every camera's preview lands on the same configured
+        resolution immediately - regardless of its native capture resolution.
         Detection, calibration and recording use the full capture-resolution
-        frame; this only reduces the cost of rendering the on-screen preview.
+        frame; this only affects the on-screen preview.
         """
         max_width = int(getattr(self._runtime_tuning, "preview_max_width", 0) or 0)
         max_height = int(getattr(self._runtime_tuning, "preview_max_height", 0) or 0)
-        if max_width <= 0 and max_height <= 0:
-            return frame_bgr
-        height, width = frame_bgr.shape[:2]
-        if width <= 0 or height <= 0:
-            return frame_bgr
-        scale_candidates: list[float] = []
-        if max_width > 0:
-            scale_candidates.append(max_width / float(width))
-        if max_height > 0:
-            scale_candidates.append(max_height / float(height))
-        scale = min(scale_candidates) if scale_candidates else 1.0
-        if scale >= 1.0:
-            return frame_bgr
-        target_width = max(1, int(round(width * scale)))
-        target_height = max(1, int(round(height * scale)))
-        return cv2.resize(frame_bgr, (target_width, target_height), interpolation=cv2.INTER_AREA)
+        return resize_for_preview(frame_bgr, max_width, max_height)
 
     def _finalize_calibration_preview_frames(
         self,

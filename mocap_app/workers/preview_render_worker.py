@@ -14,6 +14,41 @@ from mocap_app.io.calibration_io import CalibrationManager
 LOGGER = logging.getLogger(__name__)
 
 
+def resize_for_preview(frame_bgr: Any, max_width: int, max_height: int) -> Any:
+    """Scale a frame to the configured preview box for display only.
+
+    The frame is scaled down *or* up so it fills the ``max_width`` x ``max_height``
+    box as much as possible while preserving its aspect ratio. This normalises
+    every camera's preview to the same configured resolution regardless of its
+    native capture resolution. A non-positive width/height means "unconstrained"
+    on that axis; when both are unset the frame is returned untouched.
+    """
+    max_width = int(max_width or 0)
+    max_height = int(max_height or 0)
+    if max_width <= 0 and max_height <= 0:
+        return frame_bgr
+    height, width = frame_bgr.shape[:2]
+    if width <= 0 or height <= 0:
+        return frame_bgr
+    scale_candidates: list[float] = []
+    if max_width > 0:
+        scale_candidates.append(max_width / float(width))
+    if max_height > 0:
+        scale_candidates.append(max_height / float(height))
+    if not scale_candidates:
+        return frame_bgr
+    scale = min(scale_candidates)
+    if scale <= 0:
+        return frame_bgr
+    target_width = max(1, int(round(width * scale)))
+    target_height = max(1, int(round(height * scale)))
+    if target_width == width and target_height == height:
+        return frame_bgr
+    # INTER_AREA gives the best quality when shrinking; INTER_LINEAR when growing.
+    interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+    return cv2.resize(frame_bgr, (target_width, target_height), interpolation=interpolation)
+
+
 class PreviewRenderWorker(QObject):
     """Prepares display-ready preview images off the UI thread.
 
@@ -84,29 +119,10 @@ class PreviewRenderWorker(QObject):
             )
         if mirror:
             frame_bgr = cv2.flip(frame_bgr, 1)
-        frame_bgr = self._downscale(frame_bgr, max_width, max_height)
+        frame_bgr = resize_for_preview(frame_bgr, max_width, max_height)
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         rgb = np.ascontiguousarray(rgb)
         height, width, channels = rgb.shape
         return QImage(
             rgb.data, width, height, channels * width, QImage.Format.Format_RGB888
         ).copy()
-
-    @staticmethod
-    def _downscale(frame_bgr: Any, max_width: int, max_height: int) -> Any:
-        if max_width <= 0 and max_height <= 0:
-            return frame_bgr
-        height, width = frame_bgr.shape[:2]
-        if width <= 0 or height <= 0:
-            return frame_bgr
-        scale_candidates: list[float] = []
-        if max_width > 0:
-            scale_candidates.append(max_width / float(width))
-        if max_height > 0:
-            scale_candidates.append(max_height / float(height))
-        scale = min(scale_candidates) if scale_candidates else 1.0
-        if scale >= 1.0:
-            return frame_bgr
-        target_width = max(1, int(round(width * scale)))
-        target_height = max(1, int(round(height * scale)))
-        return cv2.resize(frame_bgr, (target_width, target_height), interpolation=cv2.INTER_AREA)
