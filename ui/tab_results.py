@@ -148,7 +148,7 @@ class TabResults:
     def _bundle_to_toml(bundle) -> str:
         lines: list[str] = []
         lines.append('[metadata]')
-        lines.append(f'app = "PhysioMotionTracker"')
+        lines.append(f'app = "HuCalib"')
         for key, value in bundle.metadata.items():
             if isinstance(value, (int, float)):
                 lines.append(f"{key} = {value}")

@@ -1,1 +1,1 @@
-"""Designed PhysioMotionTracker UI package (PySide6 port)."""
+"""Designed HuCalib UI package (PySide6 port)."""

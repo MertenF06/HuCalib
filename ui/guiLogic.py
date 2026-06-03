@@ -1,4 +1,4 @@
-"""Logic / orchestration glue for the PhysioMotionTracker UI.
+"""Logic / orchestration glue for the HuCalib UI.
 
 Owns the calibration backend objects (manager, repository, current bundle)
 and brokers signals between the designed UI and the tabs.
@@ -94,7 +94,7 @@ class Logic(QtCore.QObject):
 
         # Boot banner
         self.log_to_console(
-            f"PhysioMotionTracker gestart - kalibratiemap: {self.config.calibration_dir}"
+            f"w gestart - kalibratiemap: {self.config.calibration_dir}"
         )
         if self.current_bundle is not None:
             self.log_to_console(
@@ -215,5 +215,5 @@ class Logic(QtCore.QObject):
         self.window.close()
 
     def open_documentation(self) -> None:
-        webbrowser.open("https://github.com/MaxUntersalmberger/PhysioMotionTracker")
+        webbrowser.open("https://github.com/MertenF06/HuCalib/settings")
         self.log_to_console("Documentatie geopend in de browser.")

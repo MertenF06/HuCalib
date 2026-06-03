@@ -32,7 +32,7 @@ _DERIVED_PATH_KEYS = {"app_root", *_PROJECT_RELATIVE_DIRS}
 
 @dataclass(slots=True)
 class AppConfig:
-    app_name: str = "PhysioMotionTracker"
+    app_name: str = "HuCalib"
     app_root: Path = field(default_factory=_app_root)
     target_fps: float = 30.0
     default_camera_csv: str = "0"

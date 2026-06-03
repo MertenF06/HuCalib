@@ -85,7 +85,7 @@ def to_motion_capture_toml(payload: dict[str, Any]) -> tuple[str, list[str], int
     mapping, skipped = build_motion_capture_payload(payload)
     included = sum(1 for key in mapping if key != "metadata")
     header = [
-        "# Calibration exported by PhysioMotionTracker for motion analysis "
+        "# Calibration exported by HuCalib for motion analysis "
         "(aniposelib/Anipose-compatible).",
         "# rotation = Rodrigues vector (3 elements); translation in calibration board "
         "units (meters); size = [width, height].",

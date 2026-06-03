@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PhysioMotionTracker designed UI - ported to PySide6.
+"""HuCalib designed UI - ported to PySide6.
 
 Widget object names and the page indices below are part of the public
 contract with the tab modules (tab_home, tab_cameras, ...). Keep them
@@ -220,7 +220,7 @@ class Ui_MainWindow(object):
 
         self.label_main_text = QtWidgets.QLabel(self.page_home)
         self.label_main_text.setObjectName("label_main_text")
-        self.label_main_text.setText("PhysioMotionTracker")
+        self.label_main_text.setText("HuCalib")
         self.label_main_text.setProperty("display", True)
         outer.addWidget(self.label_main_text)
 
@@ -738,7 +738,7 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
         _t = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_t("MainWindow", "PhysioMotionTracker"))
+        MainWindow.setWindowTitle(_t("MainWindow", "HuCalib"))
         self.menuFile.setTitle(_t("MainWindow", "&File"))
         self.menuRun.setTitle(_t("MainWindow", "Run"))
         self.menuHelp.setTitle(_t("MainWindow", "Help"))

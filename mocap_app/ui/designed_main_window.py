@@ -1531,7 +1531,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def _open_documentation(self) -> None:
-        webbrowser.open("https://github.com/MaxUntersalmberger/PhysioMotionTracker")
+        webbrowser.open("https://github.com/MertenF06/HuCalib")
         self._log("Documentation opened in web browser.")
 
     def _warn_capture_restart_needed(self) -> None:
