@@ -665,11 +665,26 @@ class MainWindow(QMainWindow):
         message = self._auto_capture_stop_message_if_limit_reached()
         if message is None:
             return False
+        completed_mode = self._calibration_workflow_mode()
         self._calibration_panel.set_auto_capture_enabled(False)
         self._calibration_panel.set_auto_capture_status(message)
         self._calibration_panel.show_feedback(message, success=True)
         self._set_status(message)
+        # Once every camera has its full set of intrinsic samples, auto-advance to
+        # the extrinsics capture mode (the extrinsics solve then jumps to Results).
+        if completed_mode == "intrinsics":
+            self._maybe_auto_advance_to_extrinsics()
         return True
+
+    def _maybe_auto_advance_to_extrinsics(self) -> None:
+        """Switch from intrinsics to extrinsics capture mode when auto-navigation
+        is on. No-op for panels that don't support it or when the toggle is off."""
+        if not getattr(self._calibration_panel, "auto_navigation_enabled", lambda: False)():
+            return
+        enter_extrinsics = getattr(self._calibration_panel, "enter_extrinsics_mode", None)
+        if callable(enter_extrinsics):
+            enter_extrinsics()
+            self._set_status("Intrinsics compleet — automatisch overgeschakeld naar Extrinsics.")
 
     def _auto_capture_intrinsics_candidates(self, source_ids: list[str]) -> list[str]:
         limit = self._calibration_panel.auto_capture_max_samples()

@@ -1234,7 +1234,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
         for widget in [
             self._capture_resolution_combo,
             self._preview_resolution_combo,
-            self._workflow_combo,
             self.window.combo_cap_pattern,
         ]:
             self._compact_field(widget, 180)
@@ -1431,11 +1430,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         form_widget = QWidget()
         form = QFormLayout(form_widget)
         self._setup_compact_form(form)
-        form.addRow("Workflow", self._workflow_combo)
+        # Workflow mode and auto-capture are driven entirely from the Camera tab
+        # (the Intrinsics/Extrinsics Start buttons), so their controls are kept as
+        # internal state only and intentionally not shown here.
         form.addRow("Pattern", self.window.combo_cap_pattern)
         form.addRow("Overlay", self._overlay_checkbox)
         form.addRow("Spiegelen", self._mirror_checkbox)
-        form.addRow("Auto Capture", self._auto_capture_checkbox)
         form.addRow("Cooldown", self._auto_cooldown_spin)
         form.addRow("Max Samples (Intrinsics)", self._auto_max_intrinsics_spin)
         form.addRow("Max Samples (Extrinsics)", self._auto_max_extrinsics_spin)
@@ -1784,6 +1784,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._enter_capture_mode("sync_extrinsics")
         else:
             self._exit_capture_mode("sync_extrinsics")
+
+    def enter_extrinsics_mode(self) -> None:
+        """Public hook for the controller to auto-advance from intrinsics to the
+        extrinsics capture mode once every camera has its intrinsic samples."""
+        self._enter_capture_mode("sync_extrinsics")
 
     def _enter_capture_mode(self, mode: str) -> None:
         """Arm a capture mode.
