@@ -37,27 +37,27 @@ Open an Anaconda-enabled command prompt and follow the steps below:
 
 **1. Create a Python environment**
 ```bash
-conda create -n HUmocap-env python=3.12
+conda create -n HuCalib-env python=3.12
 ```
 
 **2. Activate the environment**
 ```bash
-conda activate HUmocap-env
+conda activate HuCalib-env
 ```
 
 **3. Clone the repository**
 ```bash
-git clone https://github.com/MaxUntersalmberger/PhysioMotionTracker
+git clone AANPASSEN
 ```
 
 **4. Install the required libraries**
 ```bash
-pip install -r "PhysioMotionTracker/Calibratie Programma/requirements.txt"
+pip install -r "NIEUWE REQUIREMENTS"
 ```
 
 **5. Launch the GUI**
 ```bash
-python PhysioMotionTracker/GUI/guiMain.py
+python AANPASSEN!!
 ```
 
 The GUI will open automatically in a new window.
@@ -80,7 +80,7 @@ Follow the calibration steps in the GUI. Afterwards, the camera parameters are s
 
 ## Contributing
 
-This project was developed by students at Hogeschool Utrecht. Contributions are welcome! Open an [issue](https://github.com/MaxUntersalmberger/PhysioMotionTracker/issues) or submit a pull request.
+This project was developed by students at Hogeschool Utrecht. Contributions are welcome! Open an [issue](https://github.com/MertenF06/HuCalib/issues) or submit a pull request.
 
 ---
 
