@@ -918,6 +918,8 @@ class MainWindow(QMainWindow):
                 summary = {}
             states[source_id] = {
                 "overlay_enabled": self._calibration_panel.overlay_enabled_for(source_id),
+                # The coverage grid is intrinsics-only; hide it in extrinsics mode.
+                "show_grid": self._calibration_workflow_mode() != "sync_extrinsics",
                 "overlay_scale": self._overlay_scale(),
                 "mirror": self._calibration_panel.mirror_preview_enabled_for(source_id),
                 "sample_count": int(sample_counts.get(source_id, 0)),

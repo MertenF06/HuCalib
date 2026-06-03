@@ -208,6 +208,7 @@ class _PreviewCanvas(QLabel):
             int(state.get("visited_cells", 0) or 0),
             int(state.get("total_cells", 0) or 0),
             round(float(state.get("coverage_ratio", 0.0) or 0.0), 4),
+            bool(state.get("show_grid", True)),
             round(self._overlay_scale(), 3),
         )
 
@@ -222,8 +223,11 @@ class _PreviewCanvas(QLabel):
             return
         # The textual feedback (source/samples/state/metrics) is shown in a label
         # above the image, not painted over the camera picture. Only the spatial
-        # coverage grid and the detected-corner marks are drawn on the frame.
-        self._draw_grid(painter, image_rect)
+        # coverage grid and the detected-corner marks are drawn on the frame. The
+        # coverage grid is intrinsics-specific, so it is suppressed in extrinsics
+        # mode while the detection marks (and the text label) stay.
+        if self._overlay_state.get("show_grid", True):
+            self._draw_grid(painter, image_rect)
         self._draw_detection_marks(painter, image_rect)
 
     def _draw_grid(self, painter: QtGui.QPainter, image_rect: QtCore.QRectF) -> None:
