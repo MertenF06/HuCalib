@@ -227,6 +227,13 @@ class CalibrationManager:
         self._samples: dict[str, list[CalibrationSample]] = {}
         self._capture_sets: list[CalibrationCaptureSet] = []
         self._last_solution: CalibrationBundle | None = None
+        # Per-source spatial-coverage cache. spatial_coverage_summary() is O(number
+        # of samples) and is called for every camera on every preview frame, so
+        # without this the live view degrades as samples accumulate. Each source's
+        # entry carries the sample "version" it was computed for; appending a sample
+        # bumps the version and invalidates the cache for that source.
+        self._samples_version: dict[str, int] = {}
+        self._spatial_summary_cache: dict[str, dict[str, Any]] = {}
         # Cache of precomputed undistort rectify maps per source. Keyed on the
         # intrinsics/distortion/image-size signature so the maps are rebuilt
         # automatically whenever the calibration or frame size changes. Guarded
@@ -341,6 +348,9 @@ class CalibrationManager:
         min_grid_coverage_ratio: float | None = None,
     ) -> None:
         self._spatial_grid_shape = (max(1, int(cols)), max(1, int(rows)))
+        # The grid shape feeds the coverage computation, so any cached summaries
+        # are stale once it changes.
+        self._spatial_summary_cache.clear()
         if min_grid_coverage_ratio is not None:
             self._min_spatial_grid_coverage_ratio = float(
                 np.clip(min_grid_coverage_ratio, 0.0, 1.0)
@@ -350,6 +360,8 @@ class CalibrationManager:
         """Remove all captured calibration samples."""
         self._samples.clear()
         self._capture_sets.clear()
+        self._samples_version.clear()
+        self._spatial_summary_cache.clear()
 
     def reset_all(self) -> None:
         """Remove captured samples and forget the last solved calibration."""
@@ -1112,6 +1124,26 @@ class CalibrationManager:
         include_sample_summaries: bool = True,
         target_samples_per_cell: int | None = None,
     ) -> dict[str, Any]:
+        # Only the internal-sample path is cacheable; an explicit ``samples`` list is
+        # caller-specific and may differ from the stored samples.
+        use_cache = samples is None
+        cache_key: tuple[Any, ...] | None = None
+        if use_cache:
+            cache_key = (
+                bool(include_sync_only),
+                bool(include_sample_summaries),
+                target_samples_per_cell,
+                self._spatial_grid_shape,
+            )
+            version = self._samples_version.get(source_id, 0)
+            source_cache = self._spatial_summary_cache.get(source_id)
+            if source_cache is None or source_cache.get("version") != version:
+                source_cache = {"version": version, "entries": {}}
+                self._spatial_summary_cache[source_id] = source_cache
+            cached = source_cache["entries"].get(cache_key)
+            if cached is not None:
+                return cached
+
         selected_samples = list(samples) if samples is not None else list(self._samples.get(source_id, []))
         if not include_sync_only:
             selected_samples = [sample for sample in selected_samples if sample.accepted_for_intrinsics]
@@ -1217,7 +1249,7 @@ class CalibrationManager:
             "bottom_right": int(credited_hit_counts[rows - 1, cols - 1]) if rows and cols else 0,
         }
 
-        return {
+        result = {
             "source_id": source_id,
             "grid_cols": cols,
             "grid_rows": rows,
@@ -1245,6 +1277,9 @@ class CalibrationManager:
             "visited_cell_indices": visited_cell_indices,
             "samples": sample_summaries,
         }
+        if use_cache and cache_key is not None:
+            self._spatial_summary_cache[source_id]["entries"][cache_key] = result
+        return result
 
     def _spatial_cells_for_sample(
         self,
@@ -1600,6 +1635,7 @@ class CalibrationManager:
     def _append_sample(self, source_id: str, sample: CalibrationSample) -> int:
         samples = self._samples.setdefault(source_id, [])
         samples.append(sample)
+        self._samples_version[source_id] = self._samples_version.get(source_id, 0) + 1
         return len(samples)
 
     def _is_sample_novel(self, samples: list[CalibrationSample], detection: ChessboardDetectionResult) -> bool:
