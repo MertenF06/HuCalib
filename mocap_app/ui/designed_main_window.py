@@ -1074,20 +1074,22 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._capture_resolution_combo.addItem("960 x 540", (960, 540))
         self._capture_resolution_combo.addItem("1280 x 720", (1280, 720))
         self._capture_resolution_combo.addItem("1920 x 1080", (1920, 1080))
-        # Default to 640x480: the resolution most webcams run at full frame rate,
-        # so the live view stays smooth. It is still a standard, sharp
-        # calibration resolution. Raise this in advanced settings for more detail
-        # if the camera can sustain a higher resolution at a good frame rate.
-        self._capture_resolution_combo.setCurrentIndex(1)
+        # Default capture at 1080p for sharp, detailed calibration frames; the
+        # preview is downscaled separately so the live view stays smooth.
+        self._capture_resolution_combo.setCurrentIndex(
+            self._capture_resolution_combo.findData((1920, 1080))
+        )
         self._preview_resolution_combo = QComboBox()
         self._preview_resolution_combo.addItem("Auto", (0, 0))
         self._preview_resolution_combo.addItem("640 x 480", (640, 480))
         self._preview_resolution_combo.addItem("960 x 540", (960, 540))
         self._preview_resolution_combo.addItem("1280 x 720", (1280, 720))
         self._preview_resolution_combo.addItem("1920 x 1080", (1920, 1080))
-        # Downscale the on-screen preview so display stays fast and low-latency,
-        # independent of the (higher) capture resolution used for calibration.
-        self._preview_resolution_combo.setCurrentIndex(1)
+        # Downscale the on-screen preview to 720p so display stays fast and
+        # low-latency, independent of the (higher) capture resolution.
+        self._preview_resolution_combo.setCurrentIndex(
+            self._preview_resolution_combo.findData((1280, 720))
+        )
         self._probe_max_spin = self._spin(1, 20, 10)
 
         self._chess_cols_spin = self._spin(2, 30, 9)
