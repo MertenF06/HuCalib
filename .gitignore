@@ -1,0 +1,11 @@
+# Logs
+logs/
+*.log
+
+# Test / patroon calibratiedata
+calibration/test/
+calibration/[Tt]est*
+
+# Python
+__pycache__/
+*.py[cod]
