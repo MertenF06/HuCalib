@@ -619,6 +619,14 @@ class MainWindow(QMainWindow):
             for source_id in self._active_source_ids()
         }
 
+    def _preview_sample_counts(self) -> dict[str, int]:
+        """Per-camera sample count for the active mode, shown on the tile progress
+        bars: intrinsic observations in intrinsics mode, synchronized sets in
+        extrinsics mode, so the two budgets never bleed into each other."""
+        if self._calibration_workflow_mode() == "sync_extrinsics":
+            return self._synchronized_counts_by_source()
+        return self._calibration_manager.observations_summary(include_sync_only=False)
+
     def _auto_capture_stop_message_if_limit_reached(self) -> str | None:
         limit = self._calibration_panel.auto_capture_max_samples()
         if limit <= 0:
@@ -711,7 +719,7 @@ class MainWindow(QMainWindow):
         if not force and not detection_due and frame_indices == self._last_rendered_frame_indices:
             return
 
-        sample_counts = self._calibration_manager.observations_summary(include_sync_only=False)
+        sample_counts = self._preview_sample_counts()
         detections = dict(self._latest_calibration_detections)
 
         if detection_due and not self._detection_request_in_flight:
@@ -853,7 +861,7 @@ class MainWindow(QMainWindow):
         images = data.get("images") or {}
         if not images or not hasattr(self._calibration_panel, "update_preview_images"):
             return
-        sample_counts = self._calibration_manager.observations_summary(include_sync_only=False)
+        sample_counts = self._preview_sample_counts()
         detections = dict(self._latest_calibration_detections)
         overlay_states = self._build_preview_overlay_states(detections, sample_counts)
         self._calibration_panel.update_preview_images(
@@ -1713,7 +1721,7 @@ class MainWindow(QMainWindow):
         preview_frames: dict[str, Any] = {}
         detections: dict[str, ChessboardDetectionResult] = {}
         accepted_by_source: dict[str, bool | None] = {}
-        sample_counts = self._calibration_manager.observations_summary(include_sync_only=False)
+        sample_counts = self._preview_sample_counts()
 
         for source_id, frame in active_frames.items():
             feedback = feedback_by_source.get(source_id)

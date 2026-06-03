@@ -638,11 +638,15 @@ class DesignedPreviewTile(QFrame):
 
         self._status = QLabel("Wachten op livebeeld")
         self._status.setWordWrap(True)
+        # Progress shows the percentage of captured samples relative to the max for
+        # the active mode. Text is hidden; the bar turns green once the max is hit.
+        self._sample_target = 0
+        self._progress_full = False
         self._progress = QProgressBar()
         self._progress.setRange(0, 100)
         self._progress.setValue(0)
-        self._progress.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._progress.setFormat("0/100")
+        self._progress.setTextVisible(False)
+        self._refresh_progress()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -720,9 +724,35 @@ class DesignedPreviewTile(QFrame):
             self._popout.set_mirror_active(active)
         self.preview_options_changed.emit()
 
+    _PROGRESS_FULL_STYLE = (
+        "QProgressBar::chunk { background-color: #2e9e3f; }"
+    )
+
+    def set_sample_target(self, target: int) -> None:
+        self._sample_target = max(int(target), 0)
+        self._refresh_progress()
+
     def set_sample_count(self, count: int) -> None:
-        self._progress.setValue(min(max(int(count), 0), 100))
-        self._progress.setFormat(f"{int(count)}/100")
+        self._last_sample_count = max(int(count), 0)
+        self._refresh_progress()
+
+    def _refresh_progress(self) -> None:
+        count = max(int(self._last_sample_count), 0)
+        target = int(self._sample_target)
+        if target > 0:
+            percent = min(int(round(count / target * 100)), 100)
+            full = count >= target
+        else:
+            # No limit configured: show raw progress, never mark as "full".
+            percent = min(count, 100)
+            full = False
+        self._progress.setValue(percent)
+        # Only re-apply the stylesheet when the full/not-full state flips, otherwise
+        # every preview frame would force a style re-polish on the bar.
+        if full != self._progress_full:
+            self._progress_full = full
+            self._progress.setStyleSheet(self._PROGRESS_FULL_STYLE if full else "")
+        self._progress.setToolTip(f"{count}/{target}" if target > 0 else f"{count} samples")
 
     def set_frame(
         self,
@@ -1133,9 +1163,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
             "Nieuw project opent het Camera-tabblad; een afgeronde kalibratie opent het Resultaten-tabblad."
         )
         self._auto_cooldown_spin = self._double_spin(0.1, 10.0, 0.33, 0.01, 2)
-        self._auto_max_spin = self._spin(0, 1000, 60)
-        self._auto_max_spin.setSpecialValueText("No limit")
-        self._auto_max_spin.setSuffix(" samples")
+        # Separate sample budgets per mode: intrinsics needs many per-camera poses,
+        # extrinsics only needs a handful of synchronized sets shared between cameras.
+        self._auto_max_intrinsics_spin = self._spin(0, 1000, 60)
+        self._auto_max_intrinsics_spin.setSpecialValueText("No limit")
+        self._auto_max_intrinsics_spin.setSuffix(" samples")
+        self._auto_max_extrinsics_spin = self._spin(0, 1000, 40)
+        self._auto_max_extrinsics_spin.setSpecialValueText("No limit")
+        self._auto_max_extrinsics_spin.setSuffix(" samples")
         self._quality_spin = self._double_spin(0.0, 1.0, 0.25, 0.05, 2)
         self._coverage_spin = self._double_spin(0.0, 25.0, 1.8, 0.2, 1)
         self._coverage_spin.setSuffix(" %")
@@ -1218,7 +1253,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._charuco_square_spin,
             self._charuco_marker_spin,
             self._auto_cooldown_spin,
-            self._auto_max_spin,
+            self._auto_max_intrinsics_spin,
+            self._auto_max_extrinsics_spin,
             self._quality_spin,
             self._coverage_spin,
             self._grid_cols_spin,
@@ -1401,7 +1437,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         form.addRow("Spiegelen", self._mirror_checkbox)
         form.addRow("Auto Capture", self._auto_capture_checkbox)
         form.addRow("Cooldown", self._auto_cooldown_spin)
-        form.addRow("Max Samples", self._auto_max_spin)
+        form.addRow("Max Samples (Intrinsics)", self._auto_max_intrinsics_spin)
+        form.addRow("Max Samples (Extrinsics)", self._auto_max_extrinsics_spin)
         form.addRow("Relaxed Sync", self._relaxed_sync_checkbox)
         form.addRow("Min Quality", self._quality_spin)
         form.addRow("Min Coverage", self._coverage_spin)
@@ -2180,7 +2217,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._add_camera_button.setToolTip("Voeg de volgende gevonden camera toe.")
 
     def _tile_status(self, count: int, detection: ChessboardDetectionResult | None) -> str:
-        status = f"Intrinsics={count}"
+        label = "Extrinsics" if self.current_workflow_mode() == "sync_extrinsics" else "Intrinsics"
+        status = f"{label}={count}"
         if detection is not None and detection.found:
             status += (
                 f" | {detection.pattern_type}"
@@ -2200,12 +2238,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
         overlay_states: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         overlay_states = overlay_states or {}
+        target = self.auto_capture_max_samples()
         for source_id, frame_bgr in preview_frames.items():
             tile = self._tiles.get(source_id)
             if tile is None:
                 continue
             detection = detections.get(source_id)
             count = int(sample_counts.get(source_id, 0))
+            tile.set_sample_target(target)
             tile.set_frame(
                 frame_bgr,
                 self._tile_status(count, detection),
@@ -2223,12 +2263,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
     ) -> None:
         """Display frames already prepared (RGB QImage) by the render worker."""
         overlay_states = overlay_states or {}
+        target = self.auto_capture_max_samples()
         for source_id, image in images.items():
             tile = self._tiles.get(source_id)
             if tile is None:
                 continue
             detection = detections.get(source_id)
             count = int(sample_counts.get(source_id, 0))
+            tile.set_sample_target(target)
             tile.set_frame_image(
                 image,
                 self._tile_status(count, detection),
@@ -2442,8 +2484,18 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def auto_capture_cooldown_sec(self) -> float:
         return float(self._auto_cooldown_spin.value())
 
+    def intrinsics_max_samples(self) -> int:
+        return int(self._auto_max_intrinsics_spin.value())
+
+    def extrinsics_max_samples(self) -> int:
+        return int(self._auto_max_extrinsics_spin.value())
+
     def auto_capture_max_samples(self) -> int:
-        return int(self._auto_max_spin.value())
+        # Mode-specific budget: intrinsics and extrinsics keep separate sample
+        # limits so capturing one no longer eats into the other's progress.
+        if self.current_workflow_mode() == "sync_extrinsics":
+            return self.extrinsics_max_samples()
+        return self.intrinsics_max_samples()
 
     def set_auto_capture_status(self, message: str) -> None:
         self._auto_status.setText(message)
