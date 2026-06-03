@@ -1439,23 +1439,6 @@ class MainWindow(QMainWindow):
         # the project regardless of any absolute paths in app_settings.json.
         return self._config.app_root / "recordings"
 
-    def _choose_recording_base_dir(self) -> Path | None:
-        default = self._last_recording_dir or self._default_recordings_base_dir()
-        try:
-            default.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            default = self._default_recordings_base_dir()
-        selected = QFileDialog.getExistingDirectory(
-            self,
-            "Kies een map om de opname in op te slaan",
-            str(default),
-        )
-        if not selected:
-            return None
-        chosen = Path(selected)
-        self._last_recording_dir = chosen
-        return chosen
-
     def _on_record_toggled(self, enabled: bool) -> None:
         if not enabled:
             self._finalize_recording()
@@ -1467,10 +1450,18 @@ class MainWindow(QMainWindow):
             self._show_warning("Start eerst de live weergave voordat je een opname maakt.")
             return
 
-        base_dir = self._choose_recording_base_dir()
-        if base_dir is None:
+        # No prompt at start: always record into the default "recordings" folder.
+        # The save location / rename / delete options are offered when the
+        # recording is stopped (see _handle_recording_result).
+        base_dir = self._default_recordings_base_dir()
+        try:
+            base_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            LOGGER.error("Could not create recordings folder: %s", exc)
             self._calibration_panel.set_recording_active(False)
+            self._show_error(f"Kon de opnamemap niet aanmaken: {exc}")
             return
+        self._last_recording_dir = base_dir
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = base_dir / f"rec_{timestamp}"
         labels = {source.source_id: (source.label or source.source_id) for source in self._active_sources}

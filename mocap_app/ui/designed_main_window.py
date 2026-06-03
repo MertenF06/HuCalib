@@ -1817,8 +1817,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
             if mode == "intrinsics"
             else self.window.btn_cap_extrinsics_start
         )
+        # Stopping a capture mode only disarms auto-capture. The live preview keeps
+        # running (stop it with the dedicated "Live stoppen" button) and any active
+        # recording keeps going (stop it with the record button), so calibration
+        # mode switches never interrupt an ongoing recording.
         self.set_auto_capture_enabled(False)
-        self.stop_live_requested.emit()
         self._reset_mode_button(button)
 
     def _reset_mode_button(self, button: QPushButton) -> None:
