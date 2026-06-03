@@ -426,13 +426,18 @@ class DesignedPreviewPopout(QDialog):
         self._status.setStyleSheet("QLabel { color: #1f2937; font-size: 12px; }")
 
         self._image = _PreviewCanvas("Geen beeld")
+        # The image canvas must take all the vertical space left by the controls and
+        # the status line; otherwise the box layout splits the height evenly and the
+        # picture ends up letterboxed in the bottom portion of the window.
+        self._image.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._status.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         layout.addLayout(controls)
         layout.addWidget(self._status)
-        layout.addWidget(self._image)
+        layout.addWidget(self._image, stretch=1)
 
         self._title_button.clicked.connect(self.rename_requested)
         self._overlay_button.toggled.connect(self.overlay_toggled)
