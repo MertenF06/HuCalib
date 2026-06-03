@@ -1,0 +1,190 @@
+{
+  "schema_version": 2,
+  "saved_at_iso": "2026-05-20T11:48:43.099253",
+  "metadata": {
+    "schema_version": 2,
+    "board_shape": [
+      9,
+      6
+    ],
+    "square_size_m": 0.024,
+    "min_samples_per_camera": 8,
+    "min_quality_score": 0.4,
+    "min_coverage_ratio": 0.01,
+    "charuco_available": true,
+    "charuco_squares_x": 5,
+    "charuco_squares_y": 7,
+    "charuco_square_size_m": 0.032,
+    "charuco_marker_size_m": 0.024,
+    "solved_at_iso": "2026-05-20T11:46:54.441016",
+    "extrinsics": {
+      "reference_source_id": "cam0",
+      "solved_at_iso": "2026-05-20T11:48:20.104821",
+      "cam0": {
+        "rotation": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "translation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "stereo_rms": 0.0,
+        "baseline_m": 0.0,
+        "pair_count": 0,
+        "status": "reference_camera"
+      },
+      "cam1": {
+        "rotation": [
+          0.34065736006919944,
+          0.05198537001906966,
+          0.9387492126945645,
+          0.14720620917948077,
+          0.9832066067361666,
+          -0.1078661228067479,
+          -0.9285918882963016,
+          0.17493510160723574,
+          0.32728399780003814
+        ],
+        "translation": [
+          -0.509511139612638,
+          -0.07076105992340796,
+          0.43684359202821094
+        ],
+        "stereo_rms": 0.3883816486386383,
+        "baseline_m": 0.6748637291238605,
+        "pair_count": 50,
+        "status": "solved_with_warnings_extrinsics"
+      }
+    },
+    "extrinsics_reference_source_id": "cam0",
+    "extrinsics_solved_at_iso": "2026-05-20T11:48:20.104821"
+  },
+  "notes": [
+    "TODO: Add bundle-adjustment refinement over intrinsics+extrinsics.",
+    "TODO: Add pairwise baseline diagnostics and epipolar residual plots.",
+    "Camera cam1: Extrinsics solved relative to cam0: stereo RMS 0.3884, baseline 0.675 m, synchronized sets 50.",
+    "Extrinsics solved for 2 camera(s) with cam0 as reference.",
+    "World coordinate frame is anchored to reference camera cam0 (world-to-camera extrinsics stored per camera)."
+  ],
+  "cameras": {
+    "cam0": {
+      "source_id": "cam0",
+      "status": "solved_with_warnings_extrinsics",
+      "num_samples": 50,
+      "image_size": [
+        1280,
+        720
+      ],
+      "intrinsics": [
+        [
+          868.5816587459298,
+          0.0,
+          638.0435901220202
+        ],
+        [
+          0.0,
+          869.5987375682041,
+          358.4906909688308
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion": [
+        0.17767528158001786,
+        -0.8136004823837999,
+        -0.0013385009197084809,
+        -0.004254590205629995,
+        1.1755828557407546
+      ],
+      "rotation": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "translation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reprojection_error": 0.3299585673760905,
+      "diagnostics": [
+        "Pattern: charuco",
+        "Reference camera for extrinsics solve: cam0."
+      ],
+      "calibrated_at_iso": "2026-05-20T11:48:20.104821"
+    },
+    "cam1": {
+      "source_id": "cam1",
+      "status": "solved_with_warnings_extrinsics",
+      "num_samples": 50,
+      "image_size": [
+        1280,
+        720
+      ],
+      "intrinsics": [
+        [
+          859.9989520507465,
+          0.0,
+          643.1397505803266
+        ],
+        [
+          0.0,
+          864.6795862903464,
+          375.90513617034827
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion": [
+        0.15594680304257344,
+        -0.5661588764851676,
+        0.007780585265201245,
+        0.00021307351058889846,
+        0.7556504882812298
+      ],
+      "rotation": [
+        0.34065736006919944,
+        0.05198537001906966,
+        0.9387492126945645,
+        0.14720620917948077,
+        0.9832066067361666,
+        -0.1078661228067479,
+        -0.9285918882963016,
+        0.17493510160723574,
+        0.32728399780003814
+      ],
+      "translation": [
+        -0.509511139612638,
+        -0.07076105992340796,
+        0.43684359202821094
+      ],
+      "reprojection_error": 0.3844557626222331,
+      "diagnostics": [
+        "Pattern: charuco",
+        "Extrinsics solved relative to cam0: stereo RMS 0.3884, baseline 0.675 m, synchronized sets 50."
+      ],
+      "calibrated_at_iso": "2026-05-20T11:48:20.104821"
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "schema_version": 2,
+  "saved_at_iso": "2026-05-20T13:46:55.064136",
+  "metadata": {
+    "schema_version": 2,
+    "active_pattern": "charuco",
+    "pattern_types": [
+      "charuco"
+    ],
+    "calibration_board": {
+      "type": "charuco",
+      "squares": [
+        5,
+        3
+      ],
+      "square_size_m": 0.077,
+      "marker_size_m": 0.061
+    },
+    "sample_collection": {
+      "first_sample_at_iso": "2026-05-20T13:46:12.951758",
+      "last_sample_at_iso": "2026-05-20T13:46:29.515447",
+      "duration_sec": 16.563689,
+      "total_samples": 40,
+      "total_intrinsics_samples": 40,
+      "synchronized_sets": 0,
+      "per_camera": {
+        "cam0": {
+          "total_samples": 40,
+          "intrinsics_samples": 40,
+          "sync_only_samples": 0,
+          "first_sample_at_iso": "2026-05-20T13:46:12.951758",
+          "last_sample_at_iso": "2026-05-20T13:46:29.515447",
+          "duration_sec": 16.563689
+        }
+      }
+    },
+    "min_samples_per_camera": 8,
+    "min_quality_score": 0.2,
+    "min_coverage_ratio": 0.019999999999999993,
+    "charuco_available": true,
+    "solved_at_iso": "2026-05-20T13:46:44.091390",
+    "units": {
+      "all_length_fields": "meters",
+      "calibration_board.square_size_m": "meters",
+      "calibration_board.marker_size_m": "meters",
+      "sample_collection.duration_sec": "seconds",
+      "sample_collection.first_sample_at_iso": "ISO-8601 local timestamp",
+      "sample_collection.last_sample_at_iso": "ISO-8601 local timestamp",
+      "cameras.*.intrinsics": "pixels",
+      "cameras.*.distortion": "unitless OpenCV distortion coefficients",
+      "cameras.*.rotation": "unitless 3x3 row-major world-to-camera rotation matrix",
+      "cameras.*.translation": "meters, world-to-camera translation",
+      "cameras.*.reprojection_error": "pixels",
+      "metadata.extrinsics.*.baseline_m": "meters",
+      "metadata.extrinsics.*.stereo_rms": "pixels",
+      "image_size": "pixels [width, height]"
+    },
+    "validation_guidance": [
+      "Measure the printed calibration board with a ruler or caliper. ChArUco square_size_m is one full square edge in meters; marker_size_m is the black marker edge in meters.",
+      "Measure camera lens-center to lens-center distance and compare it with metadata.extrinsics.<camera>.baseline_m. A large scale mismatch usually means the board square/marker size was entered incorrectly.",
+      "Check cameras.*.reprojection_error and metadata.extrinsics.*.stereo_rms in pixels. Values below about 1 px are usually a good sign; higher values suggest blur, weak coverage, wrong board settings, or mismatched samples.",
+      "Move the board through the full image area and multiple angles. Low coverage warnings mean the calibration may fit the center but extrapolate poorly near the edges.",
+      "Confirm the active_pattern and calibration_board block match the physical board before trusting translation or baseline values in meters."
+    ]
+  },
+  "notes": [
+    "Camera cam0: Insufficient coverage (mean 2.5%). Capture wider board positions.",
+    "Next step: solve synchronized multi-camera extrinsics from shared calibration captures.",
+    "TODO: Add bundle-adjustment refinement over intrinsics+extrinsics.",
+    "TODO: Add pairwise baseline diagnostics and epipolar residual plots.",
+    "Triangulation assumption: camera rotation/translation must be world-to-camera extrinsics provided separately from intrinsics solve."
+  ],
+  "cameras": {
+    "cam0": {
+      "source_id": "cam0",
+      "status": "solved_with_warnings",
+      "num_samples": 40,
+      "image_size": [
+        1280,
+        720
+      ],
+      "intrinsics": [
+        [
+          827.05769584977,
+          0.0,
+          645.541573262311
+        ],
+        [
+          0.0,
+          827.9673055349147,
+          359.53404460738585
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion": [
+        0.14112459617157042,
+        -0.43043520971182964,
+        -0.004569218664854144,
+        0.00012652193106339055,
+        0.5081015308757796
+      ],
+      "rotation": null,
+      "translation": null,
+      "reprojection_error": 0.37169502708215946,
+      "diagnostics": [
+        "Insufficient coverage (mean 2.5%). Capture wider board positions.",
+        "Pattern: charuco",
+        "Extrinsics not solved in this step. Load/provide world-referenced rotation+translation for real triangulation."
+      ],
+      "calibrated_at_iso": "2026-05-20T13:46:44.091300"
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "saved_at_iso": "2026-05-13T14:45:46.203411",
+  "metadata": {
+    "schema_version": 2,
+    "board_shape": [
+      9,
+      6
+    ],
+    "square_size_m": 0.024,
+    "min_samples_per_camera": 8,
+    "min_quality_score": 0.45,
+    "min_coverage_ratio": 0.07,
+    "charuco_available": true,
+    "charuco_squares_x": 5,
+    "charuco_squares_y": 7,
+    "charuco_square_size_m": 0.032,
+    "charuco_marker_size_m": 0.024,
+    "solved_at_iso": "2026-05-13T14:44:16.540843"
+  },
+  "notes": [
+    "Camera cam0: Insufficient coverage (mean 8.5%). Capture wider board positions.",
+    "Next step: solve synchronized multi-camera extrinsics from shared calibration captures.",
+    "TODO: Add bundle-adjustment refinement over intrinsics+extrinsics.",
+    "TODO: Add pairwise baseline diagnostics and epipolar residual plots.",
+    "Triangulation assumption: camera rotation/translation must be world-to-camera extrinsics provided separately from intrinsics solve."
+  ],
+  "cameras": {
+    "cam0": {
+      "source_id": "cam0",
+      "status": "solved_with_warnings",
+      "num_samples": 44,
+      "image_size": [
+        1280,
+        720
+      ],
+      "intrinsics": [
+        [
+          863.4487558337489,
+          0.0,
+          641.8654263444538
+        ],
+        [
+          0.0,
+          864.3252460575385,
+          358.6321598883861
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion": [
+        0.2513347552017164,
+        -1.3006648038043789,
+        -0.0024099772024100473,
+        -0.0012235974426181508,
+        2.052063880693252
+      ],
+      "rotation": null,
+      "translation": null,
+      "reprojection_error": 0.3886012064024871,
+      "diagnostics": [
+        "Insufficient coverage (mean 8.5%). Capture wider board positions.",
+        "Pattern: charuco",
+        "Extrinsics not solved in this step. Load/provide world-referenced rotation+translation for real triangulation."
+      ],
+      "calibrated_at_iso": "2026-05-13T14:44:16.540796"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+<RCC>
+  <qresource prefix="/">
+    <file>80x80 hu image.png</file>
+    <file>HuMoCap groot.png</file>
+    <file>HU_Logo.png</file>
+  </qresource>
+</RCC>
