@@ -1,4 +1,4 @@
-"""Stylesheet for the PhysioMotionTracker UI.
+"""Stylesheet for the HuCalib UI.
 
 The colour palette is built around the HU accent blue (#0078D4) used in
 the navigation. The content surface stays light for readability, while

@@ -1,4 +1,4 @@
-"""Standalone entry point for the designed PhysioMotionTracker UI.
+"""Standalone entry point for the designed HuCalib UI.
 
 For the normal workflow run ``python run.py`` from the project root. This
 script remains so the UI team can launch the designed window directly:

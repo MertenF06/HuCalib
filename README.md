@@ -18,7 +18,7 @@ A camera calibration tool for physiotherapy-related motion capture setups, built
 
 ## Overview
 
-PhysioMotionTracker is a student project that provides a streamlined workflow for calibrating camera systems used in physiotherapy research. The program does not analyse movement itself — calibration ensures that recordings are accurate enough to be processed by external software.
+HuCalib is a student project that provides a streamlined workflow for calibrating camera systems used in physiotherapy research. The program does not analyse movement itself — calibration ensures that recordings are accurate enough to be processed by external software.
 
 ---
 
