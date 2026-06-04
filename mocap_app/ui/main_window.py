@@ -43,7 +43,7 @@ SYNC_SKEW_REJECT_SEC = 0.150
 SYNC_WARNING_THROTTLE_SEC = 3.0
 # With this many cameras or fewer, prepare the display frame inline on the UI
 # thread (lowest latency). Above it, offload to the preview-render worker.
-INLINE_PREVIEW_MAX_CAMERAS = 3
+INLINE_PREVIEW_MAX_CAMERAS = 2
 
 
 class MainWindow(QMainWindow):
