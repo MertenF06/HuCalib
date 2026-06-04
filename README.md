@@ -47,17 +47,17 @@ conda activate HuCalib-env
 
 **3. Clone the repository**
 ```bash
-git clone AANPASSEN
+git clone https://github.com/MertenF06/HuCalib
 ```
 
 **4. Install the required libraries**
 ```bash
-pip install -r "NIEUWE REQUIREMENTS"
+pip install -r "rquirements.txt"
 ```
 
 **5. Launch the GUI**
 ```bash
-python AANPASSEN!!
+python run.py
 ```
 
 The GUI will open automatically in a new window.
