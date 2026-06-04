@@ -1,2 +1,2 @@
-"""Disk I/O services: sessions, calibration, exports."""
+"""Disk I/O services for calibration data and exports."""
 

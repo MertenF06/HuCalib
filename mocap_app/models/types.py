@@ -33,41 +33,6 @@ class FramePacket:
 
 
 @dataclass(slots=True)
-class Pose2DKeypoint:
-    name: str
-    x: float
-    y: float
-    confidence: float
-
-
-@dataclass(slots=True)
-class Pose2D:
-    source_id: str
-    frame_index: int
-    timestamp_sec: float
-    keypoints: list[Pose2DKeypoint] = field(default_factory=list)
-
-    def keypoints_by_name(self) -> dict[str, Pose2DKeypoint]:
-        return {keypoint.name: keypoint for keypoint in self.keypoints}
-
-
-@dataclass(slots=True)
-class Pose3DKeypoint:
-    name: str
-    x: float
-    y: float
-    z: float
-    confidence: float
-
-
-@dataclass(slots=True)
-class Pose3D:
-    frame_index: int
-    timestamp_sec: float
-    keypoints: list[Pose3DKeypoint] = field(default_factory=list)
-
-
-@dataclass(slots=True)
 class CameraCalibration:
     source_id: str
     intrinsics: list[list[float]] | None = None
@@ -98,53 +63,6 @@ class CalibrationBoardSettings:
     charuco_squares_y: int = 3
     charuco_square_size_m: float = 0.077
     charuco_marker_size_m: float = 0.061
-
-
-@dataclass(slots=True)
-class SessionManifest:
-    version: int
-    session_id: str
-    created_at_iso: str
-    fps: float
-    sources: list[CameraSourceConfig]
-    video_files: dict[str, str]
-    total_frames: int = 0
-    pose_file: str | None = None
-    calibration_file: str | None = None
-
-
-@dataclass(slots=True)
-class PipelineDebugInfo:
-    detector_name: str
-    triangulator_name: str
-    active_cameras: int
-    matched_keypoints: int
-    reconstruction_mode: str = "unavailable"
-    reconstructed_keypoints: int = 0
-    mean_reprojection_error_px: float | None = None
-    per_joint_reprojection_error_px: dict[str, float] = field(default_factory=dict)
-    capture_latency_ms: float | None = None
-    detection_ms: float = 0.0
-    matching_ms: float = 0.0
-    triangulation_ms: float = 0.0
-    smoothing_ms: float = 0.0
-    pipeline_ms: float = 0.0
-    overlay_ms: float = 0.0
-    display_ms: float = 0.0
-    per_camera_fps: dict[str, float] = field(default_factory=dict)
-    dropped_input_batches: int = 0
-    notes: list[str] = field(default_factory=list)
-
-
-@dataclass(slots=True)
-class PipelineResult:
-    frame_index: int
-    timestamp_sec: float
-    frames: dict[str, FramePacket]
-    poses_2d: dict[str, Pose2D]
-    pose_3d: Pose3D | None
-    debug: PipelineDebugInfo
-    reprojected_keypoints_px: dict[str, dict[str, tuple[float, float]]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

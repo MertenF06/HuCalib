@@ -1,2 +1,2 @@
-"""Background workers for capture/playback threading."""
+"""Background workers for calibration capture and processing."""
 

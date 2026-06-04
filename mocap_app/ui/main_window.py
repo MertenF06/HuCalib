@@ -29,7 +29,6 @@ from mocap_app.models.types import (
     FramePacket,
     RuntimeTuning,
 )
-from mocap_app.ui.widgets.calibration_panel import CalibrationPanelWidget
 from mocap_app.workers.calibration_solve_worker import IntrinsicsSolveWorker
 from mocap_app.workers.camera_probe_worker import CameraProbeWorker
 from mocap_app.workers.capture_worker import LiveCaptureWorker
@@ -152,10 +151,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Idle")
 
     def _create_calibration_panel(self, default_camera_csv: str, default_fps: float):
-        return CalibrationPanelWidget(
-            default_camera_csv=default_camera_csv,
-            default_fps=default_fps,
-        )
+        raise NotImplementedError("Subclasses must provide a calibration panel implementation.")
 
     def _apply_initial_window_geometry(self) -> None:
         self.resize(1500, 920)
@@ -1397,23 +1393,6 @@ class MainWindow(QMainWindow):
                 )
             )
         return cells
-
-    def _detection_center_cell(self, detection: ChessboardDetectionResult) -> tuple[int, int] | None:
-        if detection.corners is None:
-            return None
-
-        center = detection.board_center_px
-        if center is None:
-            points = detection.corners.reshape(-1, 2)
-            if points.size:
-                min_x = float(points[:, 0].min())
-                max_x = float(points[:, 0].max())
-                min_y = float(points[:, 1].min())
-                max_y = float(points[:, 1].max())
-                center = (min_x + (max_x - min_x) * 0.5, min_y + (max_y - min_y) * 0.5)
-        if center is not None:
-            return self._point_to_spatial_grid_cell(float(center[0]), float(center[1]), detection.image_size)
-        return None
 
     def _point_to_spatial_grid_cell(
         self,
