@@ -96,8 +96,15 @@ class _PreviewCanvas(QLabel):
         self._overlay_state: dict[str, Any] = {}
         self._status = ""
         self._sample_count = 0
-        self._overlay_cache_key: tuple[Any, ...] | None = None
+        # Overlay caching: the rendered overlay pixmap is reused across paints and
+        # only rebuilt when the overlay-relevant data changes (tracked cheaply via
+        # _overlay_data_sig in set_overlay_data) or the draw rect changes. This
+        # keeps paintEvent cheap at the preview frame rate even with several
+        # cameras and the overlay on.
         self._overlay_cache: QPixmap | None = None
+        self._overlay_cache_rect: tuple[float, ...] | None = None
+        self._overlay_dirty = True
+        self._overlay_data_sig: tuple[Any, ...] | None = None
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(1, 1)
         self.setStyleSheet("background-color: black; color: white;")
@@ -113,14 +120,22 @@ class _PreviewCanvas(QLabel):
         status: str = "",
         sample_count: int = 0,
     ) -> None:
+        state = dict(overlay_state or {})
+        # Cheap change-detection: a new detection cycle produces a new detection
+        # object (so id() captures board movement) and the grid/sample fields are
+        # small. This avoids hashing every corner coordinate on each paint.
+        sig = self._overlay_data_signature(detection, state)
+        if sig != self._overlay_data_sig:
+            self._overlay_data_sig = sig
+            self._overlay_dirty = True
         self._detection = detection
-        self._overlay_state = dict(overlay_state or {})
+        self._overlay_state = state
         self._status = status
         self._sample_count = int(sample_count)
         self.update()
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
-        self._overlay_cache_key = None
+        self._overlay_cache_rect = None
         super().resizeEvent(event)
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
@@ -160,11 +175,21 @@ class _PreviewCanvas(QLabel):
 
     def _overlay_pixmap(self, image_rect: QtCore.QRectF) -> QPixmap | None:
         if self._detection is None or not self._overlay_state.get("overlay_enabled", False):
-            self._overlay_cache_key = None
             self._overlay_cache = None
+            self._overlay_cache_rect = None
+            self._overlay_dirty = True
             return None
-        key = self._overlay_key(image_rect)
-        if self._overlay_cache_key == key and self._overlay_cache is not None:
+        rect_key = (
+            round(image_rect.x(), 1),
+            round(image_rect.y(), 1),
+            round(image_rect.width(), 1),
+            round(image_rect.height(), 1),
+        )
+        if (
+            not self._overlay_dirty
+            and self._overlay_cache is not None
+            and self._overlay_cache_rect == rect_key
+        ):
             return self._overlay_cache
 
         overlay = QPixmap(self.size())
@@ -175,41 +200,40 @@ class _PreviewCanvas(QLabel):
         self._draw_overlay(painter, image_rect)
         painter.end()
 
-        self._overlay_cache_key = key
         self._overlay_cache = overlay
+        self._overlay_cache_rect = rect_key
+        self._overlay_dirty = False
         return overlay
 
-    def _overlay_key(self, image_rect: QtCore.QRectF) -> tuple[Any, ...]:
-        detection = self._detection
-        corners_sig: tuple[float, ...] = ()
-        if detection is not None and detection.corners is not None:
-            corners_sig = tuple(round(float(value), 1) for value in detection.corners.reshape(-1))
-        state = self._overlay_state
-        return (
-            round(image_rect.x(), 1),
-            round(image_rect.y(), 1),
-            round(image_rect.width(), 1),
-            round(image_rect.height(), 1),
-            detection.source_id if detection else "",
-            detection.pattern_type if detection else "",
-            tuple(detection.image_size) if detection else (),
+    @staticmethod
+    def _overlay_data_signature(
+        detection: ChessboardDetectionResult | None,
+        state: dict[str, Any],
+    ) -> tuple[Any, ...]:
+        # Identity of the detection object stands in for its corner coordinates: a
+        # new detection cycle yields a fresh object, so id() changes exactly when
+        # the drawn marks would. The remaining fields are small (grid counts and
+        # scalars), so this signature is cheap to build and compare every frame.
+        detection_sig = (
+            id(detection),
             bool(detection.found) if detection else False,
             int(detection.detected_corners) if detection else 0,
-            round(float(detection.quality_score), 3) if detection else 0.0,
-            round(float(detection.coverage_ratio), 4) if detection else 0.0,
-            tuple(detection.diagnostics[:3]) if detection else (),
-            corners_sig,
+            detection.pattern_type if detection else "",
+        )
+        return (
+            detection_sig,
             tuple(tuple(row) for row in state.get("hit_counts", []) if isinstance(row, list)),
             tuple(state.get("grid_shape", (0, 0))),
             int(state.get("target_samples_per_cell", 0) or 0),
-            int(state.get("sample_count", self._sample_count) or 0),
+            int(state.get("sample_count", 0) or 0),
             state.get("accepted"),
             bool(state.get("mirror", False)),
             int(state.get("visited_cells", 0) or 0),
             int(state.get("total_cells", 0) or 0),
             round(float(state.get("coverage_ratio", 0.0) or 0.0), 4),
             bool(state.get("show_grid", True)),
-            round(self._overlay_scale(), 3),
+            bool(state.get("overlay_enabled", False)),
+            round(max(0.3, min(3.0, float(state.get("overlay_scale", 1.0) or 1.0))), 3),
         )
 
     def _overlay_scale(self) -> float:
