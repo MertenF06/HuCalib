@@ -1215,9 +1215,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._auto_cooldown_spin = self._double_spin(0.1, 10.0, 0.33, 0.01, 2)
         # Separate sample budgets per mode: intrinsics needs many per-camera poses,
         # extrinsics only needs a handful of synchronized sets shared between cameras.
-        self._auto_max_intrinsics_spin = self._spin(0, 1000, 60)
-        self._auto_max_intrinsics_spin.setSpecialValueText("No limit")
-        self._auto_max_intrinsics_spin.setSuffix(" samples")
+        # The intrinsics budget is a dropdown of totals that divide evenly over the
+        # spatial grid (= samples-per-cell x cells); options are rebuilt below once
+        # the grid spinboxes exist. Otherwise the progress bar can read "full"
+        # before every cell has its samples.
+        self._auto_max_intrinsics_combo = QComboBox()
+        self._auto_max_intrinsics_combo.currentIndexChanged.connect(self._on_intrinsics_max_changed)
         self._auto_max_extrinsics_spin = self._spin(0, 1000, 40)
         self._auto_max_extrinsics_spin.setSpecialValueText("No limit")
         self._auto_max_extrinsics_spin.setSuffix(" samples")
@@ -1231,6 +1234,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._extrinsics_coverage_spin.setSuffix(" %")
         self._grid_cols_spin = self._spin(1, 20, 6)
         self._grid_rows_spin = self._spin(1, 20, 4)
+        # Keep the intrinsics sample budget divisible over the grid: track the
+        # chosen samples-per-cell and rebuild the dropdown when the grid changes.
+        self._intrinsics_per_cell_target = 3
+        self._grid_cols_spin.valueChanged.connect(lambda _v: self._rebuild_intrinsics_max_options())
+        self._grid_rows_spin.valueChanged.connect(lambda _v: self._rebuild_intrinsics_max_options())
+        self._rebuild_intrinsics_max_options()
 
         self._auto_status = QLabel("Auto capture off.")
         self._probe_status = QLabel("Camera scan: not run yet.")
@@ -1307,7 +1316,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._charuco_square_spin,
             self._charuco_marker_spin,
             self._auto_cooldown_spin,
-            self._auto_max_intrinsics_spin,
+            self._auto_max_intrinsics_combo,
             self._auto_max_extrinsics_spin,
             self._intrinsics_quality_spin,
             self._intrinsics_coverage_spin,
@@ -1494,7 +1503,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         form.addRow("Overlay", self._overlay_checkbox)
         form.addRow("Spiegelen", self._mirror_checkbox)
         form.addRow("Cooldown", self._auto_cooldown_spin)
-        form.addRow("Max Samples (Intrinsics)", self._auto_max_intrinsics_spin)
+        form.addRow("Max Samples (Intrinsics)", self._auto_max_intrinsics_combo)
         form.addRow("Max Samples (Extrinsics)", self._auto_max_extrinsics_spin)
         form.addRow("Min Quality (Intrinsics)", self._intrinsics_quality_spin)
         form.addRow("Min Coverage (Intrinsics)", self._intrinsics_coverage_spin)
@@ -2611,8 +2620,38 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def auto_capture_cooldown_sec(self) -> float:
         return float(self._auto_cooldown_spin.value())
 
+    # Offer 1..12 samples per spatial-grid cell as the intrinsics budget; the
+    # total (cells x per-cell) is therefore always evenly divisible over the grid.
+    _INTRINSICS_PER_CELL_CHOICES = tuple(range(1, 13))
+
+    def _rebuild_intrinsics_max_options(self) -> None:
+        """Repopulate the intrinsics budget dropdown with totals that divide
+        evenly over the current spatial grid, preserving the chosen per-cell
+        target across grid changes."""
+        combo = self._auto_max_intrinsics_combo
+        cols, rows = self.spatial_grid_values()
+        cells = max(1, int(cols) * int(rows))
+        target = max(1, int(getattr(self, "_intrinsics_per_cell_target", 3)))
+        combo.blockSignals(True)
+        combo.clear()
+        for per_cell in self._INTRINSICS_PER_CELL_CHOICES:
+            total = cells * per_cell
+            combo.addItem(f"{per_cell}/vak ({total})", total)
+        combo.addItem("Geen limiet", 0)
+        # Select the option matching the preserved per-cell target.
+        index = min(target, len(self._INTRINSICS_PER_CELL_CHOICES)) - 1
+        combo.setCurrentIndex(index)
+        combo.blockSignals(False)
+
+    def _on_intrinsics_max_changed(self, _index: int) -> None:
+        total = int(self._auto_max_intrinsics_combo.currentData() or 0)
+        if total > 0:
+            cols, rows = self.spatial_grid_values()
+            cells = max(1, int(cols) * int(rows))
+            self._intrinsics_per_cell_target = max(1, total // cells)
+
     def intrinsics_max_samples(self) -> int:
-        return int(self._auto_max_intrinsics_spin.value())
+        return int(self._auto_max_intrinsics_combo.currentData() or 0)
 
     def extrinsics_max_samples(self) -> int:
         return int(self._auto_max_extrinsics_spin.value())
@@ -2657,6 +2696,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._grid_rows_spin.setValue(max(1, int(rows)))
         self._grid_cols_spin.blockSignals(False)
         self._grid_rows_spin.blockSignals(False)
+        # Signals were blocked above, so refresh the intrinsics budget options to
+        # match the new grid explicitly.
+        self._rebuild_intrinsics_max_options()
 
     def set_acceptance_threshold_values(
         self,
