@@ -1726,6 +1726,16 @@ class MainWindow(QMainWindow):
         accepted_by_source: dict[str, bool | None] = {}
         sample_counts = self._preview_sample_counts()
 
+        # Auto capture fires continuously while live, so injecting a captured
+        # snapshot frame here (the green "accepted" flash) competes with the
+        # display timer's smooth cadence and shows up as a per-sample jitter in
+        # the live preview. The live tick already redraws the latest detection
+        # overlay and the coverage grid fills in as cells are hit, so for auto
+        # capture we only update the stored detections/counts and let the video
+        # keep flowing. Manual capture still flashes the captured frame as
+        # explicit feedback (one-off, so no perceptible jitter).
+        inject_preview = not auto_trigger
+
         for source_id, frame in active_frames.items():
             feedback = feedback_by_source.get(source_id)
             if feedback is not None:
@@ -1734,24 +1744,26 @@ class MainWindow(QMainWindow):
                     accepted_total += 1
                 detections[source_id] = feedback.detection
                 accepted_by_source[source_id] = bool(feedback.accepted)
-                preview_frames[source_id] = self._build_calibration_preview_frame(
-                    source_id=source_id,
-                    frame_bgr=frame.frame_bgr,
-                    detection=feedback.detection,
-                    accepted=feedback.accepted,
-                )
+                if inject_preview:
+                    preview_frames[source_id] = self._build_calibration_preview_frame(
+                        source_id=source_id,
+                        frame_bgr=frame.frame_bgr,
+                        detection=feedback.detection,
+                        accepted=feedback.accepted,
+                    )
                 continue
 
             detection = self._latest_calibration_detections.get(source_id)
             if detection is None:
                 continue
             detections[source_id] = detection
-            preview_frames[source_id] = self._build_calibration_preview_frame(
-                source_id=source_id,
-                frame_bgr=frame.frame_bgr,
-                detection=detection,
-                accepted=None,
-            )
+            if inject_preview:
+                preview_frames[source_id] = self._build_calibration_preview_frame(
+                    source_id=source_id,
+                    frame_bgr=frame.frame_bgr,
+                    detection=detection,
+                    accepted=None,
+                )
 
         if detections:
             self._latest_calibration_detections = detections
