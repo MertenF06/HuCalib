@@ -871,6 +871,16 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._icon_provider = QFileIconProvider()
         self._camera_names = dict(getattr(self.window._config, "camera_labels", {}) or {})
 
+        # Diagnostics: accumulate how long each capture mode has been active.
+        # ``_active_timed_mode`` is the mode currently running (if any); the timer
+        # ticks once a second so the displayed time advances live.
+        self._mode_time_accum: dict[str, float] = {"intrinsics": 0.0, "sync_extrinsics": 0.0}
+        self._active_timed_mode: str | None = None
+        self._mode_time_started_at = 0.0
+        self._mode_time_timer = QtCore.QTimer(self)
+        self._mode_time_timer.setInterval(1000)
+        self._mode_time_timer.timeout.connect(self._refresh_mode_time_diagnostics)
+
         self._setup_navigation()
         self._setup_console()
         self._setup_camera_page(default_camera_csv, default_fps)
@@ -1058,6 +1068,61 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.text_diag_Intrinsics_time.setPlainText("-")
         self.window.text_diag_extrinsics_time.setPlainText("-")
         self.window.text_diag_total_time.setPlainText("-")
+
+    # --- Diagnostics: per-mode active time -------------------------------------
+    def _accumulate_mode_time(self) -> None:
+        """Fold the time spent in the currently active mode into its accumulator
+        and advance the start marker, so repeated calls keep the running total
+        correct while a mode stays active."""
+        if self._active_timed_mode is None:
+            return
+        now = time.perf_counter()
+        self._mode_time_accum[self._active_timed_mode] += now - self._mode_time_started_at
+        self._mode_time_started_at = now
+
+    def _start_mode_timing(self, mode: str) -> None:
+        if mode not in self._mode_time_accum:
+            return
+        # Switching modes: bank the previous mode's elapsed time first.
+        self._accumulate_mode_time()
+        self._active_timed_mode = mode
+        self._mode_time_started_at = time.perf_counter()
+        if not self._mode_time_timer.isActive():
+            self._mode_time_timer.start()
+        self._refresh_mode_time_diagnostics()
+
+    def _stop_mode_timing(self) -> None:
+        if self._active_timed_mode is None:
+            return
+        self._accumulate_mode_time()
+        self._active_timed_mode = None
+        self._mode_time_timer.stop()
+        self._refresh_mode_time_diagnostics()
+
+    def _reset_mode_timing(self) -> None:
+        self._mode_time_timer.stop()
+        self._active_timed_mode = None
+        self._mode_time_accum = {"intrinsics": 0.0, "sync_extrinsics": 0.0}
+        self.window.text_diag_Intrinsics_time.setPlainText("-")
+        self.window.text_diag_extrinsics_time.setPlainText("-")
+        self.window.text_diag_total_time.setPlainText("-")
+
+    def _refresh_mode_time_diagnostics(self) -> None:
+        self._accumulate_mode_time()
+        intrinsics = self._mode_time_accum["intrinsics"]
+        extrinsics = self._mode_time_accum["sync_extrinsics"]
+        self.window.text_diag_Intrinsics_time.setPlainText(self._format_duration(intrinsics))
+        self.window.text_diag_extrinsics_time.setPlainText(self._format_duration(extrinsics))
+        self.window.text_diag_total_time.setPlainText(self._format_duration(intrinsics + extrinsics))
+
+    @staticmethod
+    def _format_duration(seconds: float) -> str:
+        total = int(seconds)
+        hours, remainder = divmod(total, 3600)
+        minutes, secs = divmod(remainder, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{secs:02d}"
+        return f"{minutes:02d}:{secs:02d}"
 
     def _setup_advanced_page(self, default_camera_csv: str, default_fps: float) -> None:
         self.window.doubleSpinBox.setRange(1.0, 500.0)
@@ -1798,6 +1863,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         # Drives _on_calibration_workflow_mode_changed, which switches the active
         # acceptance thresholds (relaxed for sync/extrinsics) automatically.
         self.workflow_mode_changed.emit(mode)
+        # Track how long this mode stays active for the diagnostics page.
+        self._start_mode_timing(mode)
         self._set_all_tile_overlays(is_intrinsics)
         # Arm auto-capture: the frame-driven capture loop stores valid samples
         # automatically once live frames + detections flow.
@@ -1832,6 +1899,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         # mode switches never interrupt an ongoing recording.
         self.set_auto_capture_enabled(False)
         self._reset_mode_button(button)
+        self._stop_mode_timing()
 
     def _reset_mode_button(self, button: QPushButton) -> None:
         button.setText("Start")
@@ -1868,6 +1936,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.btn_cap_extrinsics_start.setStyleSheet("")
         for tile in self._tiles.values():
             tile.set_sample_count(0)
+        self._reset_mode_timing()
         self.reset_requested.emit()
 
     def _capture_intrinsics_sample(self) -> None:
@@ -2337,6 +2406,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         state = "On" if live_active else "Off"
         self._feedback.setText(f"Live: {state} | Cameras: {active_cameras}")
         if not live_active:
+            # Stopping live disarms both capture modes, so freeze the mode timer.
+            self._stop_mode_timing()
             for button in [self.window.btn_cap_intrinsics_start, self.window.btn_cap_extrinsics_start]:
                 button.blockSignals(True)
                 button.setChecked(False)
