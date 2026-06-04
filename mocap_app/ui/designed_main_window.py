@@ -1557,8 +1557,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def _apply_workflow_settings(self) -> None:
         self._apply_preview_options_to_tiles()
         self._emit_runtime_tuning_changed()
-        self._emit_workflow_mode_changed()
+        # Apply the threshold values to the manager BEFORE the workflow-mode
+        # change runs: the mode-change handler reloads the spinboxes from the
+        # manager, so emitting it first would overwrite freshly typed values
+        # (e.g. a threshold set to 0) with the manager's previous values.
         self._emit_acceptance_thresholds_changed()
+        self._emit_workflow_mode_changed()
         self._emit_spatial_grid_changed()
         self.show_feedback("Workflow settings applied.", success=True)
 
