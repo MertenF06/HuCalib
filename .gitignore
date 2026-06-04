@@ -6,6 +6,9 @@ logs/
 calibration/test/
 calibration/[Tt]est*
 
+# Gegenereerde calibratie-output
+calibration/current_calibration.json
+
 # Python
 __pycache__/
 *.py[cod]
