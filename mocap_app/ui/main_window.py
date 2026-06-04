@@ -35,6 +35,7 @@ from mocap_app.workers.camera_probe_worker import CameraProbeWorker
 from mocap_app.workers.capture_worker import LiveCaptureWorker
 from mocap_app.workers.detection_worker import CalibrationDetectionWorker
 from mocap_app.workers.preview_render_worker import PreviewRenderWorker, resize_for_preview
+from mocap_app.workers.recording_finalize_worker import RecordingFinalizeWorker
 
 
 LOGGER = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ class MainWindow(QMainWindow):
         self._render_request_in_flight = False
         self._video_recorder: VideoRecorder | None = None
         self._last_recording_dir: Path | None = None
+        self._recording_finalize_worker: RecordingFinalizeWorker | None = None
         self._active_sources: list[CameraSourceConfig] = []
         self._detected_cameras: list[CameraProbeResult] = []
         self._runtime_tuning = RuntimeTuning()
@@ -1505,7 +1507,48 @@ class MainWindow(QMainWindow):
             self._calibration_panel.show_feedback("Opname gestopt; geen frames opgeslagen.", success=False)
             self._set_status("Opname gestopt (geen frames).")
             return
-        self._handle_recording_result(recorder.output_dir, written, recorder.total_frames())
+
+        output_dir = recorder.output_dir
+        total_frames = recorder.total_frames()
+        # If the real capture rate drifted from the nominal fps, the clips need a
+        # re-encode so they play back at real-time speed. That can be slow, so run
+        # it on a background thread and only show the result dialog once the files
+        # are finalized (otherwise the user could rename the folder mid-encode).
+        if recorder.needs_frame_rate_correction():
+            self._calibration_panel.show_feedback(
+                "Opname verwerken (framerate corrigeren)...", success=True
+            )
+            self._set_status("Opname verwerken (framerate corrigeren)...")
+            worker = RecordingFinalizeWorker(recorder, written)
+            self._recording_finalize_worker = worker
+            worker.finished_ok.connect(
+                lambda: self._on_recording_finalized(output_dir, written, total_frames)
+            )
+            worker.error.connect(
+                lambda message: self._on_recording_finalize_error(
+                    message, output_dir, written, total_frames
+                )
+            )
+            worker.finished.connect(worker.deleteLater)
+            worker.start()
+            return
+
+        self._handle_recording_result(output_dir, written, total_frames)
+
+    def _on_recording_finalized(
+        self, output_dir: Path, written: dict[str, Path], total_frames: int
+    ) -> None:
+        self._recording_finalize_worker = None
+        self._handle_recording_result(output_dir, written, total_frames)
+
+    def _on_recording_finalize_error(
+        self, message: str, output_dir: Path, written: dict[str, Path], total_frames: int
+    ) -> None:
+        self._recording_finalize_worker = None
+        LOGGER.error("Recording frame-rate correction failed: %s", message)
+        # The (uncorrected) clips still exist, so let the user keep/rename/delete
+        # them rather than losing the recording over a re-encode failure.
+        self._handle_recording_result(output_dir, written, total_frames)
 
     def _handle_recording_result(self, output_dir: Path, written: dict[str, Path], total_frames: int) -> None:
         files_text = ", ".join(path.name for path in written.values())
@@ -2406,4 +2449,8 @@ class MainWindow(QMainWindow):
         self._stop_camera_probe_worker()
         self._shutdown_detection_worker()
         self._shutdown_preview_render_worker()
+        if self._recording_finalize_worker is not None and self._recording_finalize_worker.isRunning():
+            # Let an in-progress clip re-encode finish so we don't leave a stray
+            # temp file or a half-written clip behind.
+            self._recording_finalize_worker.wait(10000)
         super().closeEvent(event)
