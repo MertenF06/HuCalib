@@ -854,6 +854,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
     record_toggled = Signal(bool)
     export_preview_requested = Signal(str)
     export_requested = Signal(str)
+    # Emitted by the single "Start kalibratie"/"Stop kalibratie" button shown when
+    # auto-navigation is enabled; drives the fully automatic calibration chain.
+    start_calibration_requested = Signal()
+    stop_calibration_requested = Signal()
 
     def __init__(self, window: "DesignedMainWindow", default_camera_csv: str, default_fps: float) -> None:
         super().__init__(window)
@@ -888,6 +892,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._setup_directory_page()
         self._setup_diagnostics_page()
         self._setup_advanced_page(default_camera_csv, default_fps)
+        # Now that the auto-navigation checkbox exists, set the initial calibration
+        # control layout (single Start button vs. per-phase cards).
+        self._update_calibration_controls_visibility()
         self._connect_designed_actions()
         self.switch_page(0)
 
@@ -918,6 +925,24 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.spin_cap_fps.setValue(max(1, int(round(default_fps))))
         self.window.btn_cap_intrinsics_start.setCheckable(True)
         self.window.btn_cap_extrinsics_start.setCheckable(True)
+
+        # Single calibration button that replaces the per-phase Intrinsics/
+        # Extrinsics cards when auto-navigation is on. It is placed in the exact
+        # same grid cells those cards occupy after _compact_camera_controls()
+        # relayouts them (rows 0-1, columns 2-3), so it fills that whole
+        # rectangle. Visibility is mutually exclusive, so the overlap is never
+        # visible at the same time.
+        self._start_calibration_button = QPushButton("Start kalibratie")
+        self._start_calibration_button.setObjectName("btn_cap_start_calibration")
+        self._start_calibration_button.setCheckable(True)
+        self._start_calibration_button.setProperty("accent", True)
+        self._start_calibration_button.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        self._start_calibration_button.toggled.connect(self._toggle_calibration_run)
+        frame_layout = self.window.frame.layout()
+        if frame_layout is not None:
+            frame_layout.addWidget(self._start_calibration_button, 0, 2, 2, 2)
 
         self.window.combo_cap_pattern.blockSignals(True)
         self.window.combo_cap_pattern.clear()
@@ -1181,6 +1206,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._auto_navigate_checkbox.setChecked(True)
         self._auto_navigate_checkbox.setToolTip(
             "Nieuw project opent het Camera-tabblad; een afgeronde kalibratie opent het Resultaten-tabblad."
+        )
+        # Toggling auto-navigation swaps the single Start-kalibratie button for the
+        # per-phase Intrinsics/Extrinsics cards (and back).
+        self._auto_navigate_checkbox.toggled.connect(
+            lambda _checked: self._update_calibration_controls_visibility()
         )
         self._auto_cooldown_spin = self._double_spin(0.1, 10.0, 0.33, 0.01, 2)
         # Separate sample budgets per mode: intrinsics needs many per-camera poses,
@@ -1804,6 +1834,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
     # Styling for the active capture-mode button. Intrinsics and Extrinsics are
     # two mutually exclusive modes (see _enter_capture_mode).
     _MODE_ACTIVE_STYLE = "background-color: #0078d7; color: white; font-weight: bold;"
+    # Distinct colour for the single Start/Stop calibration button while a run is
+    # active, so it reads clearly different from its idle (accent blue) state.
+    _CALIBRATION_RUN_ACTIVE_STYLE = "background-color: #A33434; color: white; font-weight: bold;"
 
     def _toggle_intrinsics_start(self, checked: bool) -> None:
         if checked:
@@ -1817,10 +1850,61 @@ class DesignedCalibrationPanel(QtCore.QObject):
         else:
             self._exit_capture_mode("sync_extrinsics")
 
+    def enter_intrinsics_mode(self) -> None:
+        """Public hook for the controller to start the intrinsics capture mode
+        (used by the automatic calibration chain)."""
+        self._enter_capture_mode("intrinsics")
+
     def enter_extrinsics_mode(self) -> None:
         """Public hook for the controller to auto-advance from intrinsics to the
         extrinsics capture mode once every camera has its intrinsic samples."""
         self._enter_capture_mode("sync_extrinsics")
+
+    def _toggle_calibration_run(self, checked: bool) -> None:
+        """Single Start/Stop calibration button (auto-navigation mode)."""
+        if checked:
+            self._start_calibration_button.setText("Stop kalibratie")
+            self._start_calibration_button.setStyleSheet(self._CALIBRATION_RUN_ACTIVE_STYLE)
+            self.start_calibration_requested.emit()
+        else:
+            self._start_calibration_button.setText("Start kalibratie")
+            self._start_calibration_button.setStyleSheet("")
+            self.stop_calibration_requested.emit()
+
+    def set_calibration_run_active(self, active: bool) -> None:
+        """Reflect the calibration-chain state on the button without re-emitting
+        the start/stop signals (used when the chain finishes on its own)."""
+        button = self._start_calibration_button
+        button.blockSignals(True)
+        button.setChecked(active)
+        button.blockSignals(False)
+        button.setText("Stop kalibratie" if active else "Start kalibratie")
+        button.setStyleSheet(self._CALIBRATION_RUN_ACTIVE_STYLE if active else "")
+
+    def _update_calibration_controls_visibility(self) -> None:
+        """Show the single Start-kalibratie button when auto-navigation is on,
+        otherwise show the per-phase Intrinsics/Extrinsics cards."""
+        auto = self.auto_navigation_enabled()
+        self._start_calibration_button.setVisible(auto)
+        self.window.frame_2.setVisible(not auto)
+        self.window.frame_3.setVisible(not auto)
+        if not auto and self._start_calibration_button.isChecked():
+            # Switching to manual mode cancels any running chain on the button.
+            self.set_calibration_run_active(False)
+
+    def open_all_detected_cameras(self) -> list[CameraSourceConfig]:
+        """Open every detected webcam as a source tile and return the resulting
+        source configs (empty list when nothing was detected)."""
+        if not self._detected_cameras:
+            return []
+        indices = [camera.index for camera in self._detected_cameras][:_MAX_CAMERAS]
+        self._video_sources = []
+        self._sources_input.setText(",".join(str(index) for index in indices))
+        self._sync_source_input_preview()
+        try:
+            return self.current_sources()
+        except ValueError:
+            return []
 
     def _enter_capture_mode(self, mode: str) -> None:
         """Arm a capture mode.

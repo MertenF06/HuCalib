@@ -87,6 +87,10 @@ class MainWindow(QMainWindow):
         self._video_recorder: VideoRecorder | None = None
         self._last_recording_dir: Path | None = None
         self._recording_finalize_worker: RecordingFinalizeWorker | None = None
+        # True while the single "Start kalibratie" button drives the fully
+        # automatic intrinsics -> solve -> extrinsics -> solve -> results chain.
+        self._auto_calibration_active = False
+        self._last_intrinsics_solve_ok = False
         self._active_sources: list[CameraSourceConfig] = []
         self._detected_cameras: list[CameraProbeResult] = []
         self._runtime_tuning = RuntimeTuning()
@@ -188,6 +192,10 @@ class MainWindow(QMainWindow):
             self._calibration_panel.export_requested.connect(self._on_export_calibration)
         if hasattr(self._calibration_panel, "sources_changed"):
             self._calibration_panel.sources_changed.connect(self._on_panel_sources_changed)
+        if hasattr(self._calibration_panel, "start_calibration_requested"):
+            self._calibration_panel.start_calibration_requested.connect(self._on_start_calibration_run)
+        if hasattr(self._calibration_panel, "stop_calibration_requested"):
+            self._calibration_panel.stop_calibration_requested.connect(self._on_stop_calibration_run)
         if hasattr(self._calibration_panel, "preview_options_changed"):
             self._calibration_panel.preview_options_changed.connect(lambda: self._update_calibration_preview(force=True))
 
@@ -305,9 +313,25 @@ class MainWindow(QMainWindow):
         self._calibration_panel.set_detected_cameras(results)
         if results:
             self._set_status(f"Detected {len(results)} camera(s).")
-            self._seed_startup_source_slots()
+            self._open_all_cameras_and_go_live()
         else:
             self._set_status("No cameras detected in probed range.")
+
+    def _open_all_cameras_and_go_live(self) -> None:
+        """Open every detected camera as a source and start live view.
+
+        Runs on every startup probe regardless of the auto-navigation toggle, so
+        the user lands on a running multi-camera live preview without any manual
+        steps. Falls back to the single-slot seeding if the panel can't open all.
+        """
+        open_all = getattr(self._calibration_panel, "open_all_detected_cameras", None)
+        sources = open_all() if callable(open_all) else []
+        if not sources:
+            # Older panels / no detection: keep the previous single-slot behaviour.
+            self._seed_startup_source_slots()
+            return
+        self._active_sources = sources
+        self._on_start_live(sources, self._calibration_panel.target_fps())
 
     def _on_camera_probe_finished(self) -> None:
         self._calibration_panel.set_camera_probe_running(False)
@@ -670,11 +694,53 @@ class MainWindow(QMainWindow):
         self._calibration_panel.set_auto_capture_status(message)
         self._calibration_panel.show_feedback(message, success=True)
         self._set_status(message)
-        # Once every camera has its full set of intrinsic samples, auto-advance to
-        # the extrinsics capture mode (the extrinsics solve then jumps to Results).
         if completed_mode == "intrinsics":
-            self._maybe_auto_advance_to_extrinsics()
+            if self._auto_calibration_active:
+                # Fully automatic chain: solve intrinsics now; advancing to the
+                # extrinsics capture mode happens once the solve finishes.
+                self._set_status("Intrinsics compleet — automatisch berekenen...")
+                self._on_solve_calibration()
+            else:
+                # Once every camera has its full set of intrinsic samples,
+                # auto-advance to the extrinsics capture mode (manual solve).
+                self._maybe_auto_advance_to_extrinsics()
+        elif completed_mode == "sync_extrinsics" and self._auto_calibration_active:
+            # Fully automatic chain: solve extrinsics (jumps to Results) and end.
+            self._set_status("Extrinsics compleet — automatisch berekenen...")
+            self._on_solve_extrinsics(prompt_on_incomplete=False)
+            self._finish_auto_calibration_chain()
         return True
+
+    def _on_start_calibration_run(self) -> None:
+        """Start the fully automatic calibration chain (single Start button)."""
+        self._auto_calibration_active = True
+        if self._live_worker is None or not self._live_worker.isRunning():
+            try:
+                sources = self._calibration_panel.current_sources()
+            except ValueError:
+                sources = self._active_sources
+            if sources:
+                self._on_start_live(sources, self._calibration_panel.target_fps())
+        enter_intrinsics = getattr(self._calibration_panel, "enter_intrinsics_mode", None)
+        if callable(enter_intrinsics):
+            enter_intrinsics()
+        self._set_status("Automatische kalibratie gestart (intrinsics).")
+        self._calibration_panel.show_feedback(
+            "Automatische kalibratie gestart — beweeg het bord door het beeld.", success=True
+        )
+
+    def _on_stop_calibration_run(self) -> None:
+        """Stop the automatic chain. Auto-capture stops; live keeps running."""
+        self._auto_calibration_active = False
+        self._calibration_panel.set_auto_capture_enabled(False)
+        self._set_status("Automatische kalibratie gestopt.")
+
+    def _finish_auto_calibration_chain(self) -> None:
+        """Clear the chain state and reset the Start/Stop button."""
+        self._auto_calibration_active = False
+        setter = getattr(self._calibration_panel, "set_calibration_run_active", None)
+        if callable(setter):
+            setter(False)
 
     def _maybe_auto_advance_to_extrinsics(self) -> None:
         """Switch from intrinsics to extrinsics capture mode when auto-navigation
@@ -1422,6 +1488,10 @@ class MainWindow(QMainWindow):
         self._active_sources = []
         self._active_camera_count = 0
         self._refresh_live_status(force=True)
+        # Live stopping cancels an in-progress automatic calibration chain so the
+        # Start/Stop button doesn't stay stuck in the "running" state.
+        if self._auto_calibration_active:
+            self._finish_auto_calibration_chain()
 
     def _on_stop_live(self) -> None:
         self._finalize_recording()
@@ -2045,6 +2115,7 @@ class MainWindow(QMainWindow):
         self._refresh_calibration_panel(force=True)
         for note in bundle.notes:
             LOGGER.info("Calibration note: %s", note)
+        self._last_intrinsics_solve_ok = bool(solved)
         # For a single-camera rig intrinsics is the whole calibration, so treat a
         # successful intrinsics solve as "finished" and jump to results. Multi-camera
         # rigs still need an extrinsics solve, so they navigate from there instead.
@@ -2055,6 +2126,7 @@ class MainWindow(QMainWindow):
         LOGGER.error("Intrinsics solve error: %s", message)
         self._calibration_panel.show_feedback(f"Intrinsics solve failed: {message}", success=False)
         self._set_status(f"Intrinsics solve failed: {message}")
+        self._last_intrinsics_solve_ok = False
 
     def _on_intrinsics_solve_finished(self) -> None:
         worker = self._intrinsics_solve_worker
@@ -2063,8 +2135,33 @@ class MainWindow(QMainWindow):
         self._refresh_calibration_panel(force=True)
         if worker is not None:
             worker.deleteLater()
+        # Drive the automatic chain now the solve worker is fully cleared.
+        if self._auto_calibration_active:
+            self._advance_auto_chain_after_intrinsics()
 
-    def _on_solve_extrinsics(self) -> None:
+    def _advance_auto_chain_after_intrinsics(self) -> None:
+        if not self._last_intrinsics_solve_ok:
+            self._calibration_panel.show_feedback(
+                "Automatische kalibratie gestopt: intrinsics berekenen mislukt.", success=False
+            )
+            self._finish_auto_calibration_chain()
+            return
+        if len(self._active_source_ids()) < 2:
+            # Single camera: intrinsics is the whole calibration (already navigated
+            # to Results in the solve result handler). Chain is done.
+            self._finish_auto_calibration_chain()
+            return
+        enter_extrinsics = getattr(self._calibration_panel, "enter_extrinsics_mode", None)
+        if callable(enter_extrinsics):
+            enter_extrinsics()
+            self._set_status("Intrinsics berekend — automatisch overgeschakeld naar Extrinsics.")
+            self._calibration_panel.show_feedback(
+                "Intrinsics berekend — extrinsics vastleggen gestart.", success=True
+            )
+        else:
+            self._finish_auto_calibration_chain()
+
+    def _on_solve_extrinsics(self, prompt_on_incomplete: bool = True) -> None:
         if self._intrinsics_solve_worker is not None:
             self._calibration_panel.show_feedback(
                 "Wait for the intrinsics solve to finish before solving extrinsics.",
@@ -2079,7 +2176,7 @@ class MainWindow(QMainWindow):
             base_bundle = self._calibration_manager.solve_intrinsics()
 
         active_ids = self._active_source_ids()
-        if len(active_ids) >= 2:
+        if len(active_ids) >= 2 and prompt_on_incomplete:
             counts = self._synchronized_counts_by_source()
             weak = sorted(sid for sid in active_ids if counts.get(sid, 0) < 3)
             if weak:
@@ -2130,6 +2227,8 @@ class MainWindow(QMainWindow):
     def _on_reset_calibration_samples(self) -> None:
         self._calibration_manager.reset()
         self._latest_calibration_detections.clear()
+        if self._auto_calibration_active:
+            self._finish_auto_calibration_chain()
         self._refresh_calibration_panel(force=True)
         self._calibration_panel.show_feedback("Calibration samples reset.", success=True)
         self._set_status("Calibration samples reset")
