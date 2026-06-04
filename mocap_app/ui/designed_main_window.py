@@ -2287,13 +2287,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
 
         count = len(self._source_order)
         show_add = count < _MAX_CAMERAS
-        total_cells = max(1, count + (1 if show_add else 0))
 
-        # Roughly square grid; cap the column count so it doesn't get too wide.
-        columns = 1
-        while columns * columns < total_cells:
-            columns += 1
-        columns = min(columns, 4)
+        # Pack real camera tiles first. The add button should not force three
+        # cameras into a 2x2 layout; it sits in the next free cell after the
+        # camera row instead.
+        columns = min(max(1, count), 4)
 
         for index, source_id in enumerate(self._source_order):
             self._camera_grid.addWidget(
