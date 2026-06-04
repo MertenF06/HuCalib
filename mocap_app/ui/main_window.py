@@ -91,6 +91,15 @@ class MainWindow(QMainWindow):
         # automatic intrinsics -> solve -> extrinsics -> solve -> results chain.
         self._auto_calibration_active = False
         self._last_intrinsics_solve_ok = False
+        # Measured live frame rate (EMA of frame-batch arrival intervals), shown
+        # as "Huidige FPS" on the diagnostics page.
+        self._fps_meter_last_ts = 0.0
+        self._fps_meter_value = 0.0
+        self._fps_meter_last_push = 0.0
+        # Cache for the per-camera overlay state so it isn't recomputed on every
+        # preview frame (only when detections/sample counts/flags actually change).
+        self._preview_overlay_states_cache: dict[str, dict[str, Any]] | None = None
+        self._preview_overlay_states_key: tuple[Any, ...] | None = None
         self._active_sources: list[CameraSourceConfig] = []
         self._detected_cameras: list[CameraProbeResult] = []
         self._runtime_tuning = RuntimeTuning()
@@ -971,6 +980,51 @@ class MainWindow(QMainWindow):
         sample_counts: dict[str, int],
         accepted_by_source: dict[str, bool | None] | None = None,
     ) -> dict[str, dict[str, Any]]:
+        # The overlay state only depends on the detection found-flag, sample
+        # counts, grid/target and per-tile flags - not on the (per-frame changing)
+        # corner positions, which reach the canvas via the detection object. So it
+        # can be cached and reused across frames, sparing the per-frame, per-camera
+        # spatial_coverage_summary computation that otherwise drives preview lag
+        # with several cameras and the overlay on. The accepted-flash path (manual
+        # capture) bypasses the cache since its accepted markers are one-off.
+        if accepted_by_source:
+            return self._compute_preview_overlay_states(detections, sample_counts, accepted_by_source)
+        key = self._preview_overlay_states_signature(detections, sample_counts)
+        if key == self._preview_overlay_states_key and self._preview_overlay_states_cache is not None:
+            return self._preview_overlay_states_cache
+        states = self._compute_preview_overlay_states(detections, sample_counts, None)
+        self._preview_overlay_states_key = key
+        self._preview_overlay_states_cache = states
+        return states
+
+    def _preview_overlay_states_signature(
+        self,
+        detections: dict[str, ChessboardDetectionResult],
+        sample_counts: dict[str, int],
+    ) -> tuple[Any, ...]:
+        return (
+            self._spatial_target_samples_per_cell(),
+            tuple(self._calibration_manager.spatial_grid_shape),
+            self._calibration_workflow_mode(),
+            round(self._overlay_scale(), 3),
+            tuple(
+                (
+                    source_id,
+                    bool(detection.found),
+                    int(sample_counts.get(source_id, 0)),
+                    self._calibration_panel.overlay_enabled_for(source_id),
+                    self._calibration_panel.mirror_preview_enabled_for(source_id),
+                )
+                for source_id, detection in detections.items()
+            ),
+        )
+
+    def _compute_preview_overlay_states(
+        self,
+        detections: dict[str, ChessboardDetectionResult],
+        sample_counts: dict[str, int],
+        accepted_by_source: dict[str, bool | None] | None = None,
+    ) -> dict[str, dict[str, Any]]:
         accepted_by_source = accepted_by_source or {}
         target = self._spatial_target_samples_per_cell()
         states: dict[str, dict[str, Any]] = {}
@@ -1436,6 +1490,7 @@ class MainWindow(QMainWindow):
         self._latest_calibration_detections.clear()
         self._last_rendered_frame_indices.clear()
         self._last_calibration_detection_at = 0.0
+        self._reset_measured_fps()
         source_ids = [source.source_id for source in sources]
         self._calibration_panel.set_sources(source_ids)
         self._active_camera_count = len(sources)
@@ -1487,6 +1542,7 @@ class MainWindow(QMainWindow):
             self._live_worker = None
         self._active_sources = []
         self._active_camera_count = 0
+        self._reset_measured_fps()
         self._refresh_live_status(force=True)
         # Live stopping cancels an in-progress automatic calibration chain so the
         # Start/Stop button doesn't stay stuck in the "running" state.
@@ -1513,6 +1569,7 @@ class MainWindow(QMainWindow):
         self._detection_request_in_flight = False
         self._render_request_in_flight = False
         self._active_camera_count = 0
+        self._reset_measured_fps()
         self._refresh_live_status(force=True)
         self._refresh_calibration_panel(force=True)
         self._set_status("Live capture stopped")
@@ -1711,10 +1768,42 @@ class MainWindow(QMainWindow):
                 return
         self._latest_frames = frames
         self._active_camera_count = len(frames)
+        self._update_measured_fps()
         self._refresh_live_status()
         # Render as soon as a frame arrives (frame-driven) for the lowest
         # latency, instead of waiting for the next display-timer tick.
         self._update_calibration_preview()
+
+    def _update_measured_fps(self) -> None:
+        """Track the real live frame rate from batch arrival intervals and push
+        it to the diagnostics page about twice a second."""
+        now = time.perf_counter()
+        last = self._fps_meter_last_ts
+        self._fps_meter_last_ts = now
+        if last <= 0.0:
+            return
+        dt = now - last
+        if dt <= 0.0:
+            return
+        instant = 1.0 / dt
+        # Exponential moving average smooths out per-frame jitter.
+        if self._fps_meter_value <= 0.0:
+            self._fps_meter_value = instant
+        else:
+            self._fps_meter_value += 0.2 * (instant - self._fps_meter_value)
+        if now - self._fps_meter_last_push >= 0.5:
+            self._fps_meter_last_push = now
+            setter = getattr(self._calibration_panel, "set_current_fps", None)
+            if callable(setter):
+                setter(self._fps_meter_value)
+
+    def _reset_measured_fps(self) -> None:
+        self._fps_meter_last_ts = 0.0
+        self._fps_meter_value = 0.0
+        self._fps_meter_last_push = 0.0
+        setter = getattr(self._calibration_panel, "set_current_fps", None)
+        if callable(setter):
+            setter(None)
 
     def _build_calibration_preview_frame(
         self,

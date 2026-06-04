@@ -1111,7 +1111,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self.window.text_diag_total_time,
         ]:
             widget.setReadOnly(True)
-        self.window.text_diag_current_fps.setPlainText(str(self.window.spin_cap_fps.value()))
+        # "Huidige FPS" shows the measured live frame rate (set via set_current_fps
+        # while live); "-" until frames are flowing.
+        self.window.text_diag_current_fps.setPlainText("-")
         self.window.text_diag_dropped_frames.setPlainText("0")
         self.window.text_diag_used_cams.setPlainText("0")
         self.window.text_diag_Intrinsics_time.setPlainText("-")
@@ -2082,7 +2084,13 @@ class DesignedCalibrationPanel(QtCore.QObject):
 
     def _emit_runtime_tuning_changed(self) -> None:
         self.runtime_tuning_changed.emit(self.runtime_tuning())
-        self.window.text_diag_current_fps.setPlainText(str(self.window.spin_cap_fps.value()))
+
+    def set_current_fps(self, fps: float | None) -> None:
+        """Show the measured live frame rate on the diagnostics page."""
+        if fps is None or fps <= 0.0:
+            self.window.text_diag_current_fps.setPlainText("-")
+        else:
+            self.window.text_diag_current_fps.setPlainText(f"{fps:.1f}")
 
     def _sync_source_input_preview(self) -> None:
         self._video_sources = []
