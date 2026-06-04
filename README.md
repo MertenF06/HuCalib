@@ -52,12 +52,12 @@ git clone https://github.com/MertenF06/HuCalib
 
 **4. Install the required libraries**
 ```bash
-pip install -r "rquirements.txt"
+pip install -r HuCalib/requirements.txt
 ```
 
 **5. Launch the GUI**
 ```bash
-python run.py
+python HuCalib/run.py
 ```
 
 The GUI will open automatically in a new window.
