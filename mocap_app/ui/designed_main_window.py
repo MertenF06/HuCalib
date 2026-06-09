@@ -1254,6 +1254,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return f"{minutes:02d}:{secs:02d}"
 
     def _setup_advanced_page(self, default_camera_csv: str, default_fps: float) -> None:
+        # Baseline of the apply-gated advanced controls (group -> {key: value}),
+        # used to detect changes left unapplied when the user leaves the tab. Set
+        # on each entry to the page and refreshed per group when its Apply runs.
+        self._advanced_baseline: dict[str, dict[str, Any]] = {}
         self.window.doubleSpinBox.setRange(1.0, 500.0)
         self.window.doubleSpinBox.setDecimals(2)
         self.window.doubleSpinBox.setSingleStep(0.5)
@@ -1292,8 +1296,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._charuco_y_spin = self._spin(2, 30, 3)
         self._charuco_square_spin = self._double_spin(1.0, 500.0, 77.0, 0.5, 2)
         self._charuco_marker_spin = self._double_spin(1.0, 500.0, 61.0, 0.5, 2)
-        self._charuco_square_spin.setSuffix(" mm")
-        self._charuco_marker_spin.setSuffix(" mm")
 
         self._workflow_combo = QComboBox()
         self._workflow_combo.addItem("Intrinsics", "intrinsics")
@@ -1327,15 +1329,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._auto_max_intrinsics_combo.currentIndexChanged.connect(self._on_intrinsics_max_changed)
         self._auto_max_extrinsics_spin = self._spin(0, 1000, 40)
         self._auto_max_extrinsics_spin.setSpecialValueText("No limit")
-        self._auto_max_extrinsics_spin.setSuffix(" samples")
         # Independent acceptance thresholds: intrinsics is strict per-camera,
         # extrinsics covers synchronized multi-camera sets (usually more lenient).
         self._intrinsics_quality_spin = self._double_spin(0.0, 1.0, 0.25, 0.05, 2)
         self._intrinsics_coverage_spin = self._double_spin(0.0, 25.0, 1.8, 0.2, 1)
-        self._intrinsics_coverage_spin.setSuffix(" %")
         self._extrinsics_quality_spin = self._double_spin(0.0, 1.0, 0.15, 0.05, 2)
         self._extrinsics_coverage_spin = self._double_spin(0.0, 25.0, 1.0, 0.2, 1)
-        self._extrinsics_coverage_spin.setSuffix(" %")
         self._grid_cols_spin = self._spin(1, 20, 6)
         self._grid_rows_spin = self._spin(1, 20, 4)
         # Keep the intrinsics sample budget divisible over the grid: track the
@@ -1581,7 +1580,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._setup_compact_form(form)
         form.addRow("Columns", self._chess_cols_spin)
         form.addRow("Rows", self._chess_rows_spin)
-        form.addRow("Square", self.window.doubleSpinBox)
+        form.addRow("Square (mm)", self.window.doubleSpinBox)
         form.addRow("", self._apply_chessboard_button)
         return form_widget
 
@@ -1591,8 +1590,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._setup_compact_form(form)
         form.addRow("ChArUco Squares X", self._charuco_x_spin)
         form.addRow("ChArUco Squares Y", self._charuco_y_spin)
-        form.addRow("ChArUco Square", self._charuco_square_spin)
-        form.addRow("ChArUco Marker", self._charuco_marker_spin)
+        form.addRow("ChArUco Square (mm)", self._charuco_square_spin)
+        form.addRow("ChArUco Marker (mm)", self._charuco_marker_spin)
         form.addRow("", self._apply_charuco_button)
         return form_widget
 
@@ -1610,9 +1609,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         form.addRow("Max Samples (Intrinsics)", self._auto_max_intrinsics_combo)
         form.addRow("Max Samples (Extrinsics)", self._auto_max_extrinsics_spin)
         form.addRow("Min Quality (Intrinsics)", self._intrinsics_quality_spin)
-        form.addRow("Min Coverage (Intrinsics)", self._intrinsics_coverage_spin)
+        form.addRow("Min Coverage (Intrinsics, %)", self._intrinsics_coverage_spin)
         form.addRow("Min Quality (Extrinsics)", self._extrinsics_quality_spin)
-        form.addRow("Min Coverage (Extrinsics)", self._extrinsics_coverage_spin)
+        form.addRow("Min Coverage (Extrinsics, %)", self._extrinsics_coverage_spin)
         grid = QWidget()
         grid_layout = QHBoxLayout(grid)
         grid_layout.setContentsMargins(0, 0, 0, 0)
@@ -1679,7 +1678,176 @@ class DesignedCalibrationPanel(QtCore.QObject):
         elif destination == "results":
             self.switch_page(self._PAGE_RESULTS)
 
+    # Apply-gated advanced controls grouped by the Apply button that commits them.
+    # Auto-applying controls (preview res/fps, detect Hz, pattern, overlay/mirror,
+    # auto-navigate) are intentionally excluded.
+    _ADVANCED_FIELD_LABELS = {
+        "sources": "Camerabronnen (CSV)",
+        "capture_res": "Capture-resolutie",
+        "chess_cols": "Chessboard kolommen",
+        "chess_rows": "Chessboard rijen",
+        "chess_square_mm": "Chessboard vierkant (mm)",
+        "charuco_x": "ChArUco kolommen",
+        "charuco_y": "ChArUco rijen",
+        "charuco_square_mm": "ChArUco vierkant (mm)",
+        "charuco_marker_mm": "ChArUco marker (mm)",
+        "cooldown": "Auto-capture cooldown (s)",
+        "max_intrinsics": "Max samples (intrinsics)",
+        "max_extrinsics": "Max samples (extrinsics)",
+        "intr_quality": "Min kwaliteit (intrinsics)",
+        "intr_coverage": "Min dekking (intrinsics, %)",
+        "extr_quality": "Min kwaliteit (extrinsics)",
+        "extr_coverage": "Min dekking (extrinsics, %)",
+        "grid": "Spatial grid",
+    }
+
+    def _advanced_settings_snapshot(self) -> dict[str, dict[str, Any]]:
+        return {
+            "live": {
+                "sources": self._sources_input.text().strip(),
+                "capture_res": self._capture_resolution_combo.currentData(),
+            },
+            "board": {
+                "chess_cols": int(self._chess_cols_spin.value()),
+                "chess_rows": int(self._chess_rows_spin.value()),
+                "chess_square_mm": round(float(self.window.doubleSpinBox.value()), 4),
+                "charuco_x": int(self._charuco_x_spin.value()),
+                "charuco_y": int(self._charuco_y_spin.value()),
+                "charuco_square_mm": round(float(self._charuco_square_spin.value()), 4),
+                "charuco_marker_mm": round(float(self._charuco_marker_spin.value()), 4),
+            },
+            "workflow": {
+                "cooldown": round(float(self._auto_cooldown_spin.value()), 4),
+                "max_intrinsics": self._auto_max_intrinsics_combo.currentData(),
+                "max_extrinsics": int(self._auto_max_extrinsics_spin.value()),
+                "intr_quality": round(float(self._intrinsics_quality_spin.value()), 4),
+                "intr_coverage": round(float(self._intrinsics_coverage_spin.value()), 4),
+                "extr_quality": round(float(self._extrinsics_quality_spin.value()), 4),
+                "extr_coverage": round(float(self._extrinsics_coverage_spin.value()), 4),
+                "grid": (int(self._grid_cols_spin.value()), int(self._grid_rows_spin.value())),
+            },
+        }
+
+    @staticmethod
+    def _format_advanced_value(value: Any) -> str:
+        if isinstance(value, tuple) and len(value) == 2:
+            return f"{value[0]}x{value[1]}"
+        return str(value)
+
+    def _unapplied_advanced_changes(self) -> dict[str, list[tuple[str, Any, Any]]]:
+        """Per-group [(label, old, new)] for controls changed since the last apply."""
+        if not self._advanced_baseline:
+            return {}
+        current = self._advanced_settings_snapshot()
+        changes: dict[str, list[tuple[str, Any, Any]]] = {}
+        for group, fields in current.items():
+            base = self._advanced_baseline.get(group, {})
+            diffs = [
+                (self._ADVANCED_FIELD_LABELS.get(key, key), base.get(key), value)
+                for key, value in fields.items()
+                if base.get(key) != value
+            ]
+            if diffs:
+                changes[group] = diffs
+        return changes
+
+    def _refresh_advanced_baseline(self, group: str | None = None) -> None:
+        snapshot = self._advanced_settings_snapshot()
+        if group is None:
+            self._advanced_baseline = snapshot
+        elif group in snapshot:
+            self._advanced_baseline[group] = snapshot[group]
+
+    def _restore_advanced_settings(self, snapshot: dict[str, dict[str, Any]]) -> None:
+        """Revert the apply-gated controls to a snapshot (discarding pending edits)."""
+        live = snapshot.get("live", {})
+        if "sources" in live:
+            self._sources_input.setText(str(live["sources"]))
+        if "capture_res" in live:
+            index = self._capture_resolution_combo.findData(live["capture_res"])
+            if index >= 0:
+                self._capture_resolution_combo.setCurrentIndex(index)
+        board = snapshot.get("board", {})
+        for key, spin in (
+            ("chess_cols", self._chess_cols_spin),
+            ("chess_rows", self._chess_rows_spin),
+            ("chess_square_mm", self.window.doubleSpinBox),
+            ("charuco_x", self._charuco_x_spin),
+            ("charuco_y", self._charuco_y_spin),
+            ("charuco_square_mm", self._charuco_square_spin),
+            ("charuco_marker_mm", self._charuco_marker_spin),
+        ):
+            if key in board:
+                spin.setValue(board[key])
+        workflow = snapshot.get("workflow", {})
+        for key, spin in (
+            ("cooldown", self._auto_cooldown_spin),
+            ("max_extrinsics", self._auto_max_extrinsics_spin),
+            ("intr_quality", self._intrinsics_quality_spin),
+            ("intr_coverage", self._intrinsics_coverage_spin),
+            ("extr_quality", self._extrinsics_quality_spin),
+            ("extr_coverage", self._extrinsics_coverage_spin),
+        ):
+            if key in workflow:
+                spin.setValue(workflow[key])
+        if "max_intrinsics" in workflow:
+            index = self._auto_max_intrinsics_combo.findData(workflow["max_intrinsics"])
+            if index >= 0:
+                self._auto_max_intrinsics_combo.setCurrentIndex(index)
+        if "grid" in workflow:
+            cols, rows = workflow["grid"]
+            self._grid_cols_spin.setValue(cols)
+            self._grid_rows_spin.setValue(rows)
+
+    def _prompt_unapplied_advanced(self, changes: dict[str, list[tuple[str, Any, Any]]]) -> str:
+        lines = []
+        for diffs in changes.values():
+            for label, old, new in diffs:
+                lines.append(
+                    f"  • {label}: {self._format_advanced_value(old)} → "
+                    f"{self._format_advanced_value(new)}"
+                )
+        box = QMessageBox(self.window)
+        box.setWindowTitle("Niet-toegepaste wijzigingen")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText("Er zijn wijzigingen in de geavanceerde instellingen die nog niet zijn toegepast.")
+        box.setInformativeText("\n".join(lines) + "\n\nWil je ze toepassen voordat je het tabblad verlaat?")
+        apply_btn = box.addButton("Toepassen", QMessageBox.ButtonRole.AcceptRole)
+        discard_btn = box.addButton("Niet toepassen", QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = box.addButton("Annuleren", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(apply_btn)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is apply_btn:
+            return "apply"
+        if clicked is discard_btn:
+            return "discard"
+        return "cancel"
+
+    def _apply_changed_advanced_groups(self, changes: dict[str, list[tuple[str, Any, Any]]]) -> None:
+        if "live" in changes:
+            self._apply_live_settings()
+        if "board" in changes:
+            self._apply_board_settings("Bordinstellingen toegepast.")
+        if "workflow" in changes:
+            self._apply_workflow_settings()
+
     def switch_page(self, index: int) -> None:
+        advanced_index = self._nav_buttons.index(self.window.btn_advanced_settings)
+        leaving_advanced = (
+            self.window.stackedWidget.currentIndex() == advanced_index and index != advanced_index
+        )
+        if leaving_advanced:
+            changes = self._unapplied_advanced_changes()
+            if changes:
+                decision = self._prompt_unapplied_advanced(changes)
+                if decision == "cancel":
+                    return  # stay on the advanced tab
+                if decision == "apply":
+                    self._apply_changed_advanced_groups(changes)
+                else:  # discard pending edits, revert controls to the applied state
+                    self._restore_advanced_settings(self._advanced_baseline)
+
         self.window.stackedWidget.setCurrentIndex(index)
         # Use the team stylesheet's nav styling (property-driven) instead of
         # hardcoded inline colours so hover/disabled states keep working and the
@@ -1688,6 +1856,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
             button.setProperty("active", button_index == index)
             button.style().unpolish(button)
             button.style().polish(button)
+        # On entering the advanced tab, capture the applied baseline so later edits
+        # can be detected when the user leaves without applying them.
+        if index == advanced_index:
+            self._refresh_advanced_baseline()
 
     def _handle_console_input(self) -> None:
         text = self.window.lineedit_console_input.text().strip()
@@ -1757,6 +1929,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def _apply_live_settings(self) -> None:
         self._sync_source_input_preview()
         self._emit_runtime_tuning_changed()
+        self._refresh_advanced_baseline("live")
         if self._live_active:
             self._warn_capture_restart_needed()
         else:
@@ -1772,6 +1945,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._emit_acceptance_thresholds_changed()
         self._emit_workflow_mode_changed()
         self._emit_spatial_grid_changed()
+        self._refresh_advanced_baseline("workflow")
         self.show_feedback("Workflow settings applied.", success=True)
 
     def _apply_preview_options_to_tiles(self) -> None:
@@ -1843,6 +2017,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
 
     def _apply_board_settings(self, message: str) -> None:
         self.board_settings_applied.emit(self.board_settings())
+        self._refresh_advanced_baseline("board")
         self.show_feedback(message, success=True)
 
     def _current_export_format(self) -> str:
@@ -2722,6 +2897,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._charuco_y_spin.setValue(int(settings.charuco_squares_y))
         self._charuco_square_spin.setValue(float(settings.charuco_square_size_m) * 1000.0)
         self._charuco_marker_spin.setValue(float(settings.charuco_marker_size_m) * 1000.0)
+        # This is the applied board state being pushed in (e.g. after loading a
+        # profile), so keep the unapplied-change baseline in sync.
+        if getattr(self, "_advanced_baseline", None):
+            self._refresh_advanced_baseline("board")
 
     def current_workflow_mode(self) -> Literal["intrinsics", "sync_extrinsics"]:
         data = self._workflow_combo.currentData()
