@@ -560,6 +560,10 @@ class DesignedPreviewTile(QFrame):
         self._last_overlay_state: dict[str, Any] = {}
         self._last_status = ""
         self._last_sample_count = 0
+        # Extrinsics-mode connectivity of this camera to the reference, used to tint
+        # the progress bar (green/amber/red). Empty in intrinsics mode.
+        self._connectivity = ""
+        self._connectivity_text = ""
         self._popout: DesignedPreviewPopout | None = None
 
         self._display_name = source_id
@@ -616,7 +620,7 @@ class DesignedPreviewTile(QFrame):
         # Progress shows the percentage of captured samples relative to the max for
         # the active mode. Text is hidden; the bar turns green once the max is hit.
         self._sample_target = 0
-        self._progress_full = False
+        self._progress_style_key: str | None = None
         self._progress = QProgressBar()
         self._progress.setRange(0, 100)
         self._progress.setValue(0)
@@ -699,9 +703,14 @@ class DesignedPreviewTile(QFrame):
             self._popout.set_mirror_active(active)
         self.preview_options_changed.emit()
 
-    _PROGRESS_FULL_STYLE = (
-        "QProgressBar::chunk { background-color: #2e9e3f; }"
-    )
+    # Chunk colours: green=done/quota met, amber=connected only via a bridge,
+    # red=no path to the reference yet. Default (empty) keeps the themed blue fill.
+    _PROGRESS_STYLES = {
+        "green": "QProgressBar::chunk { background-color: #2e9e3f; }",
+        "amber": "QProgressBar::chunk { background-color: #e0a526; }",
+        "red": "QProgressBar::chunk { background-color: #c0392b; }",
+        "default": "",
+    }
 
     def set_sample_target(self, target: int) -> None:
         self._sample_target = max(int(target), 0)
@@ -710,6 +719,27 @@ class DesignedPreviewTile(QFrame):
     def set_sample_count(self, count: int) -> None:
         self._last_sample_count = max(int(count), 0)
         self._refresh_progress()
+
+    def set_connectivity(self, state: str, text: str = "") -> None:
+        """Set the extrinsics connectivity tint for the progress bar.
+
+        ``state`` is one of ``"reference"``/``"direct"``/``"indirect"``/``"none"``
+        (or empty in intrinsics mode, which restores the plain quota behaviour).
+        """
+        self._connectivity = str(state or "")
+        self._connectivity_text = str(text or "")
+        self._refresh_progress()
+
+    def _progress_style_for(self, full: bool) -> str:
+        # No connectivity info (intrinsics mode): plain green-when-full behaviour.
+        if not self._connectivity:
+            return "green" if full else "default"
+        if self._connectivity == "none":
+            return "red"
+        if self._connectivity == "indirect":
+            return "amber"
+        # direct / reference: green once the quota is met, filling otherwise.
+        return "green" if full else "default"
 
     def _refresh_progress(self) -> None:
         count = max(int(self._last_sample_count), 0)
@@ -722,12 +752,14 @@ class DesignedPreviewTile(QFrame):
             percent = min(count, 100)
             full = False
         self._progress.setValue(percent)
-        # Only re-apply the stylesheet when the full/not-full state flips, otherwise
-        # every preview frame would force a style re-polish on the bar.
-        if full != self._progress_full:
-            self._progress_full = full
-            self._progress.setStyleSheet(self._PROGRESS_FULL_STYLE if full else "")
-        self._progress.setToolTip(f"{count}/{target}" if target > 0 else f"{count} samples")
+        # Only re-apply the stylesheet when the colour key changes, otherwise every
+        # preview frame would force a style re-polish on the bar.
+        style_key = self._progress_style_for(full)
+        if style_key != self._progress_style_key:
+            self._progress_style_key = style_key
+            self._progress.setStyleSheet(self._PROGRESS_STYLES.get(style_key, ""))
+        base_tip = f"{count}/{target}" if target > 0 else f"{count} samples"
+        self._progress.setToolTip(f"{base_tip} — {self._connectivity_text}" if self._connectivity_text else base_tip)
 
     def set_frame(
         self,
@@ -758,7 +790,11 @@ class DesignedPreviewTile(QFrame):
         self._last_overlay_state = dict(overlay_state or {})
         self._last_status = status
         self._last_sample_count = int(sample_count)
-        self._status.setText(status)
+        # Pull the extrinsics connectivity tint (empty/absent in intrinsics mode).
+        self._connectivity = str(self._last_overlay_state.get("connectivity", "") or "")
+        self._connectivity_text = str(self._last_overlay_state.get("connectivity_text", "") or "")
+        status_text = f"{status} | {self._connectivity_text}" if self._connectivity_text else status
+        self._status.setText(status_text)
         self.set_sample_count(sample_count)
         self._image.set_frame_pixmap(self._last_pixmap)
         self._image.set_overlay_data(detection, self._last_overlay_state, status, sample_count)

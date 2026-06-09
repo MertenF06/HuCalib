@@ -29,7 +29,10 @@ from mocap_app.models.types import (
     FramePacket,
     RuntimeTuning,
 )
-from mocap_app.workers.calibration_solve_worker import IntrinsicsSolveWorker
+from mocap_app.workers.calibration_solve_worker import (
+    ExtrinsicsSolveWorker,
+    IntrinsicsSolveWorker,
+)
 from mocap_app.workers.camera_probe_worker import CameraProbeWorker
 from mocap_app.workers.capture_worker import LiveCaptureWorker
 from mocap_app.workers.detection_worker import CalibrationDetectionWorker
@@ -77,6 +80,9 @@ class MainWindow(QMainWindow):
         self._live_worker: LiveCaptureWorker | None = None
         self._camera_probe_worker: CameraProbeWorker | None = None
         self._intrinsics_solve_worker: IntrinsicsSolveWorker | None = None
+        self._extrinsics_solve_worker: ExtrinsicsSolveWorker | None = None
+        self._extrinsics_reference_hint: str | None = None
+        self._extrinsics_solve_ok = False
         self._detection_thread: QThread | None = None
         self._detection_worker: CalibrationDetectionWorker | None = None
         self._detection_request_in_flight = False
@@ -616,6 +622,21 @@ class MainWindow(QMainWindow):
                     lagging = sorted(sid for sid, count in counts.items() if count < limit)
                     if lagging:
                         goal_text += f" Still need shared views for: {', '.join(lagging)}."
+                    # A camera with no path to the reference would stay unsolved even
+                    # at full quota, so flag those explicitly.
+                    connectivity = self._extrinsics_connectivity()
+                    reference_id = self._extrinsics_reference_id()
+                    unconnected = sorted(
+                        sid
+                        for sid in counts
+                        if connectivity.get(sid, {}).get("state") == "none" and sid != reference_id
+                    )
+                    if unconnected:
+                        goal_text += (
+                            f" Not yet connected to reference {reference_id}: "
+                            f"{', '.join(unconnected)} — show the board to these together with "
+                            "an already-connected camera."
+                        )
             return (
                 "Auto capture armed (sync mode). Hold the board so it is visible in as many "
                 "cameras at once as possible; every camera must share views with the others."
@@ -648,6 +669,31 @@ class MainWindow(QMainWindow):
             for source_id in self._active_source_ids()
         }
 
+    def _extrinsics_reference_id(self) -> str | None:
+        """Reference camera the extrinsics solve will anchor on (first active source)."""
+        ids = self._active_source_ids()
+        return ids[0] if ids else None
+
+    def _extrinsics_connectivity(self) -> dict[str, dict[str, Any]]:
+        """Per-camera connectivity to the reference over the synchronized-set graph."""
+        return self._calibration_manager.extrinsics_connectivity(
+            self._extrinsics_reference_id(),
+            source_ids=self._active_source_ids(),
+        )
+
+    def _connectivity_text(self, info: dict[str, Any], reference_id: str | None) -> str:
+        """Short, user-facing description of a camera's link to the reference."""
+        state = str(info.get("state", ""))
+        via = info.get("via")
+        ref = reference_id or "referentie"
+        if state == "reference":
+            return "referentiecamera"
+        if state == "none":
+            return f"niet verbonden met {ref}"
+        if state == "indirect":
+            return f"verbonden via {via}" if via else "verbonden via een andere camera"
+        return ""  # direct: the filling/green bar already says it
+
     def _preview_sample_counts(self) -> dict[str, int]:
         """Per-camera sample count for the active mode, shown on the tile progress
         bars: intrinsic observations in intrinsics mode, synchronized sets in
@@ -667,13 +713,23 @@ class MainWindow(QMainWindow):
             # The target only counts as complete once *every* camera has reached it,
             # so a rig can't finish while one camera never shared a view with the others.
             per_source = self._synchronized_counts_by_source()
-            if per_source and all(count >= limit for count in per_source.values()):
-                coverage_text = ", ".join(f"{sid}={count}" for sid, count in sorted(per_source.items()))
-                return (
-                    f"Auto capture stopped: every camera reached {limit} synchronized set(s) "
-                    f"({coverage_text})."
-                )
-            return None
+            if not (per_source and all(count >= limit for count in per_source.values())):
+                return None
+            # Reaching the per-camera quota is not enough: a camera can hit it purely
+            # through a bridge that never connects to the reference and would still
+            # come out unsolved. Keep capturing until every camera is reachable from
+            # the reference (directly or via a chain), matching the extrinsics solve.
+            connectivity = self._extrinsics_connectivity()
+            unconnected = sorted(
+                sid for sid in source_ids if connectivity.get(sid, {}).get("state") == "none"
+            )
+            if unconnected:
+                return None
+            coverage_text = ", ".join(f"{sid}={count}" for sid, count in sorted(per_source.items()))
+            return (
+                f"Auto capture stopped: every camera reached {limit} synchronized set(s) "
+                f"and is connected to the reference ({coverage_text})."
+            )
 
         source_ids = self._active_source_ids()
         if not source_ids:
@@ -710,10 +766,13 @@ class MainWindow(QMainWindow):
                 # auto-advance to the extrinsics capture mode (manual solve).
                 self._maybe_auto_advance_to_extrinsics()
         elif completed_mode == "sync_extrinsics" and self._auto_calibration_active:
-            # Fully automatic chain: solve extrinsics (jumps to Results) and end.
+            # Fully automatic chain: solve extrinsics in the background (jumps to
+            # Results when it finishes). The chain is closed from the solve's
+            # finished handler so the heavy solve never blocks the UI thread; if no
+            # solve worker actually started we close the chain here instead.
             self._set_status("Extrinsics compleet — automatisch berekenen...")
-            self._on_solve_extrinsics(prompt_on_incomplete=False)
-            self._finish_auto_calibration_chain()
+            if not self._on_solve_extrinsics(prompt_on_incomplete=False):
+                self._finish_auto_calibration_chain()
         return True
 
     def _on_start_calibration_run(self) -> None:
@@ -998,11 +1057,23 @@ class MainWindow(QMainWindow):
         detections: dict[str, ChessboardDetectionResult],
         sample_counts: dict[str, int],
     ) -> tuple[Any, ...]:
+        # Per-tile connectivity tint depends on the reference (first active source)
+        # and the synchronized-set graph, neither of which is fully captured by the
+        # raw counts above (e.g. the reference can change without a count change), so
+        # fold it into the cache key in extrinsics mode.
+        connectivity_key: tuple[Any, ...] = ()
+        if self._calibration_workflow_mode() == "sync_extrinsics":
+            connectivity = self._extrinsics_connectivity()
+            connectivity_key = tuple(
+                (sid, connectivity.get(sid, {}).get("state"), connectivity.get(sid, {}).get("via"))
+                for sid in sorted(connectivity)
+            )
         return (
             self._spatial_target_samples_per_cell(),
             tuple(self._calibration_manager.spatial_grid_shape),
             self._calibration_workflow_mode(),
             round(self._overlay_scale(), 3),
+            connectivity_key,
             tuple(
                 (
                     source_id,
@@ -1023,6 +1094,15 @@ class MainWindow(QMainWindow):
     ) -> dict[str, dict[str, Any]]:
         accepted_by_source = accepted_by_source or {}
         target = self._spatial_target_samples_per_cell()
+        extrinsics_mode = self._calibration_workflow_mode() == "sync_extrinsics"
+        # In extrinsics mode colour each tile's progress bar by how the camera links
+        # to the reference (green=direct & quota met, amber=only via a bridge,
+        # red=no path), so a full bar can no longer hide an unsolvable camera.
+        connectivity: dict[str, dict[str, Any]] = {}
+        reference_id: str | None = None
+        if extrinsics_mode:
+            reference_id = self._extrinsics_reference_id()
+            connectivity = self._extrinsics_connectivity()
         states: dict[str, dict[str, Any]] = {}
         for source_id, detection in detections.items():
             try:
@@ -1037,7 +1117,7 @@ class MainWindow(QMainWindow):
             states[source_id] = {
                 "overlay_enabled": self._calibration_panel.overlay_enabled_for(source_id),
                 # The coverage grid is intrinsics-only; hide it in extrinsics mode.
-                "show_grid": self._calibration_workflow_mode() != "sync_extrinsics",
+                "show_grid": not extrinsics_mode,
                 "overlay_scale": self._overlay_scale(),
                 "mirror": self._calibration_panel.mirror_preview_enabled_for(source_id),
                 "sample_count": int(sample_counts.get(source_id, 0)),
@@ -1050,6 +1130,10 @@ class MainWindow(QMainWindow):
                 "coverage_ratio": float(summary.get("credited_grid_coverage_ratio", 0.0) or 0.0),
                 "detection_found": bool(detection.found),
             }
+            if extrinsics_mode:
+                info = connectivity.get(source_id, {"state": "none", "via": None})
+                states[source_id]["connectivity"] = str(info.get("state", "none"))
+                states[source_id]["connectivity_text"] = self._connectivity_text(info, reference_id)
         return states
 
     def _prepare_calibration_preview_frame(self, source_id: str, frame_bgr: Any) -> Any:
@@ -2229,45 +2313,83 @@ class MainWindow(QMainWindow):
         else:
             self._finish_auto_calibration_chain()
 
-    def _on_solve_extrinsics(self, prompt_on_incomplete: bool = True) -> None:
+    def _on_solve_extrinsics(self, prompt_on_incomplete: bool = True) -> bool:
+        """Kick off the extrinsics solve on a worker thread.
+
+        Returns ``True`` when a solve worker was started (so callers driving the
+        automatic chain know to close it from the finished handler instead of
+        immediately), ``False`` when the solve was rejected or cancelled up front.
+        """
         if self._intrinsics_solve_worker is not None:
             self._calibration_panel.show_feedback(
                 "Wait for the intrinsics solve to finish before solving extrinsics.",
                 success=False,
             )
-            return
+            return False
+        if self._extrinsics_solve_worker is not None:
+            self._calibration_panel.show_feedback("Extrinsics solve is already running.", success=False)
+            return False
+
         base_bundle = self._current_calibration_bundle or self._calibration_manager.last_solution()
-        if base_bundle is None:
-            if not self._calibration_manager.sources():
-                self._show_warning("Capture calibration samples first before solving extrinsics.")
-                return
-            base_bundle = self._calibration_manager.solve_intrinsics()
+        if base_bundle is None and not self._calibration_manager.sources():
+            self._show_warning("Capture calibration samples first before solving extrinsics.")
+            return False
+        # When no intrinsics bundle exists yet, solve_extrinsics() falls back to an
+        # intrinsics solve internally; that heavy path also runs on the worker.
 
         active_ids = self._active_source_ids()
         if len(active_ids) >= 2 and prompt_on_incomplete:
-            counts = self._synchronized_counts_by_source()
-            weak = sorted(sid for sid in active_ids if counts.get(sid, 0) < 3)
-            if weak:
+            connectivity = self._extrinsics_connectivity()
+            reference_id = self._extrinsics_reference_id()
+            # Cameras with no path to the reference are the ones that genuinely stay
+            # unsolved; flag those precisely instead of guessing from a raw set count.
+            unconnected = sorted(
+                sid
+                for sid in active_ids
+                if connectivity.get(sid, {}).get("state") == "none" and sid != reference_id
+            )
+            if unconnected:
                 reply = QMessageBox.question(
                     self,
                     "Extrinsics incomplete",
-                    "These camera(s) have too few synchronized sets with the others: "
-                    f"{', '.join(weak)}.\n\n"
+                    "These camera(s) never shared a synchronized view that connects them to "
+                    f"reference {reference_id}: {', '.join(unconnected)}.\n\n"
                     "For a reliable extrinsic calibration every camera must have seen the "
-                    "board together with the others. Solve anyway? These camera(s) may stay "
-                    "unsolved.",
+                    "board together with an already-connected camera. Solve anyway? These "
+                    "camera(s) will stay unsolved.",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
                     QMessageBox.StandardButton.Cancel,
                 )
                 if reply != QMessageBox.StandardButton.Yes:
-                    self._set_status("Extrinsics solve cancelled: not all cameras share views yet.")
-                    return
+                    self._set_status("Extrinsics solve cancelled: not all cameras connect to the reference yet.")
+                    return False
 
         reference_source_id = active_ids[0] if active_ids else None
-        bundle = self._calibration_manager.solve_extrinsics(
+        self._extrinsics_reference_hint = reference_source_id
+        worker = ExtrinsicsSolveWorker(
+            calibration_manager=self._calibration_manager,
             base_bundle=base_bundle,
             reference_source_id=reference_source_id,
         )
+        worker.result_ready.connect(self._on_extrinsics_solve_result)
+        worker.error.connect(self._on_extrinsics_solve_error)
+        worker.state_changed.connect(lambda state: LOGGER.info("Extrinsics solve state: %s", state))
+        worker.finished.connect(self._on_extrinsics_solve_finished)
+        self._extrinsics_solve_worker = worker
+        # Reuse the solve-running UI lock: it disables the capture/solve buttons
+        # (intrinsics and extrinsics) so the run can't be triggered twice.
+        self._calibration_panel.set_intrinsics_solve_running(True, "Solving extrinsics...")
+        self._calibration_panel.show_feedback("Solving extrinsics in the background...", success=True)
+        self._set_status("Solving extrinsics...")
+        worker.start()
+        return True
+
+    def _on_extrinsics_solve_result(self, bundle_obj: object) -> None:
+        if not isinstance(bundle_obj, CalibrationBundle):
+            self._on_extrinsics_solve_error("Extrinsics solve returned an unexpected result.")
+            return
+
+        bundle = bundle_obj
         self._calibration_repo.save(bundle, self._calibration_path)
         self._set_current_calibration_bundle(bundle)
 
@@ -2276,12 +2398,15 @@ class MainWindow(QMainWindow):
             for source_id, camera in bundle.cameras.items()
             if camera.rotation is not None and camera.translation is not None
         ]
-        reference_id = str(bundle.metadata.get("extrinsics_reference_source_id", reference_source_id or "-"))
+        reference_id = str(
+            bundle.metadata.get("extrinsics_reference_source_id", self._extrinsics_reference_hint or "-")
+        )
         message = (
             f"Extrinsics solved for {len(solved_sources)}/{len(bundle.cameras)} camera(s) "
             f"with {reference_id} as reference."
         )
         success = len(solved_sources) >= 2
+        self._extrinsics_solve_ok = success
         self._set_status(message)
         self._calibration_panel.show_feedback(message, success=success)
         self._refresh_calibration_panel(force=True)
@@ -2291,6 +2416,24 @@ class MainWindow(QMainWindow):
         # user lands on the calibration outcome (honours the auto-navigate toggle).
         if success:
             self._auto_navigate("results")
+
+    def _on_extrinsics_solve_error(self, message: str) -> None:
+        LOGGER.error("Extrinsics solve error: %s", message)
+        self._extrinsics_solve_ok = False
+        self._calibration_panel.show_feedback(f"Extrinsics solve failed: {message}", success=False)
+        self._set_status(f"Extrinsics solve failed: {message}")
+
+    def _on_extrinsics_solve_finished(self) -> None:
+        worker = self._extrinsics_solve_worker
+        self._extrinsics_solve_worker = None
+        self._calibration_panel.set_intrinsics_solve_running(False)
+        self._refresh_calibration_panel(force=True)
+        if worker is not None:
+            worker.deleteLater()
+        # Close the automatic chain now the solve worker is fully cleared (the
+        # extrinsics solve is the final step of the fully automatic run).
+        if self._auto_calibration_active:
+            self._finish_auto_calibration_chain()
 
     def _on_reset_calibration_samples(self) -> None:
         self._calibration_manager.reset()
@@ -2609,6 +2752,14 @@ class MainWindow(QMainWindow):
                 self,
                 "Intrinsics Solve",
                 "Intrinsics solve is still running. Wait until it finishes before closing the app.",
+            )
+            event.ignore()
+            return
+        if self._extrinsics_solve_worker is not None and self._extrinsics_solve_worker.isRunning():
+            QMessageBox.information(
+                self,
+                "Extrinsics Solve",
+                "Extrinsics solve is still running. Wait until it finishes before closing the app.",
             )
             event.ignore()
             return

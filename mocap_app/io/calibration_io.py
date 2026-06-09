@@ -416,6 +416,90 @@ class CalibrationManager:
     def synchronized_capture_count(self) -> int:
         return len(self._capture_sets)
 
+    def synchronized_pair_counts(self) -> dict[tuple[str, str], int]:
+        """Number of synchronized capture sets shared by each unordered camera pair."""
+        counts: dict[tuple[str, str], int] = {}
+        for capture_set in self._capture_sets:
+            sources = sorted(capture_set.samples_by_source.keys())
+            for i in range(len(sources)):
+                for j in range(i + 1, len(sources)):
+                    key = (sources[i], sources[j])
+                    counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    def extrinsics_connectivity(
+        self,
+        reference_source_id: str | None,
+        source_ids: list[str] | None = None,
+        min_shared_sets: int = 1,
+    ) -> dict[str, dict[str, Any]]:
+        """Per-camera connectivity to the reference over the synchronized-set graph.
+
+        Two cameras are linked when they appear together in at least
+        ``min_shared_sets`` synchronized capture sets. A breadth-first walk from the
+        reference then mirrors the spanning tree that :meth:`solve_extrinsics` builds,
+        so the live preview can tell the user whether a camera will actually be
+        placeable (``state`` ``"direct"``/``"indirect"``) or will stay unsolved
+        (``state`` ``"none"``) instead of only how many sets it has collected.
+
+        Each entry is ``{"state": "reference"|"direct"|"indirect"|"none",
+        "connected": bool, "hops": int, "via": str|None,
+        "shared_with_reference": int}``. ``via`` is the neighbour one hop closer to
+        the reference (the bridge a chained solve would go through).
+        """
+        pair_counts = self.synchronized_pair_counts()
+        nodes: set[str] = set(source_ids) if source_ids else set()
+        for left, right in pair_counts:
+            nodes.add(left)
+            nodes.add(right)
+        if reference_source_id is not None:
+            nodes.add(reference_source_id)
+
+        def shared(a: str, b: str) -> int:
+            return pair_counts.get((a, b) if a < b else (b, a), 0)
+
+        adjacency: dict[str, set[str]] = {node: set() for node in nodes}
+        for (left, right), count in pair_counts.items():
+            if count >= min_shared_sets and left in adjacency and right in adjacency:
+                adjacency[left].add(right)
+                adjacency[right].add(left)
+
+        hops: dict[str, int] = {}
+        via: dict[str, str | None] = {}
+        if reference_source_id in nodes:
+            hops[reference_source_id] = 0
+            via[reference_source_id] = None
+            queue = [reference_source_id]
+            while queue:
+                current = queue.pop(0)
+                for neighbour in sorted(adjacency.get(current, ())):
+                    if neighbour not in hops:
+                        hops[neighbour] = hops[current] + 1
+                        via[neighbour] = current
+                        queue.append(neighbour)
+
+        result: dict[str, dict[str, Any]] = {}
+        for node in nodes:
+            distance = hops.get(node)
+            if node == reference_source_id:
+                state = "reference"
+            elif distance is None:
+                state = "none"
+            elif distance == 1:
+                state = "direct"
+            else:
+                state = "indirect"
+            result[node] = {
+                "state": state,
+                "connected": distance is not None,
+                "hops": int(distance) if distance is not None else -1,
+                "via": via.get(node),
+                "shared_with_reference": (
+                    shared(node, reference_source_id) if reference_source_id is not None else 0
+                ),
+            }
+        return result
+
     def _init_charuco(self) -> None:
         if not self._charuco_available:
             return
@@ -2101,42 +2185,45 @@ class CalibrationManager:
             },
         }
 
-        solved_pairs = 0
-        for source_id in sorted(solved_intrinsics_ids):
-            if source_id == reference_id:
-                continue
+        # Solve extrinsics by chaining pairwise stereo calibrations out from the
+        # reference rather than forcing every camera to share views with the
+        # reference directly. A camera that never sees the board together with the
+        # reference can still be placed if it shares synchronized sets with another
+        # already-solved camera: we solve against that neighbour and compose the
+        # transform back into the reference frame. This handles rigs where a middle
+        # ("bridge") camera connects two outer cameras whose fields of view never
+        # overlap each other.
+        solved_world_pose: dict[str, tuple[FloatArray, FloatArray]] = {
+            reference_id: (np.eye(3, dtype=np.float64), np.zeros(3, dtype=np.float64))
+        }
+        # Cache the pairwise relation neighbour -> target so repeated passes do not
+        # re-run stereoCalibrate. Values: a success tuple, ``None`` (no usable
+        # shared sets) or ``{"error": str}`` (stereoCalibrate raised).
+        stereo_cache: dict[tuple[str, str], object] = {}
 
+        def _solve_pair(neighbor_id: str, target_id: str) -> object:
+            cached = stereo_cache.get((neighbor_id, target_id), "missing")
+            if cached != "missing":
+                return cached
             pair_data = self._collect_stereo_observations(
-                reference_source_id=reference_id,
-                target_source_id=source_id,
+                reference_source_id=neighbor_id,
+                target_source_id=target_id,
             )
-            camera = cameras[source_id]
             if pair_data is None:
-                message = (
-                    f"No usable synchronized capture sets shared by {reference_id} and {source_id} "
-                    "for extrinsics solve."
-                )
-                camera.diagnostics = self._dedupe_strings(camera.diagnostics + [message])
-                if camera.status.startswith("solved"):
-                    camera.status = "solved_with_warnings"
-                notes.append(f"Camera {source_id}: {message}")
-                continue
-
-            object_points, image_points_ref, image_points_target, image_size, pair_notes = pair_data
-            reference_matrix = np.array(reference_camera.intrinsics, dtype=np.float64)
-            reference_distortion = np.array(reference_camera.distortion, dtype=np.float64).reshape(-1, 1)
-            camera_matrix = np.array(camera.intrinsics, dtype=np.float64)
-            distortion = np.array(camera.distortion, dtype=np.float64).reshape(-1, 1)
-
+                stereo_cache[(neighbor_id, target_id)] = None
+                return None
+            object_points, image_points_neighbor, image_points_target, image_size, pair_notes = pair_data
+            neighbor_cam = cameras[neighbor_id]
+            target_cam = cameras[target_id]
             try:
                 retval, _, _, _, _, rotation_matrix, translation_vec, _, _ = cv2.stereoCalibrate(
                     object_points,
-                    image_points_ref,
+                    image_points_neighbor,
                     image_points_target,
-                    reference_matrix.copy(),
-                    reference_distortion.copy(),
-                    camera_matrix.copy(),
-                    distortion.copy(),
+                    np.array(neighbor_cam.intrinsics, dtype=np.float64).copy(),
+                    np.array(neighbor_cam.distortion, dtype=np.float64).reshape(-1, 1).copy(),
+                    np.array(target_cam.intrinsics, dtype=np.float64).copy(),
+                    np.array(target_cam.distortion, dtype=np.float64).reshape(-1, 1).copy(),
                     image_size,
                     criteria=(
                         cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,
@@ -2146,44 +2233,109 @@ class CalibrationManager:
                     flags=cv2.CALIB_FIX_INTRINSIC,
                 )
             except Exception as exc:
-                message = f"Stereo extrinsics solve failed ({exc})."
-                camera.diagnostics = self._dedupe_strings(camera.diagnostics + [message])
-                if camera.status.startswith("solved"):
-                    camera.status = "solved_with_warnings"
-                notes.append(f"Camera {source_id}: {message}")
-                continue
-
-            baseline_m = float(np.linalg.norm(np.array(translation_vec, dtype=np.float64).reshape(3)))
-            solve_summary = (
-                f"Extrinsics solved relative to {reference_id}: stereo RMS {float(retval):.4f}, "
-                f"baseline {baseline_m:.3f} m, synchronized sets {len(object_points)}."
+                result = {"error": str(exc)}
+                stereo_cache[(neighbor_id, target_id)] = result
+                return result
+            result = (
+                np.array(rotation_matrix, dtype=np.float64).reshape(3, 3),
+                np.array(translation_vec, dtype=np.float64).reshape(3),
+                float(retval),
+                len(object_points),
+                list(pair_notes),
             )
-            has_warning = bool(pair_notes) or float(retval) > 1.2 or len(object_points) < 3
+            stereo_cache[(neighbor_id, target_id)] = result
+            return result
 
-            camera.rotation = np.array(rotation_matrix, dtype=np.float64).reshape(-1).tolist()
-            camera.translation = np.array(translation_vec, dtype=np.float64).reshape(-1).tolist()
+        remaining = [sid for sid in sorted(solved_intrinsics_ids) if sid != reference_id]
+        unreachable: list[str] = []
+        solved_pairs = 0
+        while remaining:
+            # Greedily place the camera with the strongest available edge to the
+            # already-solved set; ties prefer a direct link to the reference (it is
+            # first in solved_world_pose), keeping chains as short as possible.
+            best: tuple[int, str, str, tuple] | None = None
+            for target_id in remaining:
+                for neighbor_id in solved_world_pose:
+                    result = _solve_pair(neighbor_id, target_id)
+                    if not isinstance(result, tuple):
+                        continue
+                    object_count = int(result[3])
+                    if best is None or object_count > best[0]:
+                        best = (object_count, target_id, neighbor_id, result)
+            if best is None:
+                unreachable = list(remaining)
+                break
+
+            _, target_id, neighbor_id, result = best
+            rotation_nt, translation_nt, retval, object_count, pair_notes = result
+            neighbor_rotation, neighbor_translation = solved_world_pose[neighbor_id]
+            # world -> target = (neighbour -> target) composed with world -> neighbour:
+            #   X_t = R_nt (R_n X_world + t_n) + t_nt
+            world_rotation = rotation_nt @ neighbor_rotation
+            world_translation = rotation_nt @ neighbor_translation + translation_nt
+            solved_world_pose[target_id] = (world_rotation, world_translation)
+            remaining.remove(target_id)
+
+            camera = cameras[target_id]
+            baseline_m = float(np.linalg.norm(world_translation))
+            via_text = "" if neighbor_id == reference_id else f" via {neighbor_id}"
+            solve_summary = (
+                f"Extrinsics solved relative to {reference_id}{via_text}: stereo RMS {retval:.4f}, "
+                f"baseline {baseline_m:.3f} m, synchronized sets {object_count}."
+            )
+            has_warning = bool(pair_notes) or retval > 1.2 or object_count < 3
+            camera.rotation = world_rotation.reshape(-1).tolist()
+            camera.translation = world_translation.reshape(-1).tolist()
             camera.status = self._status_with_extrinsics(camera.status, has_warning=has_warning)
             camera.calibrated_at_iso = solved_at_iso
+            chain_notes = list(pair_notes)
+            if neighbor_id != reference_id:
+                chain_notes.append(
+                    f"Solved indirectly through {neighbor_id}: {target_id} never shared a "
+                    f"synchronized view with reference {reference_id}."
+                )
             camera.diagnostics = self._dedupe_strings(
                 [
                     diag
                     for diag in camera.diagnostics
                     if not diag.startswith("Extrinsics not solved in this step.")
                 ]
-                + pair_notes
+                + chain_notes
                 + [solve_summary]
             )
 
-            metadata_extrinsics[source_id] = {
+            metadata_extrinsics[target_id] = {
                 "rotation": list(camera.rotation),
                 "translation": list(camera.translation),
-                "stereo_rms": float(retval),
+                "stereo_rms": retval,
                 "baseline_m": baseline_m,
-                "pair_count": len(object_points),
+                "pair_count": object_count,
+                "solved_against": neighbor_id,
                 "status": camera.status,
             }
-            notes.append(f"Camera {source_id}: {solve_summary}")
+            notes.append(f"Camera {target_id}: {solve_summary}")
             solved_pairs += 1
+
+        # Cameras with no path to the reference component stay unsolved; explain why.
+        for source_id in sorted(unreachable):
+            camera = cameras[source_id]
+            failure_exc: str | None = None
+            for neighbor_id in solved_world_pose:
+                cached = stereo_cache.get((neighbor_id, source_id))
+                if isinstance(cached, dict):
+                    failure_exc = str(cached.get("error"))
+            if failure_exc is not None:
+                message = f"Stereo extrinsics solve failed ({failure_exc})."
+            else:
+                message = (
+                    f"No synchronized capture sets connect {source_id} to reference {reference_id} "
+                    "(directly or through another solved camera); extrinsics not solved. Capture "
+                    "sets where this camera and a reference-connected camera both see the board."
+                )
+            camera.diagnostics = self._dedupe_strings(camera.diagnostics + [message])
+            if camera.status.startswith("solved"):
+                camera.status = "solved_with_warnings"
+            notes.append(f"Camera {source_id}: {message}")
 
         if solved_pairs == 0:
             notes.append("Extrinsics solve completed without any usable camera pairs.")
