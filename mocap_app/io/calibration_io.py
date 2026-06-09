@@ -4,6 +4,7 @@ import copy
 import json
 import logging
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -2034,6 +2035,31 @@ class CalibrationManager:
         if not cameras:
             notes.append("No observations available. Capture chessboard or Charuco samples first.")
 
+        # Flag cameras calibrated at a different resolution than the rest. This is
+        # valid (each camera's intrinsics live in its own pixel space and extrinsics
+        # /triangulation use them per camera), but it usually means a camera could
+        # not deliver the requested capture resolution and silently fell back, so we
+        # surface it instead of leaving it buried in the capture-worker log.
+        resolutions = {
+            source_id: tuple(camera.image_size)
+            for source_id, camera in cameras.items()
+            if camera.image_size is not None and camera.status.startswith("solved")
+        }
+        if len(set(resolutions.values())) > 1:
+            from collections import Counter
+
+            majority_size, _ = Counter(resolutions.values()).most_common(1)[0]
+            odd = sorted(sid for sid, size in resolutions.items() if size != majority_size)
+            summary = ", ".join(
+                f"{sid}={resolutions[sid][0]}x{resolutions[sid][1]}" for sid in odd
+            )
+            notes.append(
+                "Cameras calibrated at different resolutions (most at "
+                f"{majority_size[0]}x{majority_size[1]}): {summary}. This is valid, but a "
+                "differing camera likely could not deliver the requested capture resolution "
+                "and fell back to its maximum."
+            )
+
         notes.append("Next step: solve synchronized multi-camera extrinsics from shared calibration captures.")
         notes.append("Bundle adjustment refinement runs after synchronized extrinsics when enough shared views are available.")
         notes.append("TODO: Add pairwise baseline diagnostics and epipolar residual plots.")
@@ -2583,10 +2609,26 @@ class CalibrationManager:
         if not np.isfinite(initial_rms):
             return {"status": "skipped", "reason": "initial RMS is not finite"}
 
+        # Bundle adjustment has the classic sparse structure: each reprojection
+        # residual depends only on its own camera's 6 pose parameters and its own
+        # view's 6 board-pose parameters. Handing that sparsity to least_squares
+        # lets it estimate the Jacobian with grouped finite differences instead of
+        # perturbing all ~6*(cameras+views) parameters for every residual, which is
+        # the dominant cost (often 10x+ faster) on a rig with many synchronized
+        # sets. Falls back to a dense Jacobian if the structure can't be built.
+        jac_sparsity = self._bundle_adjustment_jac_sparsity(
+            n_params=int(initial_params.size),
+            camera_slices=camera_slices,
+            view_slices=view_slices,
+            views=views,
+        )
+
+        solve_started = time.perf_counter()
         try:
             result = least_squares(
                 residuals,
                 initial_params,
+                jac_sparsity=jac_sparsity,
                 method="trf",
                 loss="soft_l1",
                 f_scale=1.0,
@@ -2657,11 +2699,23 @@ class CalibrationManager:
                 entry["bundle_adjusted"] = True
                 entry["bundle_adjustment_rms_px"] = final_rms
 
+        elapsed_sec = time.perf_counter() - solve_started
+        LOGGER.info(
+            "Bundle adjustment applied in %.2fs (%d views, %d params, nfev=%d): "
+            "RMS %.4f -> %.4f px.",
+            elapsed_sec,
+            len(views),
+            int(initial_params.size),
+            int(getattr(result, "nfev", 0) or 0),
+            initial_rms,
+            final_rms,
+        )
         return {
             "status": "applied",
             "optimizer": "scipy.optimize.least_squares",
             "loss": "soft_l1",
             "intrinsics_fixed": True,
+            "jacobian": "sparse" if jac_sparsity is not None else "dense",
             "reference_source_id": reference_id,
             "camera_count": len(camera_ids),
             "view_count": len(views),
@@ -2672,6 +2726,7 @@ class CalibrationManager:
             "improvement_px": initial_rms - final_rms,
             "cost": float(getattr(result, "cost", 0.0) or 0.0),
             "nfev": int(getattr(result, "nfev", 0) or 0),
+            "elapsed_sec": float(elapsed_sec),
             "success": optimizer_success,
             "message": optimizer_message,
         }
@@ -2867,6 +2922,49 @@ class CalibrationManager:
             for sample in view.samples_by_source.values():
                 total += self._sample_point_count(sample)
         return total
+
+    def _bundle_adjustment_jac_sparsity(
+        self,
+        n_params: int,
+        camera_slices: dict[str, slice],
+        view_slices: dict[int, slice],
+        views: list[_BundleAdjustmentView],
+    ) -> Any | None:
+        """Sparsity pattern of the bundle-adjustment Jacobian.
+
+        Rows follow the exact residual order built by
+        :meth:`_bundle_adjustment_residuals` (per view, per camera, two rows per
+        object point). A residual block is non-zero only in its own view's board
+        slice and its own camera's pose slice (the reference camera has no
+        parameters). Returns ``None`` if SciPy's sparse matrix type is unavailable,
+        so the optimizer falls back to a dense Jacobian.
+        """
+        try:
+            from scipy.sparse import lil_matrix
+        except Exception:  # noqa: BLE001 - dense fallback keeps BA working
+            return None
+
+        blocks: list[tuple[int, int, str, int]] = []
+        total_rows = 0
+        for view_index, view in enumerate(views):
+            for source_id, sample in view.samples_by_source.items():
+                rows = 2 * int(self._sample_object_points(sample).shape[0])
+                if rows <= 0:
+                    continue
+                blocks.append((total_rows, rows, source_id, view_index))
+                total_rows += rows
+        if total_rows == 0 or n_params == 0:
+            return None
+
+        sparsity = lil_matrix((total_rows, n_params), dtype=int)
+        for start, rows, source_id, view_index in blocks:
+            view_slice = view_slices.get(view_index)
+            if view_slice is not None:
+                sparsity[start:start + rows, view_slice.start:view_slice.stop] = 1
+            camera_slice = camera_slices.get(source_id)
+            if camera_slice is not None:
+                sparsity[start:start + rows, camera_slice.start:camera_slice.stop] = 1
+        return sparsity
 
     def _rms_from_reprojection_residuals(self, residuals: NDArray[np.float64]) -> float:
         if residuals.size == 0:
