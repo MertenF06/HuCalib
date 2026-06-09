@@ -3,3 +3,4 @@ opencv-python>=4.8
 # For full Charuco support, prefer:
 # opencv-contrib-python>=4.8
 numpy>=1.26
+scipy>=1.11
