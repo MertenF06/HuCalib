@@ -59,6 +59,57 @@ from ui.guiStyle import apply_styles
 _MAX_CAMERAS = 12
 
 
+# Diagnostics that are purely informational (board pattern, quality scores,
+# per-cell spatial-coverage metrics, "extrinsics are solved in a later step", ...).
+# They are kept in the saved calibration for later analysis, but they are noise in
+# the results-tab message box, which should only surface real problems.
+_INFORMATIONAL_DIAGNOSTIC_PREFIXES = (
+    "Spatial coverage metrics:",
+    "Spatial corner cells:",
+    "Credited spatial corner cells:",
+    "Spatial cell_hit_counts:",
+    "Credited spatial cell_hit_counts:",
+    "Pattern:",
+    "Calibration quality score",
+    "Extrinsics not solved",
+    "Extrinsics solved relative to",
+    "Reference camera for extrinsics solve:",
+    "Solved indirectly through",
+    "Ignoring ",
+    "Next step:",
+    "Triangulation assumption:",
+    "Bundle adjustment",
+    "World coordinate frame",
+    "Extrinsics solved for ",
+)
+
+
+# Human-readable labels for the raw status enum stored on each camera, so the
+# results tab shows "solved (warnings)" instead of "solved_with_warnings".
+_STATUS_LABELS = {
+    "unsolved": "unsolved",
+    "insufficient_data": "insufficient data",
+    "failed": "failed",
+    "solved": "solved",
+    "solved_with_warnings": "solved (warnings)",
+    "solved_extrinsics": "solved + extrinsics",
+    "solved_with_warnings_extrinsics": "solved + extrinsics (warnings)",
+    "reference_camera": "reference camera",
+}
+
+
+def _is_informational_diagnostic(text: str) -> bool:
+    """True for diagnostics that are status/metric notes rather than problems.
+
+    Bundle notes are prefixed ``Camera <id>: ``; that prefix is stripped before
+    matching so e.g. ``Camera 0: Extrinsics solved relative to 1: ...`` is also
+    recognised as informational."""
+    body = text
+    if text.startswith("Camera ") and ": " in text:
+        body = text.split(": ", 1)[1]
+    return body.startswith(_INFORMATIONAL_DIAGNOSTIC_PREFIXES)
+
+
 class _AggregateCheckBox(QCheckBox):
     """Checkbox that can display a partial (mixed) state for per-camera options,
     yet only toggles between checked and unchecked on a user click."""
@@ -1105,6 +1156,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._frames_text = self._plain_text_in_frame(self.window.frame_res_aantal_frames)
         self._camera_info_text = self._plain_text_in_frame(self.window.frame_res_camera_info)
         self._error_text = self._plain_text_in_frame(self.window.frame_res_error)
+        # The box only shows real problems now (informational diagnostics are
+        # filtered out in update_camera_status_table), so the "Error:" label was
+        # misleading — most lines used to be plain status/metric notes.
+        self.window.lab_res_error.setText("Warnings:")
 
         existing_preview = self.window.frame_res_preview_tmol.findChild(QPlainTextEdit)
         self._tmol_preview = existing_preview or QPlainTextEdit()
@@ -2728,32 +2783,72 @@ class DesignedCalibrationPanel(QtCore.QObject):
         camera_info: list[str] = []
         errors: list[str] = []
 
+        extr_meta = bundle.metadata.get("extrinsics", {}) if bundle else {}
+        if not isinstance(extr_meta, dict):
+            extr_meta = {}
+        reference_id = extr_meta.get("reference_source_id")
+
         for source_id in source_ids:
             display_name = self._display_name(source_id)
             camera = bundle.cameras.get(source_id) if bundle else None
             breakdown = sample_breakdown.get(source_id, {})
             count = int(sample_counts.get(source_id, 0))
             total = int(breakdown.get("total", count))
+            sync = int(breakdown.get("synchronized", 0))
             status = self._camera_status_text(camera)
-            reproj = f"{camera.reprojection_error:.4f}px" if camera and camera.reprojection_error is not None else "-"
-            intrinsics.append(f"{display_name} ({source_id}): {status}, samples {count}/{total}, reprojection {reproj}")
+
+            # Reprojection error is a sub-pixel distance; 2 decimals is plenty.
+            reproj = (
+                f"{camera.reprojection_error:.2f}px"
+                if camera and camera.reprojection_error is not None
+                else "-"
+            )
+            intrinsics.append(
+                f"{display_name} ({source_id}): {status}, "
+                f"reprojection error {reproj}, {count}/{total} usable samples"
+            )
+
+            # Surface the extrinsics quality (stereo RMS + baseline) instead of a
+            # bare solved/unsolved, so the results tab actually shows how good the
+            # multi-camera solve is.
             if camera and camera.rotation is not None and camera.translation is not None:
-                extrinsics.append(f"{display_name} ({source_id}): solved")
+                entry = extr_meta.get(source_id)
+                if source_id == reference_id:
+                    extrinsics.append(f"{display_name} ({source_id}): solved (reference camera)")
+                elif isinstance(entry, dict) and entry.get("stereo_rms") is not None:
+                    rms = float(entry.get("stereo_rms", 0.0))
+                    baseline = float(entry.get("baseline_m", 0.0))
+                    extrinsics.append(
+                        f"{display_name} ({source_id}): solved, "
+                        f"stereo RMS {rms:.2f}px, baseline {baseline:.3f} m"
+                    )
+                else:
+                    extrinsics.append(f"{display_name} ({source_id}): solved")
             else:
                 extrinsics.append(f"{display_name} ({source_id}): unsolved")
-            frames.append(f"{display_name} ({source_id}): intrinsics={count}, sync={int(breakdown.get('synchronized', 0))}")
+
+            frames.append(
+                f"{display_name} ({source_id}): total={total}, usable={count}, synchronized={sync}"
+            )
             image_size = f"{camera.image_size[0]}x{camera.image_size[1]}" if camera and camera.image_size else "-"
             camera_info.append(f"{display_name} ({source_id}): image={image_size}")
+
+            # Keep only genuine problems out of the message box; the verbose
+            # status/metric diagnostics stay in the saved calibration but are noise
+            # here.
             diagnostics = []
             if camera:
                 diagnostics.extend(camera.diagnostics)
             if live_detection and source_id in live_detection:
                 diagnostics.extend(live_detection[source_id].diagnostics)
-            if diagnostics:
-                errors.append(f"{display_name} ({source_id}): " + "; ".join(dict.fromkeys(diagnostics)))
+            problems = [d for d in dict.fromkeys(diagnostics) if not _is_informational_diagnostic(d)]
+            if problems:
+                errors.append(f"{display_name} ({source_id}): " + "; ".join(problems))
 
         if bundle and bundle.notes:
-            errors.extend(bundle.notes[-8:])
+            errors.extend(
+                note for note in bundle.notes[-8:] if not _is_informational_diagnostic(note)
+            )
 
         self._intrinsics_text.setPlainText("\n".join(intrinsics) or "-")
         self._extrinsics_text.setPlainText("\n".join(extrinsics) or "-")
@@ -2762,7 +2857,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._error_text.setPlainText("\n".join(dict.fromkeys(errors)) or "-")
 
     def _camera_status_text(self, camera: CameraCalibration | None) -> str:
-        return camera.status if camera else "unsolved"
+        raw = camera.status if camera else "unsolved"
+        return _STATUS_LABELS.get(raw, raw)
 
     def show_feedback(self, message: str, success: bool) -> None:
         color = "#0f7b0f" if success else "#9a6700"

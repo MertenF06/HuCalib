@@ -1831,6 +1831,11 @@ class CalibrationManager:
             samples = [sample for sample in all_samples if sample.accepted_for_intrinsics]
             used_pattern_types.update(sample.pattern_type for sample in samples)
             diagnostics: list[str] = []
+            # Real warnings are also pushed to ``notes`` (too few frames, weak
+            # coverage, ...), while ``diagnostics`` always carries informational
+            # lines (pattern, quality score). Track notes growth so the status is
+            # only "with warnings" when an actual problem was recorded.
+            notes_before = len(notes)
             image_sizes = {sample.image_size for sample in all_samples}
             sample_count = len(samples)
             sync_only_count = len(all_samples) - sample_count
@@ -1955,39 +1960,28 @@ class CalibrationManager:
                             calibrated_at_iso=datetime.now().isoformat(),
                         )
                         continue
-                    _, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+                    # The first return value is the overall RMS reprojection
+                    # error (root-mean-square over all corners of all views) — the
+                    # standard "reprojection error" reported by calibration tools.
+                    reprojection_error, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
                         object_points,
                         image_points,
                         image_size,
                         None,
                         None,
                     )
-                    reprojection_error = self._compute_reprojection_error(
-                        object_points=object_points,
-                        image_points=image_points,
-                        rvecs=rvecs,
-                        tvecs=tvecs,
-                        camera_matrix=camera_matrix,
-                        distortion=dist_coeffs,
-                    )
+                    reprojection_error = float(reprojection_error)
                 else:
                     object_points = [sample.object_points for sample in samples]
                     image_points = [sample.image_points for sample in samples]
-                    _, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
+                    reprojection_error, camera_matrix, dist_coeffs, rvecs, tvecs = cv2.calibrateCamera(
                         object_points,
                         image_points,
                         image_size,
                         None,
                         None,
                     )
-                    reprojection_error = self._compute_reprojection_error(
-                        object_points=object_points,
-                        image_points=image_points,
-                        rvecs=rvecs,
-                        tvecs=tvecs,
-                        camera_matrix=camera_matrix,
-                        distortion=dist_coeffs,
-                    )
+                    reprojection_error = float(reprojection_error)
                 mean_sample_quality = float(np.mean([sample.quality_score for sample in samples]))
                 quality_summary = self._calibration_quality_summary(
                     reprojection_error=reprojection_error,
@@ -2004,7 +1998,7 @@ class CalibrationManager:
                     f"(reprojection score {quality_summary['reprojection_score']:.2f}, "
                     f"spatial score {quality_summary['spatial_score']:.2f})."
                 )
-                status = "solved_with_warnings" if diagnostics else "solved"
+                status = "solved_with_warnings" if len(notes) > notes_before else "solved"
                 cameras[source_id] = CameraCalibration(
                     source_id=source_id,
                     status=status,
@@ -3337,23 +3331,3 @@ class CalibrationManager:
         grid = np.zeros((cols * rows, 3), np.float32)
         grid[:, :2] = np.mgrid[0:cols, 0:rows].T.reshape(-1, 2)
         return grid * self._square_size_m
-
-    def _compute_reprojection_error(
-        self,
-        object_points: list[FloatArray],
-        image_points: list[FloatArray],
-        rvecs: tuple[NDArray[np.float64], ...] | list[NDArray[np.float64]],
-        tvecs: tuple[NDArray[np.float64], ...] | list[NDArray[np.float64]],
-        camera_matrix: NDArray[np.float64],
-        distortion: NDArray[np.float64],
-    ) -> float:
-        total_error = 0.0
-        total_views = 0
-        for obj, img, rvec, tvec in zip(object_points, image_points, rvecs, tvecs):
-            projected, _ = cv2.projectPoints(obj, rvec, tvec, camera_matrix, distortion)
-            error = cv2.norm(img, projected, cv2.NORM_L2) / max(len(projected), 1)
-            total_error += float(error)
-            total_views += 1
-        if total_views == 0:
-            return 0.0
-        return total_error / total_views
