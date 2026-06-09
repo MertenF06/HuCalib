@@ -187,8 +187,8 @@ class CalibrationManager:
         # Extrinsics/sync capture only needs the board shared between cameras, so
         # its acceptance thresholds are deliberately more lenient than the
         # intrinsics ones; they are applied automatically in sync_extrinsics mode.
-        sync_min_quality_score: float = 0.15,
-        sync_min_coverage_ratio: float = 0.012,
+        sync_min_quality_score: float = 0.04,
+        sync_min_coverage_ratio: float = 0.004,
         default_pattern: Literal["chessboard", "charuco"] = "charuco",
         charuco_squares_x: int = 5,
         charuco_squares_y: int = 3,
