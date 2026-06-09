@@ -81,6 +81,10 @@ class MainWindow(QMainWindow):
         self._camera_probe_worker: CameraProbeWorker | None = None
         self._intrinsics_solve_worker: IntrinsicsSolveWorker | None = None
         self._extrinsics_solve_worker: ExtrinsicsSolveWorker | None = None
+        # Wall-clock start of each background solve, used to report the compute
+        # time per stage on the diagnostics page.
+        self._intrinsics_solve_started_at: float | None = None
+        self._extrinsics_solve_started_at: float | None = None
         self._extrinsics_reference_hint: str | None = None
         self._extrinsics_solve_ok = False
         # Auto chain: extrinsics capture can complete while the intrinsics solve is
@@ -2366,6 +2370,7 @@ class MainWindow(QMainWindow):
             success=True,
         )
         self._set_status("Solving intrinsics...")
+        self._intrinsics_solve_started_at = time.perf_counter()
         worker.start()
 
     def _on_intrinsics_solve_result(self, bundle_obj: object) -> None:
@@ -2408,6 +2413,11 @@ class MainWindow(QMainWindow):
     def _on_intrinsics_solve_finished(self) -> None:
         worker = self._intrinsics_solve_worker
         self._intrinsics_solve_worker = None
+        if self._intrinsics_solve_started_at is not None:
+            self._calibration_panel.set_solve_duration(
+                "intrinsics", time.perf_counter() - self._intrinsics_solve_started_at
+            )
+            self._intrinsics_solve_started_at = None
         self._calibration_panel.set_intrinsics_solve_running(False)
         self._refresh_calibration_panel(force=True)
         if worker is not None:
@@ -2515,6 +2525,7 @@ class MainWindow(QMainWindow):
         self._calibration_panel.set_intrinsics_solve_running(True, "Solving extrinsics...", lock_capture=True)
         self._calibration_panel.show_feedback("Solving extrinsics in the background...", success=True)
         self._set_status("Solving extrinsics...")
+        self._extrinsics_solve_started_at = time.perf_counter()
         worker.start()
         return True
 
@@ -2560,6 +2571,11 @@ class MainWindow(QMainWindow):
     def _on_extrinsics_solve_finished(self) -> None:
         worker = self._extrinsics_solve_worker
         self._extrinsics_solve_worker = None
+        if self._extrinsics_solve_started_at is not None:
+            self._calibration_panel.set_solve_duration(
+                "extrinsics", time.perf_counter() - self._extrinsics_solve_started_at
+            )
+            self._extrinsics_solve_started_at = None
         self._calibration_panel.set_intrinsics_solve_running(False)
         self._refresh_calibration_panel(force=True)
         if worker is not None:
