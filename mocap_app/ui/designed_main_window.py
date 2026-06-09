@@ -1024,7 +1024,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._advanced_scroll: QScrollArea | None = None
         self._live_active = False
         self._active_cameras = 0
-        self._project_root = Path.cwd()
+        # ``_project_home`` is the fixed anchor of the directory browser (the
+        # project folder); ``_project_root`` is the folder currently shown in the
+        # tree, which may descend into subfolders but never climbs above the home.
+        self._project_home = Path.cwd().resolve()
+        self._project_root = self._project_home
         self._icon_provider = QFileIconProvider()
         self._camera_names = dict(getattr(self.window._config, "camera_labels", {}) or {})
 
@@ -1195,12 +1199,15 @@ class DesignedCalibrationPanel(QtCore.QObject):
         layout.setContentsMargins(10, 10, 10, 10)
 
         toolbar = QHBoxLayout()
+        self._directory_home_button = QPushButton("Projectmap")
+        self._directory_home_button.setToolTip("Spring terug naar de projectmap")
         self._directory_up_button = QPushButton("Omhoog")
         self._directory_down_button = QPushButton("Omlaag")
         self._directory_path = QLineEdit(str(self._project_root))
         self._directory_path.setReadOnly(True)
         self._directory_refresh_button = QPushButton("Vernieuwen")
         self._directory_browse_button = QPushButton("Bladeren...")
+        toolbar.addWidget(self._directory_home_button)
         toolbar.addWidget(self._directory_up_button)
         toolbar.addWidget(self._directory_down_button)
         toolbar.addWidget(QLabel("Startpad:"))
@@ -1225,6 +1232,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         layout.addLayout(toolbar)
         layout.addWidget(self._directory_tree)
 
+        self._directory_home_button.clicked.connect(self._go_to_project_home)
         self._directory_up_button.clicked.connect(self._go_up_directory)
         self._directory_down_button.clicked.connect(self._go_down_directory)
         self._directory_refresh_button.clicked.connect(lambda: self.load_root_directory(self._project_root))
@@ -3117,11 +3125,27 @@ class DesignedCalibrationPanel(QtCore.QObject):
             float(self._extrinsics_coverage_spin.value()) / 100.0,
         )
 
+    def project_home(self) -> Path:
+        return self._project_home
+
+    def set_project_home(self, directory_path: Path | str) -> None:
+        """Re-anchor the directory browser to a new project folder and show it."""
+        path = Path(directory_path)
+        if not path.exists() or not path.is_dir():
+            self._log(f"Project folder not found: {path}")
+            return
+        self._project_home = path.resolve()
+        self.load_root_directory(self._project_home)
+
+    def _go_to_project_home(self) -> None:
+        self.load_root_directory(self._project_home)
+
     def load_root_directory(self, directory_path: Path | str) -> None:
         path = Path(directory_path)
         if not path.exists() or not path.is_dir():
             self._log(f"Directory not found: {path}")
             return
+        path = path.resolve()
         self._project_root = path
         self._directory_path.setText(str(path))
         self._directory_tree.clear()
@@ -3176,9 +3200,15 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return depth
 
     def _go_up_directory(self) -> None:
+        if self._project_root == self._project_home:
+            self._log("Al in de projectmap; gebruik 'Bladeren...' om een ander project te openen.")
+            return
         parent = self._project_root.parent
-        if parent != self._project_root:
-            self.load_root_directory(parent)
+        # Stay within the project folder: never climb above the home anchor.
+        if not parent.is_relative_to(self._project_home):
+            self._log("Bovenrand van de projectmap bereikt.")
+            return
+        self.load_root_directory(parent)
 
     def _go_down_directory(self, item: QTreeWidgetItem | None = None) -> None:
         target_item = item or self._directory_tree.currentItem()
@@ -3195,10 +3225,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._log(f"Not a folder: {path.name}")
 
     def _browse_directory(self) -> None:
-        selected = QFileDialog.getExistingDirectory(self.window, "Selecteer een project map", str(self._project_root))
+        selected = QFileDialog.getExistingDirectory(self.window, "Selecteer een project map", str(self._project_home))
         if not selected:
             return
-        self.load_root_directory(Path(selected))
+        # Opening a folder makes it the new project home, so the home/up buttons
+        # anchor to it from now on.
+        self.set_project_home(Path(selected))
         self.switch_page(3)
         self._log(f"Project folder loaded: {selected}")
 

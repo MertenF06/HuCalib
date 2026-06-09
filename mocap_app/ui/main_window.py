@@ -2679,13 +2679,28 @@ class MainWindow(QMainWindow):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
+        # Let the user choose where the new project lives. Default to the current
+        # project folder; cancelling keeps the default calibration location.
+        default_dir = str(self._calibration_panel.project_home())
+        chosen = QFileDialog.getExistingDirectory(
+            self, "Kies een locatie voor het nieuwe project", default_dir
+        )
+        project_dir = Path(chosen) if chosen else self._config.calibration_dir
+        try:
+            project_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self._show_error(f"Could not create project folder {project_dir}: {exc}")
+            return
+
         self._calibration_manager.reset_all()
         self._latest_calibration_detections.clear()
         self._last_rendered_frame_indices.clear()
         self._current_calibration_bundle = None
         self._calibration_loaded = False
-        self._calibration_path = self._default_calibration_path()
+        self._calibration_path = project_dir / "current_calibration.json"
         self._last_calibration_detection_at = 0.0
+        # Anchor the directory browser to the new project folder.
+        self._calibration_panel.set_project_home(project_dir)
 
         try:
             if self._calibration_path.exists():
