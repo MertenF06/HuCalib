@@ -1822,7 +1822,15 @@ class CalibrationManager:
         spatial_coverage_by_camera: dict[str, dict[str, Any]] = {}
         calibration_quality_by_camera: dict[str, dict[str, float]] = {}
 
-        for source_id in self.sources():
+        source_ids_to_solve = self.sources()
+        solve_started_at = time.perf_counter()
+        LOGGER.info(
+            "Intrinsics solve: starting for %d camera(s): %s",
+            len(source_ids_to_solve),
+            ", ".join(source_ids_to_solve) or "-",
+        )
+
+        for source_id in source_ids_to_solve:
             # Snapshot the per-camera list: this solve can run on a worker thread
             # while extrinsics capture appends sync-only samples on the UI thread.
             # Copying decouples the two (new samples are accepted_for_intrinsics=
@@ -1846,6 +1854,7 @@ class CalibrationManager:
                 )
 
             if not all_samples:
+                LOGGER.info("Intrinsics [%s]: no samples captured - skipped.", source_id)
                 cameras[source_id] = CameraCalibration(
                     source_id=source_id,
                     status="unsolved",
@@ -1856,6 +1865,11 @@ class CalibrationManager:
                 continue
 
             if sample_count == 0:
+                LOGGER.info(
+                    "Intrinsics [%s]: %d synchronized-only sample(s), none intrinsics-grade - skipped.",
+                    source_id,
+                    sync_only_count,
+                )
                 cameras[source_id] = CameraCalibration(
                     source_id=source_id,
                     status="insufficient_data",
@@ -1869,6 +1883,7 @@ class CalibrationManager:
 
             if len(image_sizes) > 1:
                 diag = "Inconsistent image sizes across samples."
+                LOGGER.warning("Intrinsics [%s]: %s - failed.", source_id, diag)
                 diagnostics.append(diag)
                 notes.append(f"Camera {source_id}: {diag}")
                 cameras[source_id] = CameraCalibration(
@@ -1907,6 +1922,11 @@ class CalibrationManager:
                 notes.append(f"Camera {source_id}: {warning}")
 
             if sample_count < 3:
+                LOGGER.info(
+                    "Intrinsics [%s]: only %d usable sample(s) (need >=3) - insufficient.",
+                    source_id,
+                    sample_count,
+                )
                 cameras[source_id] = CameraCalibration(
                     source_id=source_id,
                     status="insufficient_data",
@@ -1920,6 +1940,7 @@ class CalibrationManager:
             pattern_types = {sample.pattern_type for sample in samples}
             if len(pattern_types) > 1:
                 diag = "Mixed sample pattern types in one camera set."
+                LOGGER.warning("Intrinsics [%s]: %s - failed.", source_id, diag)
                 diagnostics.append(diag)
                 notes.append(f"Camera {source_id}: {diag}")
                 cameras[source_id] = CameraCalibration(
@@ -1933,6 +1954,13 @@ class CalibrationManager:
                 continue
             pattern_type = next(iter(pattern_types)) if pattern_types else "chessboard"
             diagnostics.append(f"Pattern: {pattern_type}")
+            LOGGER.info(
+                "Intrinsics [%s]: calibrating from %d sample(s) (pattern=%s)...",
+                source_id,
+                sample_count,
+                pattern_type,
+            )
+            camera_started_at = time.perf_counter()
 
             try:
                 if pattern_type == "charuco":
@@ -1999,6 +2027,14 @@ class CalibrationManager:
                     f"spatial score {quality_summary['spatial_score']:.2f})."
                 )
                 status = "solved_with_warnings" if len(notes) > notes_before else "solved"
+                LOGGER.info(
+                    "Intrinsics [%s]: %s in %.2f s - reprojection RMS %.3f px, quality %.2f.",
+                    source_id,
+                    status,
+                    time.perf_counter() - camera_started_at,
+                    reprojection_error,
+                    quality_summary["score"],
+                )
                 cameras[source_id] = CameraCalibration(
                     source_id=source_id,
                     status=status,
@@ -2019,6 +2055,7 @@ class CalibrationManager:
                 )
             except Exception as exc:
                 failure = f"Calibration failed ({exc})."
+                LOGGER.warning("Intrinsics [%s]: %s", source_id, failure)
                 diagnostics.append(failure)
                 notes.append(f"Camera {source_id}: {failure}")
                 cameras[source_id] = CameraCalibration(
@@ -2032,6 +2069,14 @@ class CalibrationManager:
 
         if not cameras:
             notes.append("No observations available. Capture chessboard or Charuco samples first.")
+
+        solved_count = sum(1 for camera in cameras.values() if camera.status.startswith("solved"))
+        LOGGER.info(
+            "Intrinsics solve: finished - %d/%d camera(s) solved in %.2f s.",
+            solved_count,
+            len(cameras),
+            time.perf_counter() - solve_started_at,
+        )
 
         # Flag cameras calibrated at a different resolution than the rest. This is
         # valid (each camera's intrinsics live in its own pixel space and extrinsics
@@ -2166,12 +2211,19 @@ class CalibrationManager:
             if camera.intrinsics is not None and camera.distortion is not None
         ]
         if len(solved_intrinsics_ids) < 2:
+            LOGGER.warning(
+                "Extrinsics solve: aborted - need >=2 cameras with valid intrinsics, have %d.",
+                len(solved_intrinsics_ids),
+            )
             notes.append("Extrinsics solve requires at least two cameras with valid intrinsics.")
             working_bundle.notes = self._dedupe_strings(notes)
             self._last_solution = working_bundle
             return working_bundle
 
         if not self._capture_sets:
+            LOGGER.warning(
+                "Extrinsics solve: aborted - no synchronized capture sets available."
+            )
             notes.append("No synchronized calibration capture sets available for extrinsics solve.")
             working_bundle.notes = self._dedupe_strings(notes)
             self._last_solution = working_bundle
@@ -2181,6 +2233,13 @@ class CalibrationManager:
             reference_source_id
             if reference_source_id in solved_intrinsics_ids
             else sorted(solved_intrinsics_ids)[0]
+        )
+        extrinsics_started_at = time.perf_counter()
+        LOGGER.info(
+            "Extrinsics solve: starting for %d camera(s) with %d synchronized set(s); reference=%s.",
+            len(solved_intrinsics_ids),
+            len(self._capture_sets),
+            reference_id,
         )
         reference_camera = cameras[reference_id]
         reference_camera.rotation = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
@@ -2338,6 +2397,10 @@ class CalibrationManager:
                 "status": camera.status,
             }
             notes.append(f"Camera {target_id}: {solve_summary}")
+            if has_warning:
+                LOGGER.warning("Extrinsics [%s]: %s (check warnings)", target_id, solve_summary)
+            else:
+                LOGGER.info("Extrinsics [%s]: %s", target_id, solve_summary)
             solved_pairs += 1
 
         # Cameras with no path to the reference component stay unsolved; explain why.
@@ -2360,8 +2423,10 @@ class CalibrationManager:
             if camera.status.startswith("solved"):
                 camera.status = "solved_with_warnings"
             notes.append(f"Camera {source_id}: {message}")
+            LOGGER.warning("Extrinsics [%s]: unsolved - %s", source_id, message)
 
         if solved_pairs == 0:
+            LOGGER.warning("Extrinsics solve: no usable camera pairs found.")
             notes.append("Extrinsics solve completed without any usable camera pairs.")
         else:
             ba_summary = self._refine_extrinsics_bundle_adjustment(
@@ -2372,6 +2437,12 @@ class CalibrationManager:
             working_bundle.metadata["bundle_adjustment"] = ba_summary
             ba_status = str(ba_summary.get("status", ""))
             if ba_status == "applied":
+                LOGGER.info(
+                    "Extrinsics solve: bundle adjustment refined RMS %.4f -> %.4f px over %d view(s).",
+                    ba_summary.get("initial_rms_px", 0.0),
+                    ba_summary.get("final_rms_px", 0.0),
+                    ba_summary.get("view_count", 0),
+                )
                 notes.append(
                     "Bundle adjustment refined extrinsics: "
                     f"RMS {ba_summary.get('initial_rms_px', 0.0):.4f} -> "
@@ -2379,12 +2450,23 @@ class CalibrationManager:
                     f"{ba_summary.get('view_count', 0)} synchronized view(s)."
                 )
             elif ba_status:
+                LOGGER.info(
+                    "Extrinsics solve: bundle adjustment not applied (%s).",
+                    ba_summary.get("reason", ba_status),
+                )
                 notes.append(
                     "Bundle adjustment not applied: "
                     f"{ba_summary.get('reason', ba_status)}."
                 )
             notes.append(
                 f"Extrinsics solved for {solved_pairs + 1} camera(s) with {reference_id} as reference."
+            )
+            LOGGER.info(
+                "Extrinsics solve: finished - %d/%d camera(s) placed in %.2f s (reference=%s).",
+                solved_pairs + 1,
+                len(solved_intrinsics_ids),
+                time.perf_counter() - extrinsics_started_at,
+                reference_id,
             )
         notes.append(
             f"World coordinate frame is anchored to reference camera {reference_id} "
