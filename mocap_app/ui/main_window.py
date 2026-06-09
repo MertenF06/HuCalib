@@ -83,6 +83,12 @@ class MainWindow(QMainWindow):
         self._extrinsics_solve_worker: ExtrinsicsSolveWorker | None = None
         self._extrinsics_reference_hint: str | None = None
         self._extrinsics_solve_ok = False
+        # Auto chain: extrinsics capture can complete while the intrinsics solve is
+        # still running in the background; defer the extrinsics solve until then.
+        self._pending_auto_extrinsics_solve = False
+        # Show the "cameras have different resolutions" popup at most once per live
+        # session (reset on each live (re)start).
+        self._resolution_mismatch_prompted = False
         self._detection_thread: QThread | None = None
         self._detection_worker: CalibrationDetectionWorker | None = None
         self._detection_request_in_flight = False
@@ -773,22 +779,38 @@ class MainWindow(QMainWindow):
         self._set_status(message)
         if completed_mode == "intrinsics":
             if self._auto_calibration_active:
-                # Fully automatic chain: solve intrinsics now; advancing to the
-                # extrinsics capture mode happens once the solve finishes.
-                self._set_status("Intrinsics compleet — automatisch berekenen...")
+                # Fully automatic chain: start the intrinsics solve in the
+                # background and, for multi-camera rigs, advance to extrinsics
+                # capture right away so synchronized sets can be collected in
+                # parallel instead of waiting for the solve to finish.
                 self._on_solve_calibration()
+                if len(self._active_source_ids()) >= 2:
+                    enter_extrinsics = getattr(self._calibration_panel, "enter_extrinsics_mode", None)
+                    if callable(enter_extrinsics):
+                        enter_extrinsics()
+                        self._set_status(
+                            "Intrinsics berekenen op de achtergrond — leg alvast extrinsics vast..."
+                        )
+                else:
+                    self._set_status("Intrinsics compleet — automatisch berekenen...")
             else:
                 # Once every camera has its full set of intrinsic samples,
                 # auto-advance to the extrinsics capture mode (manual solve).
                 self._maybe_auto_advance_to_extrinsics()
         elif completed_mode == "sync_extrinsics" and self._auto_calibration_active:
             # Fully automatic chain: solve extrinsics in the background (jumps to
-            # Results when it finishes). The chain is closed from the solve's
-            # finished handler so the heavy solve never blocks the UI thread; if no
-            # solve worker actually started we close the chain here instead.
-            self._set_status("Extrinsics compleet — automatisch berekenen...")
-            if not self._on_solve_extrinsics(prompt_on_incomplete=False):
-                self._finish_auto_calibration_chain()
+            # Results when it finishes). If the intrinsics solve is still running,
+            # the extrinsics solve needs its result, so defer until it finishes
+            # (handled in _advance_auto_chain_after_intrinsics).
+            if self._intrinsics_solve_worker is not None:
+                self._pending_auto_extrinsics_solve = True
+                self._set_status(
+                    "Extrinsics vastgelegd — wachten op de intrinsics-berekening voor de extrinsics-solve..."
+                )
+            else:
+                self._set_status("Extrinsics compleet — automatisch berekenen...")
+                if not self._on_solve_extrinsics(prompt_on_incomplete=False):
+                    self._finish_auto_calibration_chain()
         return True
 
     def _on_start_calibration_run(self) -> None:
@@ -812,12 +834,14 @@ class MainWindow(QMainWindow):
     def _on_stop_calibration_run(self) -> None:
         """Stop the automatic chain. Auto-capture stops; live keeps running."""
         self._auto_calibration_active = False
+        self._pending_auto_extrinsics_solve = False
         self._calibration_panel.set_auto_capture_enabled(False)
         self._set_status("Automatische kalibratie gestopt.")
 
     def _finish_auto_calibration_chain(self) -> None:
         """Clear the chain state and reset the Start/Stop button."""
         self._auto_calibration_active = False
+        self._pending_auto_extrinsics_solve = False
         setter = getattr(self._calibration_panel, "set_calibration_run_active", None)
         if callable(setter):
             setter(False)
@@ -1569,6 +1593,8 @@ class MainWindow(QMainWindow):
         self._latest_calibration_detections.clear()
         self._last_rendered_frame_indices.clear()
         self._last_calibration_detection_at = 0.0
+        # A new live session: re-check whether the cameras deliver matching sizes.
+        self._resolution_mismatch_prompted = False
         self._reset_measured_fps()
         source_ids = [source.source_id for source in sources]
         self._calibration_panel.set_sources(source_ids)
@@ -1854,10 +1880,79 @@ class MainWindow(QMainWindow):
         self._latest_frames = frames
         self._active_camera_count = len(frames)
         self._update_measured_fps()
+        self._maybe_warn_resolution_mismatch()
         self._refresh_live_status()
         # Render as soon as a frame arrives (frame-driven) for the lowest
         # latency, instead of waiting for the next display-timer tick.
         self._update_calibration_preview()
+
+    def _maybe_warn_resolution_mismatch(self) -> None:
+        """Warn once when the active cameras deliver different frame resolutions.
+
+        A camera that cannot honour the requested capture resolution silently falls
+        back to its maximum, so a rig can end up mixing e.g. 1080p and 720p. That is
+        valid for calibration, but we surface it with an option to make every camera
+        use the same (smallest delivered) resolution.
+        """
+        if self._resolution_mismatch_prompted:
+            return
+        active = self._active_source_ids()
+        if len(active) < 2:
+            return
+        sizes: dict[str, tuple[int, int]] = {}
+        for source_id in active:
+            frame = self._latest_frames.get(source_id)
+            if frame is None:
+                return  # wait until every active camera has delivered a frame
+            height, width = frame.frame_bgr.shape[:2]
+            sizes[source_id] = (int(width), int(height))
+        if len(set(sizes.values())) < 2:
+            return
+        self._resolution_mismatch_prompted = True
+        self._show_resolution_mismatch_dialog(sizes)
+
+    def _show_resolution_mismatch_dialog(self, sizes: dict[str, tuple[int, int]]) -> None:
+        target_w, target_h = min(sizes.values(), key=lambda size: size[0] * size[1])
+        detail = ", ".join(
+            f"{source_id}={width}x{height}" for source_id, (width, height) in sorted(sizes.items())
+        )
+        box = QMessageBox(self)
+        box.setWindowTitle("Verschillende cameraresoluties")
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setText("Niet alle camera's leveren dezelfde resolutie.")
+        box.setInformativeText(
+            f"{detail}\n\n"
+            "De kalibratie werkt hier prima mee (elke camera houdt zijn eigen "
+            "resolutie en intrinsics), maar meestal betekent dit dat een camera de "
+            "gevraagde resolutie niet aankon en terugviel op zijn maximum.\n\n"
+            f"Wil je alle camera's op {target_w}x{target_h} zetten zodat ze gelijk zijn? "
+            "De live weergave start dan opnieuw."
+        )
+        make_uniform = box.addButton(
+            f"Alles op {target_w}x{target_h}", QMessageBox.ButtonRole.AcceptRole
+        )
+        box.addButton("Negeren", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(make_uniform)
+        box.exec()
+        if box.clickedButton() is make_uniform:
+            self._apply_uniform_capture_resolution(target_w, target_h)
+
+    def _apply_uniform_capture_resolution(self, width: int, height: int) -> None:
+        setter = getattr(self._calibration_panel, "force_capture_resolution", None)
+        if not callable(setter):
+            return
+        setter(width, height)
+        # Pull the updated capture resolution into the active runtime tuning, then
+        # restart live so the new resolution actually takes effect on every camera.
+        self._on_runtime_tuning_changed(self._calibration_panel.runtime_tuning())
+        if self._live_worker is not None and self._live_worker.isRunning() and self._active_sources:
+            self._on_start_live(self._active_sources, self._calibration_panel.target_fps())
+        # The user made an explicit choice; don't pop the dialog again this session
+        # even if a camera still can't reach the target (avoids a restart loop).
+        self._resolution_mismatch_prompted = True
+        self._set_status(
+            f"Capture-resolutie ingesteld op {width}x{height} voor alle camera's; live herstart."
+        )
 
     def _update_measured_fps(self) -> None:
         """Track the real live frame rate from batch arrival intervals and push
@@ -2195,7 +2290,13 @@ class MainWindow(QMainWindow):
         detections: dict[str, ChessboardDetectionResult],
         frames: dict[str, FramePacket] | None = None,
     ) -> bool:
-        if self._intrinsics_solve_worker is not None:
+        # The extrinsics solve reads the capture sets, so never capture while it runs.
+        if self._extrinsics_solve_worker is not None:
+            return False
+        # Extrinsics (sync) capture is independent of the intrinsics solve and may
+        # run in parallel with it; only block intrinsics auto-capture while the
+        # intrinsics solve is in flight.
+        if self._intrinsics_solve_worker is not None and self._calibration_workflow_mode() != "sync_extrinsics":
             return False
         if not self._calibration_panel.auto_capture_enabled():
             return False
@@ -2212,9 +2313,11 @@ class MainWindow(QMainWindow):
         return captured
 
     def _on_capture_calibration(self) -> None:
-        if self._intrinsics_solve_worker is not None:
+        # Sync/extrinsics capture is allowed during the intrinsics solve (they are
+        # independent); only intrinsics capture waits for the solve to finish.
+        if self._intrinsics_solve_worker is not None and self._calibration_workflow_mode() != "sync_extrinsics":
             self._calibration_panel.show_feedback(
-                "Intrinsics solve is running; capture is paused until it finishes.",
+                "Intrinsics solve is running; intrinsics capture is paused until it finishes.",
                 success=False,
             )
             return
@@ -2222,9 +2325,9 @@ class MainWindow(QMainWindow):
         self._capture_calibration_samples(auto_trigger=False, detections=detections)
 
     def _on_start_auto_capture_from_preview(self) -> None:
-        if self._intrinsics_solve_worker is not None:
+        if self._intrinsics_solve_worker is not None and self._calibration_workflow_mode() != "sync_extrinsics":
             self._calibration_panel.show_feedback(
-                "Wait for the intrinsics solve to finish before starting auto capture.",
+                "Wait for the intrinsics solve to finish before starting intrinsics auto capture.",
                 success=False,
             )
             self._calibration_panel.set_auto_capture_enabled(False)
@@ -2314,7 +2417,13 @@ class MainWindow(QMainWindow):
             self._advance_auto_chain_after_intrinsics()
 
     def _advance_auto_chain_after_intrinsics(self) -> None:
+        # The chain already switched to extrinsics capture in parallel while this
+        # solve ran, so here we only react to its outcome.
         if not self._last_intrinsics_solve_ok:
+            # Intrinsics failed: extrinsics cannot be solved, so stop the chain and
+            # disarm the extrinsics capture that was started in parallel.
+            self._pending_auto_extrinsics_solve = False
+            self._calibration_panel.set_auto_capture_enabled(False)
             self._calibration_panel.show_feedback(
                 "Automatische kalibratie gestopt: intrinsics berekenen mislukt.", success=False
             )
@@ -2325,15 +2434,17 @@ class MainWindow(QMainWindow):
             # to Results in the solve result handler). Chain is done.
             self._finish_auto_calibration_chain()
             return
-        enter_extrinsics = getattr(self._calibration_panel, "enter_extrinsics_mode", None)
-        if callable(enter_extrinsics):
-            enter_extrinsics()
-            self._set_status("Intrinsics berekend — automatisch overgeschakeld naar Extrinsics.")
-            self._calibration_panel.show_feedback(
-                "Intrinsics berekend — extrinsics vastleggen gestart.", success=True
-            )
+        if self._pending_auto_extrinsics_solve:
+            # Extrinsics capture already completed while intrinsics was still
+            # solving; run the deferred extrinsics solve now that its result exists.
+            self._pending_auto_extrinsics_solve = False
+            self._set_status("Intrinsics berekend — extrinsics automatisch berekenen...")
+            if not self._on_solve_extrinsics(prompt_on_incomplete=False):
+                self._finish_auto_calibration_chain()
         else:
-            self._finish_auto_calibration_chain()
+            # Extrinsics capture is still in progress (it began in parallel); just
+            # let it continue until the synchronized sets are complete.
+            self._set_status("Intrinsics berekend — ga door met extrinsics vastleggen.")
 
     def _on_solve_extrinsics(self, prompt_on_incomplete: bool = True) -> bool:
         """Kick off the extrinsics solve on a worker thread.
@@ -2398,9 +2509,10 @@ class MainWindow(QMainWindow):
         worker.state_changed.connect(lambda state: LOGGER.info("Extrinsics solve state: %s", state))
         worker.finished.connect(self._on_extrinsics_solve_finished)
         self._extrinsics_solve_worker = worker
-        # Reuse the solve-running UI lock: it disables the capture/solve buttons
-        # (intrinsics and extrinsics) so the run can't be triggered twice.
-        self._calibration_panel.set_intrinsics_solve_running(True, "Solving extrinsics...")
+        # Lock capture too: the extrinsics solve reads the synchronized capture sets,
+        # so no new sets should be appended while it runs (unlike the intrinsics solve,
+        # which runs in parallel with extrinsics capture).
+        self._calibration_panel.set_intrinsics_solve_running(True, "Solving extrinsics...", lock_capture=True)
         self._calibration_panel.show_feedback("Solving extrinsics in the background...", success=True)
         self._set_status("Solving extrinsics...")
         worker.start()

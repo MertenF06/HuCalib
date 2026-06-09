@@ -1823,7 +1823,11 @@ class CalibrationManager:
         calibration_quality_by_camera: dict[str, dict[str, float]] = {}
 
         for source_id in self.sources():
-            all_samples = self._samples.get(source_id, [])
+            # Snapshot the per-camera list: this solve can run on a worker thread
+            # while extrinsics capture appends sync-only samples on the UI thread.
+            # Copying decouples the two (new samples are accepted_for_intrinsics=
+            # False and irrelevant to intrinsics anyway).
+            all_samples = list(self._samples.get(source_id, []))
             samples = [sample for sample in all_samples if sample.accepted_for_intrinsics]
             used_pattern_types.update(sample.pattern_type for sample in samples)
             diagnostics: list[str] = []

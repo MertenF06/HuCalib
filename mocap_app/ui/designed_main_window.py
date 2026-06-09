@@ -2646,12 +2646,16 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def probe_max_index(self) -> int:
         return int(self._probe_max_spin.value())
 
-    def set_intrinsics_solve_running(self, running: bool, message: str = "Solving intrinsics...") -> None:
+    def set_intrinsics_solve_running(
+        self, running: bool, message: str = "Solving intrinsics...", lock_capture: bool = False
+    ) -> None:
+        # The (re)solve and config/reset actions are always locked while a solve
+        # runs. Capture stays enabled during the intrinsics solve so synchronized
+        # extrinsics sets can be collected in parallel; it is locked only when
+        # ``lock_capture`` is set (the final extrinsics solve reads the capture sets).
         for button in [
             self.window.btn_cap_calculate_intrinsics,
             self.window.btn_cap_calculate_extrinsics,
-            self._capture_button,
-            self._capture_sync_button,
             self._reset_samples_button,
             self._load_profile_button,
             self._apply_live_settings_button,
@@ -2660,8 +2664,27 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._apply_workflow_button,
         ]:
             button.setEnabled(not running)
+        for button in (self._capture_button, self._capture_sync_button):
+            button.setEnabled(not (running and lock_capture))
         if running:
             self._feedback.setText(message)
+
+    def force_capture_resolution(self, width: int, height: int) -> bool:
+        """Select a capture resolution programmatically (adding it if missing).
+
+        Used by the 'make all cameras the same resolution' action. Returns True if
+        the selection actually changed.
+        """
+        target = (int(width), int(height))
+        combo = self._capture_resolution_combo
+        index = combo.findData(target)
+        if index < 0:
+            combo.addItem(f"{target[0]} x {target[1]}", target)
+            index = combo.findData(target)
+        if index < 0 or index == combo.currentIndex():
+            return False
+        combo.setCurrentIndex(index)
+        return True
 
     def current_pattern(self) -> str:
         data = self.window.combo_cap_pattern.currentData()
