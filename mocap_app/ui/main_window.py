@@ -508,6 +508,22 @@ class MainWindow(QMainWindow):
         sources = [source for source in sources_obj if isinstance(source, CameraSourceConfig)] if isinstance(sources_obj, list) else []
         live_active = self._live_worker is not None and self._live_worker.isRunning()
         if live_active:
+            # Add/remove a camera while live is running: restart capture with the
+            # new set so the change takes effect immediately instead of being
+            # ignored until the next manual stop. Restarting routes through
+            # _on_start_live -> _on_stop_live, which also finalizes any recording.
+            current_ids = {source.source_id for source in self._active_sources}
+            new_ids = {source.source_id for source in sources}
+            if new_ids == current_ids:
+                # Same cameras (e.g. a rename echo): nothing to reopen.
+                self._active_sources = sources
+                return
+            if not sources:
+                self._set_status("Laatste camera verwijderd — live gestopt.")
+                self._on_stop_live()
+                return
+            self._set_status("Camera's gewijzigd — live opnieuw starten...")
+            self._on_start_live(sources, self._calibration_panel.target_fps())
             return
         self._active_sources = sources
         source_ids = {source.source_id for source in sources}
@@ -1567,7 +1583,7 @@ class MainWindow(QMainWindow):
         worker.batch_ready.connect(self._on_frame_batch)
         worker.state_changed.connect(self._on_live_state_changed)
         worker.error.connect(self._on_worker_error)
-        worker.finished.connect(self._on_live_finished)
+        worker.finished.connect(lambda w=worker: self._on_live_finished(w))
         self._live_worker = worker
         worker.start()
         self._refresh_live_status(force=True)
@@ -1599,7 +1615,13 @@ class MainWindow(QMainWindow):
         else:
             self._set_status(state)
 
-    def _on_live_finished(self) -> None:
+    def _on_live_finished(self, worker: "LiveCaptureWorker | None" = None) -> None:
+        # A restart launches a new worker before the old one's finished signal is
+        # delivered (it is queued onto the UI thread). If a different worker is now
+        # the active one, this is that stale signal and must not tear down the fresh
+        # session. When _live_worker is None the stop was deliberate, so proceed.
+        if worker is not None and self._live_worker is not None and worker is not self._live_worker:
+            return
         self._finalize_recording()
         if self._live_worker is not None and not self._live_worker.isRunning():
             self._live_worker = None
