@@ -2360,6 +2360,7 @@ class MainWindow(QMainWindow):
         worker.result_ready.connect(self._on_intrinsics_solve_result)
         worker.error.connect(self._on_intrinsics_solve_error)
         worker.state_changed.connect(lambda state: LOGGER.info("Intrinsics solve state: %s", state))
+        worker.progress.connect(self._on_intrinsics_solve_progress)
         worker.finished.connect(self._on_intrinsics_solve_finished)
         self._intrinsics_solve_worker = worker
         total_samples = sum(self._calibration_manager.observations_summary(include_sync_only=False).values())
@@ -2409,6 +2410,9 @@ class MainWindow(QMainWindow):
         self._calibration_panel.show_feedback(f"Intrinsics solve failed: {message}", success=False)
         self._set_status(f"Intrinsics solve failed: {message}")
         self._last_intrinsics_solve_ok = False
+
+    def _on_intrinsics_solve_progress(self, done: int, total: int) -> None:
+        self._calibration_panel.set_solve_progress("intrinsics", done, total)
 
     def _on_intrinsics_solve_finished(self) -> None:
         worker = self._intrinsics_solve_worker
@@ -2517,6 +2521,7 @@ class MainWindow(QMainWindow):
         worker.result_ready.connect(self._on_extrinsics_solve_result)
         worker.error.connect(self._on_extrinsics_solve_error)
         worker.state_changed.connect(lambda state: LOGGER.info("Extrinsics solve state: %s", state))
+        worker.progress.connect(self._on_extrinsics_solve_progress)
         worker.finished.connect(self._on_extrinsics_solve_finished)
         self._extrinsics_solve_worker = worker
         # Lock capture too: the extrinsics solve reads the synchronized capture sets,
@@ -2567,6 +2572,9 @@ class MainWindow(QMainWindow):
         self._extrinsics_solve_ok = False
         self._calibration_panel.show_feedback(f"Extrinsics solve failed: {message}", success=False)
         self._set_status(f"Extrinsics solve failed: {message}")
+
+    def _on_extrinsics_solve_progress(self, done: int, total: int) -> None:
+        self._calibration_panel.set_solve_progress("extrinsics", done, total)
 
     def _on_extrinsics_solve_finished(self) -> None:
         worker = self._extrinsics_solve_worker

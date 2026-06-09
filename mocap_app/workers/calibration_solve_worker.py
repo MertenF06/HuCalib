@@ -17,6 +17,8 @@ class IntrinsicsSolveWorker(QThread):
     result_ready = Signal(object)
     error = Signal(str)
     state_changed = Signal(str)
+    # (completed_cameras, total_cameras) so the UI can show a percentage.
+    progress = Signal(int, int)
 
     def __init__(self, calibration_manager: CalibrationManager) -> None:
         super().__init__()
@@ -25,7 +27,9 @@ class IntrinsicsSolveWorker(QThread):
     def run(self) -> None:
         try:
             self.state_changed.emit("intrinsics_solve_started")
-            bundle = self._calibration_manager.solve_intrinsics()
+            bundle = self._calibration_manager.solve_intrinsics(
+                progress_cb=lambda done, total: self.progress.emit(done, total)
+            )
             self.result_ready.emit(bundle)
             self.state_changed.emit("intrinsics_solve_finished")
         except Exception as exc:  # pragma: no cover - UI surface area
@@ -45,6 +49,8 @@ class ExtrinsicsSolveWorker(QThread):
     result_ready = Signal(object)
     error = Signal(str)
     state_changed = Signal(str)
+    # (placed_cameras, total_cameras) so the UI can show a percentage.
+    progress = Signal(int, int)
 
     def __init__(
         self,
@@ -63,6 +69,7 @@ class ExtrinsicsSolveWorker(QThread):
             bundle = self._calibration_manager.solve_extrinsics(
                 base_bundle=self._base_bundle,
                 reference_source_id=self._reference_source_id,
+                progress_cb=lambda done, total: self.progress.emit(done, total),
             )
             self.result_ready.emit(bundle)
             self.state_changed.emit("extrinsics_solve_finished")

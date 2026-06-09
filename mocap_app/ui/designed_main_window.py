@@ -2934,6 +2934,17 @@ class DesignedCalibrationPanel(QtCore.QObject):
         if running:
             self._feedback.setText(message)
 
+    def set_solve_progress(self, stage: str, done: int, total: int) -> None:
+        """Show the running solve as an increasing percentage in the feedback line,
+        replacing the static "solving..." text. ``stage`` is "intrinsics" or
+        "extrinsics"; done/total are cameras processed so far."""
+        if total <= 0:
+            return
+        pct = max(0, min(100, int(round(100 * done / total))))
+        label = "Extrinsics" if stage == "extrinsics" else "Intrinsics"
+        self._feedback.setStyleSheet("color: #0f7b0f;")
+        self._feedback.setText(f"{label} berekenen... {pct}% ({done}/{total} camera's)")
+
     def force_capture_resolution(self, width: int, height: int) -> bool:
         """Select a capture resolution programmatically (adding it if missing).
 

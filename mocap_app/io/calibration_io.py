@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import cv2
 import numpy as np
@@ -19,6 +19,10 @@ from mocap_app.models.types import CalibrationBoardSettings, CalibrationBundle, 
 
 LOGGER = logging.getLogger(__name__)
 CALIBRATION_SCHEMA_VERSION = 2
+
+# Reports solve progress as (completed_units, total_units) so the UI can show a
+# percentage. Called from the solve worker thread.
+ProgressCallback = Callable[[int, int], None]
 DEFAULT_SPATIAL_GRID_SHAPE = (6, 4)
 DEFAULT_MIN_SPATIAL_GRID_COVERAGE_RATIO = 0.70
 
@@ -1814,7 +1818,7 @@ class CalibrationManager:
             return np.zeros((0, 3), np.float32)
         return np.array(corners, dtype=np.float32).reshape(-1, 3)
 
-    def solve_intrinsics(self) -> CalibrationBundle:
+    def solve_intrinsics(self, progress_cb: ProgressCallback | None = None) -> CalibrationBundle:
         """Solve intrinsics per camera and include diagnostics/reprojection metrics."""
         cameras: dict[str, CameraCalibration] = {}
         notes: list[str] = []
@@ -1823,14 +1827,19 @@ class CalibrationManager:
         calibration_quality_by_camera: dict[str, dict[str, float]] = {}
 
         source_ids_to_solve = self.sources()
+        total_to_solve = len(source_ids_to_solve)
         solve_started_at = time.perf_counter()
         LOGGER.info(
             "Intrinsics solve: starting for %d camera(s): %s",
-            len(source_ids_to_solve),
+            total_to_solve,
             ", ".join(source_ids_to_solve) or "-",
         )
 
-        for source_id in source_ids_to_solve:
+        for index, source_id in enumerate(source_ids_to_solve):
+            # Report progress as "cameras completed so far" before each camera,
+            # so the percentage advances as the (expensive) per-camera solves run.
+            if progress_cb is not None:
+                progress_cb(index, total_to_solve)
             # Snapshot the per-camera list: this solve can run on a worker thread
             # while extrinsics capture appends sync-only samples on the UI thread.
             # Copying decouples the two (new samples are accepted_for_intrinsics=
@@ -2067,6 +2076,9 @@ class CalibrationManager:
                     calibrated_at_iso=datetime.now().isoformat(),
                 )
 
+        if progress_cb is not None:
+            progress_cb(total_to_solve, total_to_solve)
+
         if not cameras:
             notes.append("No observations available. Capture chessboard or Charuco samples first.")
 
@@ -2197,6 +2209,7 @@ class CalibrationManager:
         self,
         base_bundle: CalibrationBundle | None = None,
         reference_source_id: str | None = None,
+        progress_cb: ProgressCallback | None = None,
     ) -> CalibrationBundle:
         """Solve pairwise extrinsics against a reference camera using synchronized capture sets."""
         working_bundle = copy.deepcopy(base_bundle or self._last_solution or self.solve_intrinsics())
@@ -2332,6 +2345,9 @@ class CalibrationManager:
         remaining = [sid for sid in sorted(solved_intrinsics_ids) if sid != reference_id]
         unreachable: list[str] = []
         solved_pairs = 0
+        total_targets = len(remaining)
+        if progress_cb is not None:
+            progress_cb(0, total_targets)
         while remaining:
             # Greedily place the camera with the strongest available edge to the
             # already-solved set; ties prefer a direct link to the reference (it is
@@ -2402,6 +2418,8 @@ class CalibrationManager:
             else:
                 LOGGER.info("Extrinsics [%s]: %s", target_id, solve_summary)
             solved_pairs += 1
+            if progress_cb is not None:
+                progress_cb(solved_pairs, total_targets)
 
         # Cameras with no path to the reference component stay unsolved; explain why.
         for source_id in sorted(unreachable):
@@ -2472,6 +2490,8 @@ class CalibrationManager:
             f"World coordinate frame is anchored to reference camera {reference_id} "
             "(world-to-camera extrinsics stored per camera)."
         )
+        if progress_cb is not None:
+            progress_cb(total_targets, total_targets)
 
         working_bundle.metadata["extrinsics"] = metadata_extrinsics
         working_bundle.metadata["extrinsics_reference_source_id"] = reference_id
