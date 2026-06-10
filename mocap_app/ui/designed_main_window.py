@@ -1432,6 +1432,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._save_profile_button = QPushButton("Save Profile")
         self._load_profile_button = QPushButton("Load Profile")
         self._reset_samples_button = QPushButton("Reset Samples")
+        self._reset_defaults_button = QPushButton("Reset naar standaardinstellingen")
 
         self._compact_advanced_controls()
 
@@ -1461,6 +1462,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         page_layout.addWidget(scroll)
 
         self._connect_advanced_controls()
+        # Snapshot the factory defaults (the values every control was just built
+        # with) so the "Reset naar standaardinstellingen" button can restore them.
+        self._capture_advanced_defaults()
 
     def _compact_advanced_controls(self) -> None:
         self._compact_field(self._sources_input, 360)
@@ -1546,6 +1550,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._save_profile_button.clicked.connect(self.save_profile_requested)
         self._load_profile_button.clicked.connect(self.load_profile_requested)
         self._reset_samples_button.clicked.connect(self._emit_reset)
+        self._reset_defaults_button.clicked.connect(self._reset_advanced_to_defaults)
         self.window.doubleSpinBox.valueChanged.connect(lambda _value: None)
         # Preview-only settings can be applied to a running live session
         # immediately (they only affect display downscaling, the preview refresh
@@ -1724,6 +1729,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
         for index, button in enumerate(buttons):
             button.setMinimumHeight(30)
             layout.addWidget(button, index // 2, index % 2)
+        # Full-width row below the action grid: revert every advanced setting to
+        # its startup default in one click.
+        self._reset_defaults_button.setMinimumHeight(30)
+        reset_row = (len(buttons) + 1) // 2
+        layout.addWidget(self._reset_defaults_button, reset_row, 0, 1, 2)
         return widget
 
     def _status_widget(self) -> QWidget:
@@ -1875,6 +1885,66 @@ class DesignedCalibrationPanel(QtCore.QObject):
             cols, rows = workflow["grid"]
             self._grid_cols_spin.setValue(cols)
             self._grid_rows_spin.setValue(rows)
+
+    def _capture_advanced_defaults(self) -> None:
+        """Record the startup default of every advanced control.
+
+        ``_advanced_settings_snapshot`` only covers the apply-gated controls, so
+        the auto-applying ones (preview/probe/pattern/overlay/navigation) are
+        captured separately here. Both are restored by the reset action.
+        """
+        self._advanced_defaults = self._advanced_settings_snapshot()
+        self._advanced_aux_defaults: dict[str, Any] = {
+            "capture_fps": self.window.spin_cap_fps.value(),
+            "preview_fps": self._preview_fps_spin.value(),
+            "preview_res": self._preview_resolution_combo.currentData(),
+            "detect_hz": self._detect_hz_spin.value(),
+            "probe_max": self._probe_max_spin.value(),
+            "pattern": self.window.combo_cap_pattern.currentIndex(),
+            "overlay": self._overlay_checkbox.checkState(),
+            "mirror": self._mirror_checkbox.checkState(),
+            "auto_capture": self._auto_capture_checkbox.isChecked(),
+            "auto_navigate": self._auto_navigate_checkbox.isChecked(),
+        }
+
+    def _restore_advanced_aux(self, defaults: dict[str, Any]) -> None:
+        """Revert the auto-applying advanced controls to a captured snapshot."""
+        self.window.spin_cap_fps.setValue(defaults["capture_fps"])
+        self._preview_fps_spin.setValue(defaults["preview_fps"])
+        index = self._preview_resolution_combo.findData(defaults["preview_res"])
+        if index >= 0:
+            self._preview_resolution_combo.setCurrentIndex(index)
+        self._detect_hz_spin.setValue(defaults["detect_hz"])
+        self._probe_max_spin.setValue(defaults["probe_max"])
+        self.window.combo_cap_pattern.setCurrentIndex(defaults["pattern"])
+        self._overlay_checkbox.setCheckState(defaults["overlay"])
+        self._mirror_checkbox.setCheckState(defaults["mirror"])
+        self._auto_capture_checkbox.setChecked(defaults["auto_capture"])
+        self._auto_navigate_checkbox.setChecked(defaults["auto_navigate"])
+
+    def _reset_advanced_to_defaults(self) -> None:
+        """Revert every advanced setting to the value it had at startup."""
+        if QMessageBox.question(
+            self.window,
+            "Standaardinstellingen herstellen",
+            "Weet je zeker dat je alle geavanceerde instellingen wilt "
+            "terugzetten naar de standaardwaarden?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        self._restore_advanced_settings(self._advanced_defaults)
+        self._restore_advanced_aux(self._advanced_aux_defaults)
+        # Commit the restored values so they take effect immediately and reset the
+        # change-tracking baseline, so leaving the tab won't prompt to re-apply.
+        self._apply_live_settings()
+        self._apply_board_settings("Standaardinstellingen hersteld.")
+        self._apply_workflow_settings()
+        self._refresh_advanced_baseline()
+        self.show_feedback(
+            "Geavanceerde instellingen teruggezet naar de standaardwaarden.",
+            success=True,
+        )
 
     def _prompt_unapplied_advanced(self, changes: dict[str, list[tuple[str, Any, Any]]]) -> str:
         lines = []
