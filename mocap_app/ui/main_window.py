@@ -2599,11 +2599,14 @@ class MainWindow(QMainWindow):
     def _on_reset_calibration_samples(self) -> None:
         self._calibration_manager.reset()
         self._latest_calibration_detections.clear()
-        if self._auto_calibration_active:
-            self._finish_auto_calibration_chain()
+        # Reset also stops the running calibration: tear down the auto chain and
+        # disarm auto-capture so the frame loop stops storing new samples once the
+        # button has returned to its idle "Start kalibratie" state.
+        self._calibration_panel.set_auto_capture_enabled(False)
+        self._finish_auto_calibration_chain()
         self._refresh_calibration_panel(force=True)
-        self._calibration_panel.show_feedback("Samples gewist.", success=True)
-        self._set_status("Samples gewist")
+        self._calibration_panel.show_feedback("Samples gewist; kalibratie gestopt.", success=True)
+        self._set_status("Samples gewist; kalibratie gestopt")
 
     def _build_export_text(self, fmt: str) -> tuple[str | None, str | None, bool]:
         """Return (text, info_message, usable). text is None when no calibration exists.

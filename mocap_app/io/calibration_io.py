@@ -23,7 +23,7 @@ CALIBRATION_SCHEMA_VERSION = 2
 # Reports solve progress as (completed_units, total_units) so the UI can show a
 # percentage. Called from the solve worker thread.
 ProgressCallback = Callable[[int, int], None]
-DEFAULT_SPATIAL_GRID_SHAPE = (6, 4)
+DEFAULT_SPATIAL_GRID_SHAPE = (5, 3)
 DEFAULT_MIN_SPATIAL_GRID_COVERAGE_RATIO = 0.70
 
 FloatArray = NDArray[np.float32]

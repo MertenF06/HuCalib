@@ -1392,7 +1392,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         # before every cell has its samples.
         self._auto_max_intrinsics_combo = QComboBox()
         self._auto_max_intrinsics_combo.currentIndexChanged.connect(self._on_intrinsics_max_changed)
-        self._auto_max_extrinsics_spin = self._spin(0, 1000, 40)
+        self._auto_max_extrinsics_spin = self._spin(0, 1000, 20)
         self._auto_max_extrinsics_spin.setSpecialValueText("No limit")
         # Independent acceptance thresholds: intrinsics is strict per-camera,
         # extrinsics covers synchronized multi-camera sets (usually more lenient).
@@ -1400,11 +1400,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._intrinsics_coverage_spin = self._double_spin(0.0, 25.0, 0.3, 0.2, 1)
         self._extrinsics_quality_spin = self._double_spin(0.0, 1.0, 0.4, 0.05, 2)
         self._extrinsics_coverage_spin = self._double_spin(0.0, 25.0, 0.4, 0.2, 1)
-        self._grid_cols_spin = self._spin(1, 20, 6)
-        self._grid_rows_spin = self._spin(1, 20, 4)
+        self._grid_cols_spin = self._spin(1, 20, 5)
+        self._grid_rows_spin = self._spin(1, 20, 3)
         # Keep the intrinsics sample budget divisible over the grid: track the
         # chosen samples-per-cell and rebuild the dropdown when the grid changes.
-        self._intrinsics_per_cell_target = 3
+        # 2/vak over the 5x3 grid is the default 30-sample intrinsics budget.
+        self._intrinsics_per_cell_target = 2
         self._grid_cols_spin.valueChanged.connect(lambda _v: self._rebuild_intrinsics_max_options())
         self._grid_rows_spin.valueChanged.connect(lambda _v: self._rebuild_intrinsics_max_options())
         self._rebuild_intrinsics_max_options()
@@ -1559,21 +1560,32 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.preview_options_changed.connect(self._sync_advanced_checkboxes_from_tiles)
         self._sync_advanced_checkboxes_from_tiles()
 
+    # Compact font for the results read-outs so the per-camera lines stay
+    # readable without the boxes feeling oversized.
+    _RESULTS_TEXT_POINT_SIZE = 8
+
     def _plain_text_in_frame(self, frame: QFrame) -> QPlainTextEdit:
         existing = frame.findChild(QPlainTextEdit)
         if existing is not None:
             existing.setReadOnly(True)
             existing.setPlainText("-")
+            self._apply_results_text_font(existing)
             return existing
         text = QPlainTextEdit()
         text.setReadOnly(True)
         text.setPlainText("-")
+        self._apply_results_text_font(text)
         layout = frame.layout()
         if layout is None:
             layout = QVBoxLayout(frame)
             layout.setContentsMargins(4, 4, 4, 4)
         layout.addWidget(text)
         return text
+
+    def _apply_results_text_font(self, widget: QPlainTextEdit) -> None:
+        font = widget.font()
+        font.setPointSize(self._RESULTS_TEXT_POINT_SIZE)
+        widget.setFont(font)
 
     def _clear_layout(self, layout: QtWidgets.QLayout) -> None:
         while layout.count():
@@ -2362,6 +2374,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.solve_extrinsics_requested.emit()
 
     def _emit_reset(self) -> None:
+        # Reset fully stops any running calibration: disarm auto-capture and clear
+        # the single Start-kalibratie run button as well as the per-phase mode
+        # buttons. Without disarming auto-capture the frame loop keeps storing
+        # samples even though the buttons look idle again.
+        self.set_auto_capture_enabled(False)
+        self.set_calibration_run_active(False)
         self.window.btn_cap_intrinsics_start.setChecked(False)
         self.window.btn_cap_extrinsics_start.setChecked(False)
         self.window.btn_cap_intrinsics_start.setText("Start")
