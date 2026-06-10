@@ -3515,6 +3515,15 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         central_layout.setContentsMargins(0, 0, 0, 0)
         central_layout.setSpacing(0)
         central_layout.addWidget(self._main_splitter, 0, 0, 1, 1)
+        # gui.py put the stretch on column/row 1 for the original two-column
+        # layout. The splitter now lives in cell (0, 0), so move the stretch
+        # there; otherwise the spare horizontal space goes to the empty column 1
+        # and the content leaves a blank strip on the right.
+        if isinstance(central_layout, QGridLayout):
+            central_layout.setColumnStretch(0, 1)
+            central_layout.setColumnStretch(1, 0)
+            central_layout.setRowStretch(0, 1)
+            central_layout.setRowStretch(1, 0)
 
     def _setup_settings_menu(self) -> None:
         if getattr(self, "menuSettings", None) is not None:
