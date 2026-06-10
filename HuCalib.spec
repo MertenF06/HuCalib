@@ -1,7 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Build with:  pyinstaller HuCalib.spec --noconfirm
-# Produces a single dist/HuCalib.exe. On first launch the app creates its
-# calibration/, logs/ and sessions/ folders next to the executable.
+# Produces a one-folder build at dist/HuCalib/ (HuCalib.exe + its
+# dependencies). This onedir layout is required by Velopack, which packages
+# that folder into an installer and self-updating release (see UPDATING.md and
+# build_release.ps1). On first launch the app creates its calibration/, logs/
+# and sessions/ folders next to the executable.
 
 a = Analysis(
     ['run.py'],
@@ -69,15 +72,13 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,   # onedir: binaries/datas are collected below
     name='HuCalib',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    runtime_tmpdir=None,
     console=False,           # GUI app: no console window
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -85,4 +86,14 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon='ui/imagesGUI/hucalib_cube_icon.ico',
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='HuCalib',
 )

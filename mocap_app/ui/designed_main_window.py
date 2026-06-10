@@ -3718,6 +3718,21 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self._sync_ui_scale_menu()
         self._sync_overlay_scale_menu()
 
+        self._setup_updates_menu()
+
+    def _setup_updates_menu(self) -> None:
+        """Add a manual "Check for updates" entry to the Help menu."""
+        action = QtGui.QAction("Controleren op updates…", self)
+        action.setObjectName("actionCheckForUpdates")
+        action.triggered.connect(self._check_for_updates_clicked)
+        self.menuHelp.addSeparator()
+        self.menuHelp.addAction(action)
+
+    def _check_for_updates_clicked(self) -> None:
+        controller = getattr(self, "update_controller", None)
+        if controller is not None:
+            controller.check_now()
+
     def _setup_ui(self) -> None:
         self._designed_status_bar().showMessage("Idle")
 

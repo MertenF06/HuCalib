@@ -4,3 +4,5 @@ opencv-python>=4.8
 # opencv-contrib-python>=4.8
 numpy>=1.26
 scipy>=1.11
+# Auto-update framework (installer + self-updating from GitHub Releases).
+velopack>=1.2

@@ -16,3 +16,6 @@ __pycache__/
 # PyInstaller build output
 build/
 dist/
+
+# Velopack release output (installer + update packages)
+Releases/

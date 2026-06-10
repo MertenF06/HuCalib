@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import sys
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from mocap_app.core.config import AppConfig
 from mocap_app.core.logging_config import configure_logging
+from mocap_app.core.updater import UpdateController
 from mocap_app.ui.designed_main_window import DesignedMainWindow
 from ui.gui import IMAGES_DIR
 
@@ -38,4 +40,12 @@ def run() -> int:
 
     window = DesignedMainWindow(config=config)
     window.showMaximized()
+
+    # Check GitHub for a newer release shortly after the window is up, so the
+    # check never delays startup. The controller is parented to the window so it
+    # stays alive for the app's lifetime; the window also drives manual checks.
+    updater = UpdateController(window)
+    window.update_controller = updater
+    QTimer.singleShot(2500, updater.start_background_check)
+
     return app.exec()
