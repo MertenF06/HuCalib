@@ -2530,7 +2530,9 @@ class MainWindow(QMainWindow):
         # Lock capture too: the extrinsics solve reads the synchronized capture sets,
         # so no new sets should be appended while it runs (unlike the intrinsics solve,
         # which runs in parallel with extrinsics capture).
-        self._calibration_panel.set_intrinsics_solve_running(True, "Solving extrinsics...", lock_capture=True)
+        self._calibration_panel.set_intrinsics_solve_running(
+            True, "Solving extrinsics...", lock_capture=True, stage="extrinsics"
+        )
         self._calibration_panel.show_feedback("Extrinsics berekenen op de achtergrond...", success=True)
         self._set_status("Extrinsics berekenen...")
         self._extrinsics_solve_started_at = time.perf_counter()

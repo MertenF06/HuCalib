@@ -3096,8 +3096,22 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def probe_max_index(self) -> int:
         return int(self._probe_max_spin.value())
 
+    def _solve_progress_bar(self) -> QProgressBar | None:
+        return getattr(self.window, "_solve_progress_bar_widget", None)
+
+    def _hide_solve_progress_bar(self) -> None:
+        bar = self._solve_progress_bar()
+        if bar is not None:
+            bar.setVisible(False)
+            bar.reset()
+            bar.setRange(0, 0)
+
     def set_intrinsics_solve_running(
-        self, running: bool, message: str = "Solving intrinsics...", lock_capture: bool = False
+        self,
+        running: bool,
+        message: str = "Solving intrinsics...",
+        lock_capture: bool = False,
+        stage: str = "intrinsics",
     ) -> None:
         # The (re)solve and config/reset actions are always locked while a solve
         # runs. Capture stays enabled during the intrinsics solve so synchronized
@@ -3118,6 +3132,16 @@ class DesignedCalibrationPanel(QtCore.QObject):
             button.setEnabled(not (running and lock_capture))
         if running:
             self._feedback.setText(message)
+            # Show the loading bar in busy mode until the first determinate
+            # progress callback arrives. ``stage`` only sets the label text.
+            label = "Extrinsics" if stage == "extrinsics" else "Intrinsics"
+            bar = self._solve_progress_bar()
+            if bar is not None:
+                bar.setRange(0, 0)
+                bar.setFormat(f"{label} berekenen...")
+                bar.setVisible(True)
+        else:
+            self._hide_solve_progress_bar()
 
     def set_solve_progress(self, stage: str, done: int, total: int) -> None:
         """Show the running solve as an increasing percentage in the feedback line,
@@ -3129,6 +3153,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
         label = "Extrinsics" if stage == "extrinsics" else "Intrinsics"
         self._feedback.setStyleSheet("color: #0f7b0f;")
         self._feedback.setText(f"{label} berekenen... {pct}% ({done}/{total} camera's)")
+        bar = self._solve_progress_bar()
+        if bar is not None:
+            # Switch out of busy mode into a determinate percentage on first call.
+            if bar.maximum() == 0:
+                bar.setRange(0, 100)
+            bar.setValue(pct)
+            bar.setFormat(f"{label} berekenen... {pct}%  ({done}/{total})")
+            bar.setVisible(True)
 
     def force_capture_resolution(self, width: int, height: int) -> bool:
         """Select a capture resolution programmatically (adding it if missing).
@@ -3520,6 +3552,15 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
                 layout.setContentsMargins(8, 4, 8, 4)
                 layout.setSpacing(3)
 
+        # Shared solve progress bar along the bottom of the calibration controls.
+        # Placed on the frame grid (not inside the per-phase cards) so it stays
+        # visible in both manual mode and the default auto-navigation mode, where
+        # the cards are hidden. Driven by set_intrinsics_solve_running and
+        # set_solve_progress on the panel; its label says which phase is running.
+        self._solve_progress_bar_widget = self._make_solve_progress_bar()
+        if isinstance(top_layout, QGridLayout):
+            top_layout.addWidget(self._solve_progress_bar_widget, 2, 0, 1, 5)
+
         for button in [
             self.btn_cap_intrinsics_start,
             self.btn_cap_calculate_intrinsics,
@@ -3543,7 +3584,19 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self.btn_cap_reset_calibration.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.btn_cap_reset_calibration.setProperty("danger", True)
         self.frame.setMinimumHeight(104)
-        self.frame.setMaximumHeight(124)
+        # A little extra headroom so a solve progress bar can appear under the
+        # Berekenen buttons without clipping the card contents.
+        self.frame.setMaximumHeight(140)
+
+    def _make_solve_progress_bar(self) -> QProgressBar:
+        bar = QProgressBar(self.frame)
+        # Start in busy/indeterminate mode; switches to a determinate percentage
+        # once the first per-camera progress callback arrives.
+        bar.setRange(0, 0)
+        bar.setTextVisible(True)
+        bar.setMaximumHeight(12)
+        bar.setVisible(False)
+        return bar
 
     def _setup_resizable_shell(self) -> None:
         central_layout = self.centralwidget.layout()
