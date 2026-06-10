@@ -1,0 +1,39 @@
+{
+  "_help": "Standaardinstellingen van HuCalib. Pas deze waarden aan om de baseline te bepalen die iedereen na een update krijgt en die de knop 'Reset naar standaardinstellingen' herstelt. Camerabronnen/-resolutie en cameralabels staan hier bewust NIET in (die zijn per gebruiker/machine). Gebruikers kunnen hun eigen instellingen wijzigen; die worden los opgeslagen in app_settings.json en overleven een update.",
+  "target_fps": 30.0,
+  "ui_scale": 0.7,
+  "overlay_scale": 1.0,
+  "advanced": {
+    "board": {
+      "chess_cols": 9,
+      "chess_rows": 6,
+      "chess_square_mm": 24.0,
+      "charuco_x": 5,
+      "charuco_y": 3,
+      "charuco_square_mm": 77.0,
+      "charuco_marker_mm": 61.0
+    },
+    "workflow": {
+      "cooldown": 0.33,
+      "max_intrinsics": 45,
+      "max_extrinsics": 20,
+      "intr_quality": 0.25,
+      "intr_coverage": 0.3,
+      "extr_quality": 0.4,
+      "extr_coverage": 0.4,
+      "grid": [5, 3]
+    },
+    "aux": {
+      "capture_fps": 30,
+      "preview_fps": 30.0,
+      "preview_res": [1280, 720],
+      "detect_hz": 5.0,
+      "probe_max": 10,
+      "pattern": 0,
+      "overlay": true,
+      "mirror": false,
+      "auto_capture": false,
+      "auto_navigate": true
+    }
+  }
+}

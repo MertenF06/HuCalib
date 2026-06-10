@@ -2,12 +2,16 @@
 logs/
 *.log
 
-# Test / patroon calibratiedata
-calibration/test/
-calibration/[Tt]est*
+# Projecten (werkmappen) en resultaten
+Projecten/
+Resultaten/
 
-# Gegenereerde calibratie-output
-calibration/current_calibration.json
+# Oude calibratiemap (vervangen door Projecten/)
+calibration/
+
+# Per-gebruiker instellingen (default_settings.json wordt WEL gecommit als template)
+app_settings.json
+.defaults_version
 
 # Python
 __pycache__/

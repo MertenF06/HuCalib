@@ -3,15 +3,17 @@
 # Produces a one-folder build at dist/HuCalib/ (HuCalib.exe + its
 # dependencies). This onedir layout is required by Velopack, which packages
 # that folder into an installer and self-updating release (see UPDATING.md and
-# build_release.ps1). On first launch the app creates its calibration/, logs/
-# and sessions/ folders next to the executable.
+# build_release.ps1). On first launch the app creates its Projecten/,
+# Resultaten/, logs/ and sessions/ folders next to the executable.
 
 a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
     # Bundle the GUI images/icons; ui/gui.py loads them relative to its module.
-    datas=[('ui/imagesGUI', 'ui/imagesGUI')],
+    # default_settings.json ships as the template the app copies into the
+    # persistent app folder (hand-editable, refreshed on each version bump).
+    datas=[('ui/imagesGUI', 'ui/imagesGUI'), ('default_settings.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

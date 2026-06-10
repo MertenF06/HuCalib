@@ -11,7 +11,19 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QFileDialog, QInputDialog, QMainWindow, QMessageBox
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from mocap_app.core.config import AppConfig
 from mocap_app.io.calibration_io import (
@@ -65,8 +77,9 @@ class MainWindow(QMainWindow):
         self._calibration_repo = CalibrationRepository()
         self._calibration_manager = CalibrationManager()
         self._calibration_path = self._default_calibration_path()
-        # Where the next "Nieuw Project" lands. Defaults to the standard
-        # calibration folder; the user can change it via the Home screen.
+        # Parent location where the next "Nieuw Project" lands (as <location>/<name>).
+        # Defaults to the "Projecten" folder; the user can change it from the
+        # New Project dialog.
         self._new_project_dir: Path = self._config.calibration_dir
         self._current_calibration_bundle: CalibrationBundle | None = None
         self._calibration_loaded = False
@@ -153,6 +166,7 @@ class MainWindow(QMainWindow):
         self._calibration_panel.set_spatial_grid_values(*self._calibration_manager.spatial_grid_shape)
         self._calibration_panel.set_workflow_mode("intrinsics")
         self._load_threshold_controls()
+        self._apply_saved_advanced_settings()
 
         self._load_existing_calibration()
         self._seed_startup_source_slots()
@@ -2659,7 +2673,7 @@ class MainWindow(QMainWindow):
             return
         extension = "json" if fmt == "json" else "toml"
         file_filter = "JSON (*.json)" if fmt == "json" else "TOML (*.toml)"
-        default_path = self._config.calibration_dir / f"calibration.{extension}"
+        default_path = self._config.results_dir / f"calibration.{extension}"
         selected, _ = QFileDialog.getSaveFileName(
             self,
             "Export calibration",
@@ -2680,39 +2694,99 @@ class MainWindow(QMainWindow):
         self._calibration_panel.show_feedback(success_message, success=True)
         self._set_status(f"Calibration exported: {path.name}")
 
-    def _on_new_project(self) -> None:
-        # Confirm the new project and let the user change its location from the
-        # same popup. The "Locatie wijzigen…" button re-shows the dialog with the
-        # newly picked folder; cancelling the picker keeps the current location.
-        project_dir = self._new_project_dir
-        while True:
-            box = QMessageBox(self)
-            box.setWindowTitle("New Project")
-            box.setIcon(QMessageBox.Icon.Question)
-            box.setText(
-                f"Start a new calibration project in:\n{project_dir}\n\n"
-                "This clears captured samples, unloads the active calibration, and prevents the previous "
-                "auto-loaded calibration from coming back on restart. Saved profiles stay on disk."
+    @staticmethod
+    def _sanitize_project_name(name: str) -> str:
+        return "".join(char for char in name if char not in '<>:"/\\|?*').strip()
+
+    def _prompt_new_project(self) -> tuple[str, Path] | None:
+        # Single popup where the user can both name the project and change its
+        # location before starting. The project lands in <location>/<name>.
+        # Returns (sanitized name, parent location) or None when cancelled.
+        location = self._new_project_dir
+        state = {"location": location}
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Nieuw Project")
+        layout = QVBoxLayout(dialog)
+
+        intro = QLabel(
+            "Wist de huidige samples en actieve kalibratie. "
+            "Opgeslagen profielen blijven bewaard."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        layout.addWidget(QLabel("Projectnaam:"))
+        name_edit = QLineEdit("Nieuw Project")
+        layout.addWidget(name_edit)
+
+        layout.addWidget(QLabel("Locatie:"))
+        location_row = QHBoxLayout()
+        location_value = QLabel(str(location))
+        location_value.setWordWrap(True)
+        location_row.addWidget(location_value, 1)
+        change_button = QPushButton("Locatie wijzigen…")
+        location_row.addWidget(change_button)
+        layout.addLayout(location_row)
+
+        path_preview = QLabel()
+        path_preview.setWordWrap(True)
+        path_preview.setStyleSheet("color: palette(mid);")
+        layout.addWidget(path_preview)
+
+        def update_preview() -> None:
+            cleaned = self._sanitize_project_name(name_edit.text()) or "Nieuw Project"
+            path_preview.setText(f"Wordt aangemaakt in:\n{state['location'] / cleaned}")
+            start_button.setEnabled(bool(self._sanitize_project_name(name_edit.text())))
+
+        def choose_location() -> None:
+            chosen = QFileDialog.getExistingDirectory(
+                dialog, "Kies een locatie voor het nieuwe project", str(state["location"])
             )
-            start_button = box.addButton("Start", QMessageBox.ButtonRole.AcceptRole)
-            change_button = box.addButton("Locatie wijzigen…", QMessageBox.ButtonRole.ActionRole)
-            cancel_button = box.addButton(QMessageBox.StandardButton.Cancel)
-            box.setDefaultButton(cancel_button)
-            box.exec()
+            if chosen:
+                state["location"] = Path(chosen)
+                location_value.setText(chosen)
+                update_preview()
 
-            clicked = box.clickedButton()
-            if clicked is change_button:
-                chosen = QFileDialog.getExistingDirectory(
-                    self, "Kies een locatie voor het nieuwe project", str(project_dir)
-                )
-                if chosen:
-                    project_dir = Path(chosen)
-                continue
-            if clicked is not start_button:
+        buttons = QDialogButtonBox()
+        start_button = buttons.addButton("Start", QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton("Annuleer", QDialogButtonBox.ButtonRole.RejectRole)
+        start_button.setDefault(True)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        name_edit.textChanged.connect(lambda _: update_preview())
+        change_button.clicked.connect(choose_location)
+        update_preview()
+
+        name_edit.setFocus()
+        name_edit.selectAll()
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        cleaned = self._sanitize_project_name(name_edit.text()) or "Nieuw Project"
+        return cleaned, state["location"]
+
+    def _on_new_project(self) -> None:
+        result = self._prompt_new_project()
+        if result is None:
+            return
+        name, location = result
+        project_dir = location / name
+
+        if project_dir.exists() and any(project_dir.iterdir()):
+            reply = QMessageBox.question(
+                self,
+                "Map bestaat al",
+                f"Er bestaat al een niet-lege map:\n{project_dir}\n\nHierin verdergaan?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
                 return
-            break
 
-        self._new_project_dir = project_dir
+        self._new_project_dir = location
         try:
             project_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -2760,7 +2834,7 @@ class MainWindow(QMainWindow):
         selected, _ = QFileDialog.getSaveFileName(
             self,
             "Save Calibration Profile",
-            str(self._config.calibration_dir / "calibration_profile.json"),
+            str(self._config.results_dir / "calibration_profile.json"),
             "Calibration JSON (*.json)",
         )
         if not selected:
@@ -2774,7 +2848,7 @@ class MainWindow(QMainWindow):
         selected, _ = QFileDialog.getOpenFileName(
             self,
             "Load Calibration Profile",
-            str(self._config.calibration_dir),
+            str(self._config.results_dir),
             "Calibration JSON (*.json)",
         )
         if not selected:
@@ -2938,6 +3012,31 @@ class MainWindow(QMainWindow):
     def _on_display_tick(self) -> None:
         self._update_calibration_preview()
 
+    def _apply_saved_advanced_settings(self) -> None:
+        """Restore the user's persisted advanced settings on startup so they
+        survive an app restart.
+
+        Board settings are seeded straight into the manager (bypassing the
+        'apply' signal, which clears captured samples and deletes the current
+        calibration) before the panel is refreshed from it. Camera
+        source/resolution are intentionally left to the normal startup seeding.
+        """
+        panel = self._calibration_panel
+        saved = getattr(self._config, "advanced_settings", None)
+        if not saved or not hasattr(panel, "apply_settings"):
+            return
+        target = dict(saved)
+        target.pop("live", None)  # machine-specific camera source/resolution
+        panel.apply_settings(target)
+        try:
+            self._calibration_manager.apply_board_settings(panel.board_settings())
+        except Exception:  # noqa: BLE001 - never let bad saved data block startup
+            LOGGER.exception("Could not apply saved board settings")
+        panel.set_board_settings(self._calibration_manager.board_settings())
+        if hasattr(panel, "commit_saved_settings"):
+            panel.commit_saved_settings()
+        self._load_threshold_controls()
+
     def closeEvent(self, event) -> None:  # type: ignore[override]
         if self._intrinsics_solve_worker is not None and self._intrinsics_solve_worker.isRunning():
             QMessageBox.information(
@@ -2963,4 +3062,11 @@ class MainWindow(QMainWindow):
             # Let an in-progress clip re-encode finish so we don't leave a stray
             # temp file or a half-written clip behind.
             self._recording_finalize_worker.wait(10000)
+        # Persist the user's advanced settings so they survive a restart.
+        try:
+            if hasattr(self._calibration_panel, "collect_settings"):
+                self._config.advanced_settings = self._calibration_panel.collect_settings()
+                self._config.save()
+        except Exception:  # noqa: BLE001 - closing must never be blocked by a save error
+            LOGGER.exception("Could not save settings on exit")
         super().closeEvent(event)

@@ -2106,6 +2106,96 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._grid_cols_spin.setValue(cols)
             self._grid_rows_spin.setValue(rows)
 
+    def collect_settings(self) -> dict[str, Any]:
+        """Serialise every advanced setting into a JSON-friendly dict (tuples ->
+        lists, check states -> bools) for persistence in app_settings.json."""
+        snap = self._advanced_settings_snapshot()
+        live = dict(snap["live"])
+        if isinstance(live.get("capture_res"), tuple):
+            live["capture_res"] = list(live["capture_res"])
+        workflow = dict(snap["workflow"])
+        if isinstance(workflow.get("grid"), tuple):
+            workflow["grid"] = list(workflow["grid"])
+        preview_res = self._preview_resolution_combo.currentData() or (0, 0)
+        aux = {
+            "capture_fps": self.window.spin_cap_fps.value(),
+            "preview_fps": self._preview_fps_spin.value(),
+            "preview_res": list(preview_res),
+            "detect_hz": self._detect_hz_spin.value(),
+            "probe_max": self._probe_max_spin.value(),
+            "pattern": self.window.combo_cap_pattern.currentIndex(),
+            "overlay": self._overlay_checkbox.checkState() == Qt.CheckState.Checked,
+            "mirror": self._mirror_checkbox.checkState() == Qt.CheckState.Checked,
+            "auto_capture": self._auto_capture_checkbox.isChecked(),
+            "auto_navigate": self._auto_navigate_checkbox.isChecked(),
+        }
+        return {"live": live, "board": snap["board"], "workflow": workflow, "aux": aux}
+
+    def apply_settings(self, data: dict[str, Any]) -> None:
+        """Apply a (possibly partial) settings dict to the advanced controls.
+        Inverse of collect_settings; missing keys keep their current value."""
+        if not data:
+            return
+        snap: dict[str, Any] = {}
+        if isinstance(data.get("live"), dict):
+            live = dict(data["live"])
+            if isinstance(live.get("capture_res"), list):
+                live["capture_res"] = tuple(live["capture_res"])
+            snap["live"] = live
+        if isinstance(data.get("board"), dict):
+            snap["board"] = data["board"]
+        if isinstance(data.get("workflow"), dict):
+            workflow = dict(data["workflow"])
+            if isinstance(workflow.get("grid"), list):
+                workflow["grid"] = tuple(workflow["grid"])
+            snap["workflow"] = workflow
+        if snap:
+            self._restore_advanced_settings(snap)
+        if isinstance(data.get("aux"), dict):
+            self._apply_aux_settings(data["aux"])
+
+    def _apply_aux_settings(self, aux: dict[str, Any]) -> None:
+        """Apply the auto-applying advanced controls from a JSON-friendly dict."""
+        if "capture_fps" in aux:
+            self.window.spin_cap_fps.setValue(aux["capture_fps"])
+        if "preview_fps" in aux:
+            self._preview_fps_spin.setValue(aux["preview_fps"])
+        if "preview_res" in aux:
+            res = aux["preview_res"]
+            res = tuple(res) if isinstance(res, list) else res
+            index = self._preview_resolution_combo.findData(res)
+            if index >= 0:
+                self._preview_resolution_combo.setCurrentIndex(index)
+        if "detect_hz" in aux:
+            self._detect_hz_spin.setValue(aux["detect_hz"])
+        if "probe_max" in aux:
+            self._probe_max_spin.setValue(aux["probe_max"])
+        if "pattern" in aux:
+            self.window.combo_cap_pattern.setCurrentIndex(int(aux["pattern"]))
+        if "overlay" in aux:
+            self._overlay_checkbox.setCheckState(
+                Qt.CheckState.Checked if aux["overlay"] else Qt.CheckState.Unchecked
+            )
+        if "mirror" in aux:
+            self._mirror_checkbox.setCheckState(
+                Qt.CheckState.Checked if aux["mirror"] else Qt.CheckState.Unchecked
+            )
+        if "auto_capture" in aux:
+            self._auto_capture_checkbox.setChecked(bool(aux["auto_capture"]))
+        if "auto_navigate" in aux:
+            self._auto_navigate_checkbox.setChecked(bool(aux["auto_navigate"]))
+
+    def commit_saved_settings(self) -> None:
+        """After apply_settings at startup, push the restored runtime settings
+        (preview tuning, acceptance thresholds, spatial grid) into the manager
+        via the existing signals. Board settings are committed by the caller to
+        avoid clearing captured samples."""
+        self._apply_preview_options_to_tiles()
+        self._emit_runtime_tuning_changed()
+        self._emit_acceptance_thresholds_changed()
+        self._emit_spatial_grid_changed()
+        self._refresh_advanced_baseline()
+
     def _capture_advanced_defaults(self) -> None:
         """Record the startup default of every advanced control.
 
@@ -2126,6 +2216,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
             "auto_capture": self._auto_capture_checkbox.isChecked(),
             "auto_navigate": self._auto_navigate_checkbox.isChecked(),
         }
+        # Serialised factory (.ui) defaults, used as the fallback baseline for
+        # the reset button when the developer's default_settings.json omits a
+        # field.
+        self._factory_advanced = self.collect_settings()
 
     def _restore_advanced_aux(self, defaults: dict[str, Any]) -> None:
         """Revert the auto-applying advanced controls to a captured snapshot."""
@@ -2143,7 +2237,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._auto_navigate_checkbox.setChecked(defaults["auto_navigate"])
 
     def _reset_advanced_to_defaults(self) -> None:
-        """Revert every advanced setting to the value it had at startup."""
+        """Revert the advanced settings to the developer's default_settings.json
+        (falling back to the built-in factory defaults for any field it omits).
+        Camera source/resolution are left as-is (machine-specific)."""
         if QMessageBox.question(
             self.window,
             "Standaardinstellingen herstellen",
@@ -2153,8 +2249,24 @@ class DesignedCalibrationPanel(QtCore.QObject):
             QMessageBox.StandardButton.No,
         ) != QMessageBox.StandardButton.Yes:
             return
-        self._restore_advanced_settings(self._advanced_defaults)
-        self._restore_advanced_aux(self._advanced_aux_defaults)
+        from mocap_app.core.config import load_default_settings
+
+        developer = (load_default_settings() or {}).get("advanced", {})
+        if not isinstance(developer, dict):
+            developer = {}
+        factory = getattr(self, "_factory_advanced", None) or self.collect_settings()
+        # Per-group merge: the developer list overrides the factory baseline, and
+        # anything the developer omits keeps its built-in default.
+        target: dict[str, Any] = {}
+        for group, values in factory.items():
+            merged = dict(values)
+            override = developer.get(group)
+            if isinstance(override, dict):
+                merged.update(override)
+            target[group] = merged
+        # Camera source/resolution are machine-specific: never reset them.
+        target.pop("live", None)
+        self.apply_settings(target)
         # Commit the restored values so they take effect immediately and reset the
         # change-tracking baseline, so leaving the tab won't prompt to re-apply.
         self._apply_live_settings()
