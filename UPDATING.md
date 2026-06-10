@@ -69,6 +69,52 @@ Je hebt dit al geïnstalleerd, maar voor een nieuwe machine:
 3. Klaar. Iedereen met HuCalib geïnstalleerd krijgt bij de eerstvolgende start
    de melding "Versie 1.0.1 is beschikbaar".
 
+## Mappen: gebruikersdata en standaardinstellingen
+
+Een geïnstalleerde HuCalib gebruikt twee soorten mappen, en dat onderscheid is
+belangrijk bij updates:
+
+```
+%LocalAppData%\HuCalib\            ← persistent, OVERLEEFT updates
+ ├─ current\                       ← de app zelf; wordt bij ELKE update vervangen
+ │   ├─ HuCalib.exe, _internal\, ...
+ │   └─ default_settings.json      ← meegeleverd sjabloon (in _internal\)
+ ├─ Projecten\                     ← projecten van de gebruiker
+ ├─ Resultaten\                    ← opgeslagen profielen + TOML/JSON-exports
+ ├─ logs\  · sessions\
+ ├─ default_settings.json          ← jouw lijst (aanpasbaar, ververst per versie)
+ ├─ .defaults_version              ← onthoudt welke versie de defaults schreef
+ └─ app_settings.json              ← instellingen van de gebruiker
+```
+
+Alleen `current\` wordt bij een update vervangen. Alles wat daarnaast staat
+(projecten, resultaten, logs, instellingen) blijft behouden. Schrijf dus nooit
+gebruikersdata naar `current\` — `mocap_app/core/config.py` zet daarom alle
+schrijfbare mappen in de map *boven* `current\`.
+
+### Hoe de standaardinstellingen werken
+
+- **`default_settings.json`** (in de repo-root) is jouw beheerbare lijst met
+  defaults. Pas waarden aan, commit, en bouw mee: het bestand zit in de bundle
+  en wordt bij de eerste start ná een versie-bump in de persistente map gezet
+  (gemarkeerd via `.defaults_version`). Zo krijgt iedereen jouw nieuwe lijst bij
+  een update, terwijl handmatige edits tussen updates blijven staan.
+- De knop **"Reset naar standaardinstellingen"** herstelt precies deze lijst
+  (en valt terug op de ingebouwde fabriekswaarden voor wat je weglaat).
+- Wijzigingen van een gebruiker worden bij het afsluiten opgeslagen in
+  **`app_settings.json`** en bij het opstarten over jouw defaults gelegd
+  (volgorde: code-defaults → `default_settings.json` → `app_settings.json`).
+- **Camerabronnen/-resolutie en cameralabels** zijn machine-specifiek: die
+  staan bewust niet in `default_settings.json` en worden door de reset-knop niet
+  aangeraakt.
+
+> ⚠️ **Eenmalige migratie bij het updaten naar 1.0.3.** Vóór 1.0.3 stond
+> gebruikersdata nog *binnen* `current\` (`current\calibration\`). Bij de update
+> naar 1.0.3 wordt `current\` vervangen, dus die oude data verhuist niet mee en
+> gaat verloren. Wie er nog echt werk in had staan, moet dat vóór het updaten
+> handmatig veiligstellen uit `current\calibration\`. Vanaf 1.0.3 blijft alles
+> bewaard bij toekomstige updates.
+
 ## De allereerste installatie bij gebruikers
 
 Auto-update werkt **alleen** als mensen de app via de Velopack-installer hebben
