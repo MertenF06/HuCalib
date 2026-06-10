@@ -10,7 +10,7 @@ from mocap_app.core.config import AppConfig
 from mocap_app.core.logging_config import configure_logging
 from mocap_app.core.updater import UpdateController
 from mocap_app.ui.designed_main_window import DesignedMainWindow
-from ui.gui import IMAGES_DIR
+from mocap_app.ui.gui import IMAGES_DIR
 
 
 def _set_windows_app_id() -> None:

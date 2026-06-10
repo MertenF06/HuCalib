@@ -907,45 +907,6 @@ class CalibrationManager:
         center = (float(min_xy[0] + width * 0.5), float(min_xy[1] + height * 0.5))
         return bbox, center
 
-    def try_add_observation(
-        self,
-        source_id: str,
-        frame_bgr: U8Array,
-        pattern: Literal["chessboard", "charuco"] | str | None = None,
-    ) -> CalibrationCaptureFeedback:
-        """Attempt to store a sample only when detection quality and consistency are valid."""
-        selected_pattern = self._normalize_pattern_name(pattern)
-        detection = self.detect_pattern(
-            source_id=source_id,
-            frame_bgr=frame_bgr,
-            pattern=selected_pattern,
-        )
-        current_count = self.observation_count(source_id, include_sync_only=True)
-        sample, message, rejection_reasons = self._build_sample_from_detection(
-            source_id=source_id,
-            detection=detection,
-            selected_pattern=selected_pattern,
-            acceptance_mode="intrinsics",
-        )
-        if sample is None:
-            self._append_unique_diagnostics(detection, rejection_reasons)
-            return CalibrationCaptureFeedback(
-                source_id=source_id,
-                accepted=False,
-                sample_count=current_count,
-                message=message,
-                detection=detection,
-            )
-
-        sample_count = self._append_sample(source_id=source_id, sample=sample)
-        return CalibrationCaptureFeedback(
-            source_id=source_id,
-            accepted=True,
-            sample_count=sample_count,
-            message=message,
-            detection=detection,
-        )
-
     def try_add_detection_set(
         self,
         detections_by_source: dict[str, ChessboardDetectionResult],
@@ -1172,24 +1133,6 @@ class CalibrationManager:
             workflow_mode=workflow_mode,
             sync_metadata=sync_metadata,
         )
-
-    def add_chessboard_observation(self, source_id: str, frame_bgr: U8Array) -> bool:
-        """Backward-compatible helper used by older UI hooks."""
-        feedback = self.try_add_observation(source_id, frame_bgr)
-        return feedback.accepted
-
-    def sample_statistics(self, source_id: str) -> dict[str, float]:
-        """Return quality and coverage stats for a camera's accepted samples."""
-        samples = self._samples.get(source_id, [])
-        if not samples:
-            return {"count": 0.0, "mean_quality": 0.0, "mean_coverage": 0.0}
-        qualities = np.array([sample.quality_score for sample in samples], dtype=np.float32)
-        coverages = np.array([sample.coverage_ratio for sample in samples], dtype=np.float32)
-        return {
-            "count": float(len(samples)),
-            "mean_quality": float(np.mean(qualities)),
-            "mean_coverage": float(np.mean(coverages)),
-        }
 
     def spatial_coverage_metadata(self) -> dict[str, Any]:
         per_camera = {

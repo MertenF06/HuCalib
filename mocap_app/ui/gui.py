@@ -2,7 +2,7 @@
 """HuCalib designed UI - ported to PySide6.
 
 Widget object names and the page indices below are part of the public
-contract with the tab modules (tab_home, tab_cameras, ...). Keep them
+contract with DesignedMainWindow (designed_main_window.py). Keep them
 stable when editing.
 
 Page index map (stackedWidget):
@@ -647,6 +647,10 @@ class Ui_MainWindow(object):
         self.stackedWidget.addWidget(self.page_diagnostics)
 
     def _build_page_advanced_settings(self) -> None:
+        # This page is only a container: DesignedMainWindow clears its layout
+        # on startup and fills it with the advanced-settings forms. The one
+        # control built here is ``doubleSpinBox`` (chessboard square size),
+        # which DesignedMainWindow re-parents into its own chessboard form.
         self.page_advanced_settings = QtWidgets.QWidget()
         self.page_advanced_settings.setObjectName("page_advanced_settings")
 
@@ -654,87 +658,13 @@ class Ui_MainWindow(object):
         wrap.setContentsMargins(0, 0, 0, 0)
         wrap.setSpacing(0)
 
-        card = QtWidgets.QFrame(self.page_advanced_settings)
-        card.setProperty("card", True)
-        card.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        wrap.addWidget(card, stretch=1)
-
-        form = QtWidgets.QFormLayout(card)
-        form.setObjectName("gridLayout_15")
-        form.setContentsMargins(18, 16, 18, 16)
-        form.setHorizontalSpacing(16)
-        form.setVerticalSpacing(12)
-
-        title = QtWidgets.QLabel("Geavanceerde instellingen")
-        title.setProperty("section", True)
-        form.addRow(title)
-
-        self.label_2 = QtWidgets.QLabel("Vierkant grootte (mm)")
-        self.label_2.setObjectName("label_2")
-        self.doubleSpinBox = QtWidgets.QDoubleSpinBox(card)
+        self.doubleSpinBox = QtWidgets.QDoubleSpinBox(self.page_advanced_settings)
         self.doubleSpinBox.setObjectName("doubleSpinBox")
         self.doubleSpinBox.setRange(1.0, 500.0)
         self.doubleSpinBox.setDecimals(2)
         self.doubleSpinBox.setSingleStep(0.5)
         self.doubleSpinBox.setSuffix(" mm")
         self.doubleSpinBox.setValue(24.0)
-        form.addRow(self.label_2, self.doubleSpinBox)
-
-        self.label_chess = QtWidgets.QLabel("Chessboard binnenhoeken (cols × rows)")
-        chess_box = QtWidgets.QHBoxLayout()
-        self.spin_chess_cols = QtWidgets.QSpinBox(card)
-        self.spin_chess_cols.setRange(2, 30)
-        self.spin_chess_cols.setValue(9)
-        self.spin_chess_rows = QtWidgets.QSpinBox(card)
-        self.spin_chess_rows.setRange(2, 30)
-        self.spin_chess_rows.setValue(6)
-        chess_box.addWidget(self.spin_chess_cols)
-        chess_box.addWidget(QtWidgets.QLabel("×"))
-        chess_box.addWidget(self.spin_chess_rows)
-        chess_box.addStretch(1)
-        chess_container = QtWidgets.QWidget(card)
-        chess_container.setLayout(chess_box)
-        form.addRow(self.label_chess, chess_container)
-
-        self.label_charuco = QtWidgets.QLabel("Charuco squares (X × Y)")
-        char_box = QtWidgets.QHBoxLayout()
-        self.spin_charuco_x = QtWidgets.QSpinBox(card)
-        self.spin_charuco_x.setRange(2, 30)
-        self.spin_charuco_x.setValue(5)
-        self.spin_charuco_y = QtWidgets.QSpinBox(card)
-        self.spin_charuco_y.setRange(2, 30)
-        self.spin_charuco_y.setValue(3)
-        char_box.addWidget(self.spin_charuco_x)
-        char_box.addWidget(QtWidgets.QLabel("×"))
-        char_box.addWidget(self.spin_charuco_y)
-        char_box.addStretch(1)
-        charuco_container = QtWidgets.QWidget(card)
-        charuco_container.setLayout(char_box)
-        form.addRow(self.label_charuco, charuco_container)
-
-        self.label_charuco_marker = QtWidgets.QLabel("Charuco marker grootte (mm)")
-        self.spin_charuco_marker = QtWidgets.QDoubleSpinBox(card)
-        self.spin_charuco_marker.setRange(1.0, 500.0)
-        self.spin_charuco_marker.setDecimals(2)
-        self.spin_charuco_marker.setSingleStep(0.5)
-        self.spin_charuco_marker.setSuffix(" mm")
-        self.spin_charuco_marker.setValue(61.0)
-        form.addRow(self.label_charuco_marker, self.spin_charuco_marker)
-
-        self.label_charuco_square = QtWidgets.QLabel("Charuco square grootte (mm)")
-        self.spin_charuco_square = QtWidgets.QDoubleSpinBox(card)
-        self.spin_charuco_square.setRange(1.0, 500.0)
-        self.spin_charuco_square.setDecimals(2)
-        self.spin_charuco_square.setSingleStep(0.5)
-        self.spin_charuco_square.setSuffix(" mm")
-        self.spin_charuco_square.setValue(77.0)
-        form.addRow(self.label_charuco_square, self.spin_charuco_square)
-
-        self.btn_advanced_apply = QtWidgets.QPushButton("Toepassen op kalibratiebord")
-        self.btn_advanced_apply.setObjectName("btn_advanced_apply")
-        self.btn_advanced_apply.setMinimumHeight(36)
-        self.btn_advanced_apply.setProperty("accent", True)
-        form.addRow("", self.btn_advanced_apply)
 
         self.stackedWidget.addWidget(self.page_advanced_settings)
 

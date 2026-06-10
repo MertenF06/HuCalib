@@ -10,10 +10,11 @@ a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
-    # Bundle the GUI images/icons; ui/gui.py loads them relative to its module.
-    # default_settings.json ships as the template the app copies into the
-    # persistent app folder (hand-editable, refreshed on each version bump).
-    datas=[('ui/imagesGUI', 'ui/imagesGUI'), ('default_settings.json', '.')],
+    # Bundle the GUI images/icons; mocap_app/ui/gui.py loads them relative to
+    # its module. default_settings.json ships as the template the app copies
+    # into the persistent app folder (hand-editable, refreshed on each version
+    # bump).
+    datas=[('mocap_app/ui/imagesGUI', 'mocap_app/ui/imagesGUI'), ('default_settings.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -87,7 +88,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='ui/imagesGUI/hucalib_cube_icon.ico',
+    icon='mocap_app/ui/imagesGUI/hucalib_cube_icon.ico',
 )
 
 coll = COLLECT(

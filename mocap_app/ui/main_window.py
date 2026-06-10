@@ -102,7 +102,6 @@ class MainWindow(QMainWindow):
         self._intrinsics_solve_started_at: float | None = None
         self._extrinsics_solve_started_at: float | None = None
         self._extrinsics_reference_hint: str | None = None
-        self._extrinsics_solve_ok = False
         # Auto chain: extrinsics capture can complete while the intrinsics solve is
         # still running in the background; defer the extrinsics solve until then.
         self._pending_auto_extrinsics_solve = False
@@ -116,7 +115,6 @@ class MainWindow(QMainWindow):
         self._render_worker: PreviewRenderWorker | None = None
         self._render_request_in_flight = False
         self._video_recorder: VideoRecorder | None = None
-        self._last_recording_dir: Path | None = None
         self._recording_finalize_worker: RecordingFinalizeWorker | None = None
         # True while the single "Start kalibratie" button drives the fully
         # automatic intrinsics -> solve -> extrinsics -> solve -> results chain.
@@ -1733,7 +1731,6 @@ class MainWindow(QMainWindow):
             self._calibration_panel.set_recording_active(False)
             self._show_error(f"Kon de opnamemap niet aanmaken: {exc}")
             return
-        self._last_recording_dir = base_dir
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = base_dir / f"rec_{timestamp}"
         labels = {source.source_id: (source.label or source.source_id) for source in self._active_sources}
@@ -2575,7 +2572,6 @@ class MainWindow(QMainWindow):
             f"with {reference_id} as reference."
         )
         success = len(solved_sources) >= 2
-        self._extrinsics_solve_ok = success
         self._set_status(message)
         self._calibration_panel.show_feedback(message, success=success)
         self._refresh_calibration_panel(force=True)
@@ -2588,7 +2584,6 @@ class MainWindow(QMainWindow):
 
     def _on_extrinsics_solve_error(self, message: str) -> None:
         LOGGER.error("Extrinsics solve error: %s", message)
-        self._extrinsics_solve_ok = False
         self._calibration_panel.show_feedback(f"Extrinsics berekenen mislukt: {message}", success=False)
         self._set_status(f"Extrinsics berekenen mislukt: {message}")
 

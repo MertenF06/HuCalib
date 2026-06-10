@@ -51,8 +51,8 @@ from mocap_app.models.types import (
     RuntimeTuning,
 )
 from mocap_app.ui.main_window import MainWindow as FunctionalMainWindow
-from ui.gui import Ui_MainWindow
-from ui.guiStyle import apply_styles
+from mocap_app.ui.gui import Ui_MainWindow
+from mocap_app.ui.guiStyle import apply_styles
 
 
 # Maximum number of cameras that can be added to the preview grid at once.
@@ -143,7 +143,6 @@ class _PreviewCanvas(QLabel):
         self._detection: ChessboardDetectionResult | None = None
         self._overlay_state: dict[str, Any] = {}
         self._status = ""
-        self._sample_count = 0
         # Overlay caching: the rendered overlay pixmap is reused across paints and
         # only rebuilt when the overlay-relevant data changes (tracked cheaply via
         # _overlay_data_sig in set_overlay_data) or the draw rect changes. This
@@ -166,7 +165,6 @@ class _PreviewCanvas(QLabel):
         detection: ChessboardDetectionResult | None,
         overlay_state: dict[str, Any] | None,
         status: str = "",
-        sample_count: int = 0,
     ) -> None:
         state = dict(overlay_state or {})
         # Cheap change-detection: a new detection cycle produces a new detection
@@ -179,7 +177,6 @@ class _PreviewCanvas(QLabel):
         self._detection = detection
         self._overlay_state = state
         self._status = status
-        self._sample_count = int(sample_count)
         self.update()
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
@@ -762,53 +759,7 @@ class DesignedPreviewPopout(QDialog):
         if status:
             self._status.setText(f"{status} | {connectivity_text}" if connectivity_text else status)
         self._image.set_frame_pixmap(pixmap)
-        self._image.set_overlay_data(detection, overlay_state, status, sample_count)
-
-
-class _AspectRatioBox(QWidget):
-    """Centers a single child widget at a fixed aspect ratio.
-
-    The camera preview uses this so it stays a tidy box (default 4:3) instead
-    of stretching to fill the full, often very wide, workspace. The page
-    background shows around the box rather than black letterbox bars.
-    """
-
-    def __init__(
-        self,
-        child: QWidget,
-        ratio: float = 4.0 / 3.0,
-        max_width: int | None = None,
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        self._ratio = max(0.1, float(ratio))
-        self._max_width = max_width
-        self._child = child
-        # Layout-managed centering (instead of manual setGeometry) so the child
-        # keeps a normal layout pass — important for complex children and to
-        # avoid paint ghosting.
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(child, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-    def resizeEvent(self, event) -> None:  # type: ignore[override]
-        super().resizeEvent(event)
-        width = max(1, self.width())
-        height = max(1, self.height())
-        if width / height > self._ratio:
-            child_h = height
-            child_w = int(round(height * self._ratio))
-        else:
-            child_w = width
-            child_h = int(round(width / self._ratio))
-        # Cap the size so each camera stays a compact block in the grid instead
-        # of one large field, even when only a few cameras are present.
-        if self._max_width is not None and child_w > self._max_width:
-            child_w = self._max_width
-            child_h = int(round(child_w / self._ratio))
-        # Size the child to exactly the aspect box; the layout centers it.
-        self._child.setFixedSize(child_w, child_h)
+        self._image.set_overlay_data(detection, overlay_state, status)
 
 
 class DesignedPreviewTile(QFrame):
@@ -1020,7 +971,7 @@ class DesignedPreviewTile(QFrame):
         self._status.setText(status_text)
         self.set_sample_count(sample_count)
         self._image.set_frame_pixmap(self._last_pixmap)
-        self._image.set_overlay_data(detection, self._last_overlay_state, status, sample_count)
+        self._image.set_overlay_data(detection, self._last_overlay_state, status)
         if self._popout is not None:
             self._popout.set_frame(
                 self._last_pixmap,
@@ -1144,14 +1095,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         super().__init__(window)
         self.window = window
         self._tiles: dict[str, DesignedPreviewTile] = {}
-        self._tile_boxes: dict[str, _AspectRatioBox] = {}
         self._source_order: list[str] = []
         self._video_sources: list[CameraSourceConfig] = []
         self._detected_cameras: list[CameraProbeResult] = []
         self._camera_probe_running = False
         self._advanced_scroll: QScrollArea | None = None
         self._live_active = False
-        self._active_cameras = 0
         # ``_project_home`` is the fixed anchor of the directory browser (the
         # project folder); ``_project_root`` is the folder currently shown in the
         # tree, which may descend into subfolders but never climbs above the home.
@@ -2197,44 +2146,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_advanced_baseline()
 
     def _capture_advanced_defaults(self) -> None:
-        """Record the startup default of every advanced control.
-
-        ``_advanced_settings_snapshot`` only covers the apply-gated controls, so
-        the auto-applying ones (preview/probe/pattern/overlay/navigation) are
-        captured separately here. Both are restored by the reset action.
-        """
-        self._advanced_defaults = self._advanced_settings_snapshot()
-        self._advanced_aux_defaults: dict[str, Any] = {
-            "capture_fps": self.window.spin_cap_fps.value(),
-            "preview_fps": self._preview_fps_spin.value(),
-            "preview_res": self._preview_resolution_combo.currentData(),
-            "detect_hz": self._detect_hz_spin.value(),
-            "probe_max": self._probe_max_spin.value(),
-            "pattern": self.window.combo_cap_pattern.currentIndex(),
-            "overlay": self._overlay_checkbox.checkState(),
-            "mirror": self._mirror_checkbox.checkState(),
-            "auto_capture": self._auto_capture_checkbox.isChecked(),
-            "auto_navigate": self._auto_navigate_checkbox.isChecked(),
-        }
-        # Serialised factory (.ui) defaults, used as the fallback baseline for
-        # the reset button when the developer's default_settings.json omits a
-        # field.
+        """Serialise the factory (.ui) defaults of the advanced controls, used
+        as the fallback baseline for the reset button when the developer's
+        default_settings.json omits a field."""
         self._factory_advanced = self.collect_settings()
-
-    def _restore_advanced_aux(self, defaults: dict[str, Any]) -> None:
-        """Revert the auto-applying advanced controls to a captured snapshot."""
-        self.window.spin_cap_fps.setValue(defaults["capture_fps"])
-        self._preview_fps_spin.setValue(defaults["preview_fps"])
-        index = self._preview_resolution_combo.findData(defaults["preview_res"])
-        if index >= 0:
-            self._preview_resolution_combo.setCurrentIndex(index)
-        self._detect_hz_spin.setValue(defaults["detect_hz"])
-        self._probe_max_spin.setValue(defaults["probe_max"])
-        self.window.combo_cap_pattern.setCurrentIndex(defaults["pattern"])
-        self._overlay_checkbox.setCheckState(defaults["overlay"])
-        self._mirror_checkbox.setCheckState(defaults["mirror"])
-        self._auto_capture_checkbox.setChecked(defaults["auto_capture"])
-        self._auto_navigate_checkbox.setChecked(defaults["auto_navigate"])
 
     def _reset_advanced_to_defaults(self) -> None:
         """Revert the advanced settings to the developer's default_settings.json
@@ -2293,7 +2208,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         box.setInformativeText("\n".join(lines) + "\n\nWil je ze toepassen voordat je het tabblad verlaat?")
         apply_btn = box.addButton("Toepassen", QMessageBox.ButtonRole.AcceptRole)
         discard_btn = box.addButton("Niet toepassen", QMessageBox.ButtonRole.DestructiveRole)
-        cancel_btn = box.addButton("Annuleren", QMessageBox.ButtonRole.RejectRole)
+        box.addButton("Annuleren", QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(apply_btn)
         box.exec()
         clicked = box.clickedButton()
@@ -2973,10 +2888,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
             preview_max_width=int(preview_size[0]),
             preview_max_height=int(preview_size[1]),
             calibration_detection_hz=float(self._detect_hz_spin.value()),
-            overlays_enabled=self._overlay_checkbox.isChecked(),
-            detection_capture_enabled=False,
-            detection_reconstruction_enabled=False,
-            detection_analysis_enabled=False,
         )
 
     def set_sources(self, source_ids: list[str]) -> None:
@@ -3388,7 +3299,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
 
     def set_live_status(self, live_active: bool, active_cameras: int) -> None:
         self._live_active = live_active
-        self._active_cameras = active_cameras
         self.window.btn_camera_start_live.setEnabled(not live_active)
         self.window.btn_camera_stop_live.setEnabled(live_active)
         self.window.text_diag_used_cams.setPlainText(str(active_cameras))
@@ -3633,9 +3543,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
         tile = self._tiles.get(source_id)
         return tile.overlay_enabled() if tile else self._overlay_checkbox.isChecked()
 
-    def mirror_preview_enabled(self) -> bool:
-        return self._mirror_checkbox.isChecked()
-
     def mirror_preview_enabled_for(self, source_id: str) -> bool:
         tile = self._tiles.get(source_id)
         return self._mirror_checkbox.isChecked() or (tile.mirror_enabled() if tile else False)
@@ -3682,9 +3589,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
             float(self._extrinsics_quality_spin.value()),
             float(self._extrinsics_coverage_spin.value()) / 100.0,
         )
-
-    def project_home(self) -> Path:
-        return self._project_home
 
     def set_project_home(self, directory_path: Path | str) -> None:
         """Re-anchor the directory browser to a new project folder and show it."""
@@ -3919,7 +3823,7 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self.frame.setMaximumHeight(140)
 
     def _make_solve_indicator(self) -> _SolveActivityIndicator:
-        from ui.gui import IMAGES_DIR
+        from mocap_app.ui.gui import IMAGES_DIR
 
         return _SolveActivityIndicator(IMAGES_DIR / "HuCalib_icon.png", self.frame_menu)
 

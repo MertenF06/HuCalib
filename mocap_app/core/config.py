@@ -125,7 +125,6 @@ _PROJECT_RELATIVE_DIRS = {
     "results_dir": "Resultaten",
     "logs_dir": "logs",
     "sessions_dir": "sessions",
-    "default_sessions_dir": "sessions",
 }
 _DERIVED_PATH_KEYS = {"app_root", *_PROJECT_RELATIVE_DIRS}
 # Persisted via the ``advanced`` JSON key rather than its raw field name.
@@ -142,7 +141,6 @@ class AppConfig:
     results_dir: Path = field(default_factory=lambda: _app_root() / "Resultaten")
     logs_dir: Path = field(default_factory=lambda: _app_root() / "logs")
     sessions_dir: Path = field(default_factory=lambda: _app_root() / "sessions")
-    default_sessions_dir: Path = field(default_factory=lambda: _app_root() / "sessions")
     ui_scale: float = 0.70
     overlay_scale: float = 1.0
     camera_labels: dict[str, str] = field(default_factory=dict)

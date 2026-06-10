@@ -76,16 +76,13 @@ class RuntimeTuning:
     preview_max_width: int = 640
     preview_max_height: int = 480
     calibration_detection_hz: float = 5.0
-    overlays_enabled: bool = True
-    detection_capture_enabled: bool = False
-    detection_reconstruction_enabled: bool = True
-    detection_analysis_enabled: bool = False
 
 
 @dataclass(slots=True)
 class CameraProbeResult:
+    """A webcam index that was successfully opened during probing."""
+
     index: int
-    opened: bool
     width: int = 0
     height: int = 0
     backend: str = ""

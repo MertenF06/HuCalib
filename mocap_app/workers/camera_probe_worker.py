@@ -63,7 +63,6 @@ class CameraProbeWorker(QThread):
                 results.append(
                     CameraProbeResult(
                         index=index,
-                        opened=True,
                         width=width,
                         height=height,
                         backend=backend,
