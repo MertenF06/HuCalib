@@ -365,7 +365,7 @@ class Ui_MainWindow(object):
 
         self.btn_cap_reset_calibration = QtWidgets.QPushButton(self.frame)
         self.btn_cap_reset_calibration.setObjectName("btn_cap_reset_calibration")
-        self.btn_cap_reset_calibration.setText("Reset Calibration")
+        self.btn_cap_reset_calibration.setText("Kalibratie resetten")
         self.btn_cap_reset_calibration.setMinimumHeight(34)
         self.btn_cap_reset_calibration.setProperty("danger", True)
         top_layout.addWidget(self.btn_cap_reset_calibration, 3, 0, 1, 4)
@@ -739,11 +739,11 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
         _t = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_t("MainWindow", "HuCalib"))
-        self.menuFile.setTitle(_t("MainWindow", "&File"))
-        self.menuRun.setTitle(_t("MainWindow", "Run"))
+        self.menuFile.setTitle(_t("MainWindow", "&Bestand"))
+        self.menuRun.setTitle(_t("MainWindow", "Uitvoeren"))
         self.menuHelp.setTitle(_t("MainWindow", "Help"))
-        self.actionRun.setText(_t("MainWindow", "Run"))
-        self.actionNew_project.setText(_t("MainWindow", "New project"))
-        self.actionOpen_project.setText(_t("MainWindow", "Open project"))
-        self.actionQuit.setText(_t("MainWindow", "Quit"))
-        self.actionOpen_documentation.setText(_t("MainWindow", "Open documentation"))
+        self.actionRun.setText(_t("MainWindow", "Uitvoeren"))
+        self.actionNew_project.setText(_t("MainWindow", "Nieuw project"))
+        self.actionOpen_project.setText(_t("MainWindow", "Project openen"))
+        self.actionQuit.setText(_t("MainWindow", "Afsluiten"))
+        self.actionOpen_documentation.setText(_t("MainWindow", "Documentatie openen"))

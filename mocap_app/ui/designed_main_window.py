@@ -1194,6 +1194,18 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.pushButton.clicked.connect(lambda: self.window.stackedWidget_2.setCurrentIndex(0))
         self.window.export_toml.clicked.connect(self._request_export)
 
+        # Plain-language verdict banner at the top of the results tab, so the
+        # operator can see at a glance whether the calibration succeeded without
+        # having to interpret reprojection-error / RMS numbers. Updated from
+        # update_camera_status_table.
+        self._results_verdict = QLabel()
+        self._results_verdict.setObjectName("results_verdict")
+        self._results_verdict.setWordWrap(True)
+        self._set_results_verdict("none", "Nog geen kalibratie uitgevoerd.")
+        results_layout = self.window.page_results_tab.layout()
+        if results_layout is not None:
+            results_layout.insertWidget(0, self._results_verdict)
+
     def _setup_directory_page(self) -> None:
         layout = QVBoxLayout(self.window.frame_directory)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -2850,6 +2862,91 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._frames_text.setPlainText("\n".join(frames) or "-")
         self._camera_info_text.setPlainText("\n".join(camera_info) or "-")
         self._error_text.setPlainText("\n".join(dict.fromkeys(errors)) or "-")
+
+        state, verdict = self._compute_results_verdict(source_ids, bundle)
+        self._set_results_verdict(state, verdict)
+
+    # Reprojection error (px) above which a solved camera is flagged as a point
+    # of attention rather than a clean success on the verdict banner.
+    _VERDICT_REPROJECTION_WARN_PX = 1.0
+
+    def _compute_results_verdict(
+        self,
+        source_ids: list[str],
+        bundle: CalibrationBundle | None,
+    ) -> tuple[str, str]:
+        """Plain-language pass/fail for the operator, derived from per-camera
+        status. Returns ``(state, text)`` where state is
+        ``"none"``/``"success"``/``"warning"``/``"fail"``."""
+        solved_states = {"solved", "solved_extrinsics", "reference_camera"}
+        warn_states = {"solved_with_warnings", "solved_with_warnings_extrinsics"}
+
+        calibrated = [
+            sid
+            for sid in source_ids
+            if bundle and (bundle.cameras.get(sid) and bundle.cameras[sid].intrinsics is not None)
+        ]
+        if not bundle or not calibrated:
+            return "none", "Nog geen kalibratie uitgevoerd."
+
+        multi_camera = len(source_ids) >= 2
+        unsolved: list[str] = []
+        extrinsics_missing: list[str] = []
+        warnings_present = False
+        worst_reprojection = 0.0
+        for source_id in source_ids:
+            camera = bundle.cameras.get(source_id)
+            status = camera.status if camera else "unsolved"
+            if status in warn_states:
+                warnings_present = True
+            elif status not in solved_states:
+                unsolved.append(source_id)
+                continue
+            if camera and camera.reprojection_error is not None:
+                worst_reprojection = max(worst_reprojection, float(camera.reprojection_error))
+            if multi_camera and (camera is None or camera.rotation is None or camera.translation is None):
+                extrinsics_missing.append(source_id)
+
+        if unsolved:
+            return (
+                "fail",
+                "⚠ Kalibratie onvoldoende — niet alle camera's zijn gekalibreerd. "
+                "Herhaal de kalibratie.",
+            )
+        if extrinsics_missing:
+            return (
+                "warning",
+                "✓ Intrinsics geslaagd — de positie van de camera's ten opzichte van "
+                "elkaar (extrinsics) is nog niet bepaald.",
+            )
+        if warnings_present or worst_reprojection > self._VERDICT_REPROJECTION_WARN_PX:
+            return (
+                "warning",
+                "✓ Kalibratie geslaagd, met aandachtspunten "
+                f"(grootste reprojectiefout {worst_reprojection:.2f}px). "
+                "Controleer de waarschuwingen hieronder.",
+            )
+        quality = f" (reprojectiefout ≤ {worst_reprojection:.2f}px)" if worst_reprojection > 0 else ""
+        return (
+            "success",
+            f"✓ Kalibratie geslaagd — alle camera's zijn klaar voor opname{quality}.",
+        )
+
+    def _set_results_verdict(self, state: str, text: str) -> None:
+        # foreground, background, border per verdict state.
+        palette = {
+            "success": ("#0f7b0f", "#e7f6e7", "#0f7b0f"),
+            "warning": ("#8a6100", "#fdf3df", "#e0a526"),
+            "fail": ("#9a1b1b", "#fbe9e9", "#c0392b"),
+            "none": ("#334155", "#eef2f7", "#cbd5e1"),
+        }
+        fg, bg, border = palette.get(state, palette["none"])
+        self._results_verdict.setStyleSheet(
+            f"QLabel#results_verdict {{ color: {fg}; background-color: {bg}; "
+            f"border: 1px solid {border}; border-radius: 8px; padding: 10px 14px; "
+            "font-size: 15px; font-weight: bold; }"
+        )
+        self._results_verdict.setText(text)
 
     def _camera_status_text(self, camera: CameraCalibration | None) -> str:
         raw = camera.status if camera else "unsolved"

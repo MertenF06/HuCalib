@@ -66,15 +66,24 @@ The GUI will open automatically in a new window.
 
 ## Usage
 
-### Main screen
-On the main screen you can create a new project or open an existing one.
+### 1. Start a project
+On the **Home** screen, click **Nieuw Project** to start a new calibration, or **Project Openen** to continue an existing one.
 
-### Selecting cameras
-Select the desired cameras via the Camera's/calibration menu. Make sure the cameras are properly connected and recognised by the system.
+### 2. Connect the cameras
+Connect your webcams before or while the app is running. On startup HuCalib automatically scans for cameras, opens every camera it finds, and shows a live preview of each on the **Camera's / Kalibratie** tab. Use the **Camera's zoeken** button to rescan if you plug in a camera later.
 
-### Calibration
-There are two different sequences when calibrating the camera's. First you calibrate the intrinsic parameters. This means that you calibrate each camera one at a time. Then you calibrate the extrinsic parameters. In this step you calibrate multiple camera's at the same time.
-Follow the calibration steps in the GUI. Afterwards, the camera parameters are saved in the project and ready for use in external software. 
+### 3. Calibrate
+You need a printed calibration board — a **chessboard** by default; **ChArUco** is also supported. The board dimensions and square size can be changed on the **Geavanceerde instellingen** tab.
+
+With the default settings, a single **Start kalibratie** button runs the whole sequence automatically:
+
+1. **Intrinsics** – each camera is calibrated on its own. Move the board slowly so it is seen across the whole image of every camera; the on-screen grid fills up as enough views are captured.
+2. **Extrinsics** – the cameras are calibrated relative to each other. Hold the board so that **several cameras see it at the same time**, until every camera is connected to the reference camera.
+
+The app then switches to the **Resultaten / Export** tab, which shows a plain-language pass/fail verdict for the calibration.
+
+### 4. Export
+On the **Resultaten / Export** tab, choose a format (**TOML** or **JSON**) and click **Export** to save the camera parameters for use in external tools such as [Pose2Sim](https://github.com/perfanalytics/pose2sim).
 
 ---
 

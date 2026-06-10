@@ -65,6 +65,9 @@ class MainWindow(QMainWindow):
         self._calibration_repo = CalibrationRepository()
         self._calibration_manager = CalibrationManager()
         self._calibration_path = self._default_calibration_path()
+        # Where the next "Nieuw Project" lands. Defaults to the standard
+        # calibration folder; the user can change it via the Home screen.
+        self._new_project_dir: Path = self._config.calibration_dir
         self._current_calibration_bundle: CalibrationBundle | None = None
         self._calibration_loaded = False
         self._calibration_pattern = self._calibration_manager.default_pattern
@@ -159,7 +162,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(self._config.app_name)
         self._apply_initial_window_geometry()
-        self._set_status("Ready for camera calibration")
+        self._set_status("Klaar om te kalibreren")
         QTimer.singleShot(250, self._start_initial_camera_probe)
 
     def _setup_ui(self) -> None:
@@ -321,7 +324,7 @@ class MainWindow(QMainWindow):
         self._camera_probe_worker = worker
         self._calibration_panel.set_camera_probe_running(True)
         worker.start()
-        self._set_status(f"Scanning cameras 0..{max_index} ...")
+        self._set_status(f"Camera's zoeken 0..{max_index} ...")
 
     def _on_camera_probe_result(self, payload: object) -> None:
         self._calibration_panel.set_camera_probe_running(False)
@@ -333,10 +336,10 @@ class MainWindow(QMainWindow):
         self._detected_cameras = sorted(results, key=lambda camera: camera.index)
         self._calibration_panel.set_detected_cameras(results)
         if results:
-            self._set_status(f"Detected {len(results)} camera(s).")
+            self._set_status(f"{len(results)} camera('s) gevonden.")
             self._open_all_cameras_and_go_live()
         else:
-            self._set_status("No cameras detected in probed range.")
+            self._set_status("Geen camera's gevonden. Sluit een camera aan en zoek opnieuw.")
 
     def _open_all_cameras_and_go_live(self) -> None:
         """Open every detected camera as a source and start live view.
@@ -382,7 +385,7 @@ class MainWindow(QMainWindow):
             self._apply_spatial_grid_from_bundle_metadata(bundle)
         self._set_current_calibration_bundle(bundle)
         if bundle is not None:
-            self._set_status(f"Loaded calibration: {self._calibration_path.name}")
+            self._set_status(f"Kalibratie geladen: {self._calibration_path.name}")
 
     def _set_current_calibration_bundle(self, bundle: CalibrationBundle | None) -> None:
         self._current_calibration_bundle = bundle
@@ -1639,9 +1642,9 @@ class MainWindow(QMainWindow):
     def _on_live_state_changed(self, state: str) -> None:
         self._refresh_live_status(force=True)
         if state == "live_started":
-            self._set_status("Live capture started")
+            self._set_status("Live weergave gestart")
         elif state == "live_stopped":
-            self._set_status("Live capture stopped")
+            self._set_status("Live weergave gestopt")
         else:
             self._set_status(state)
 
@@ -1687,7 +1690,7 @@ class MainWindow(QMainWindow):
         self._reset_measured_fps()
         self._refresh_live_status(force=True)
         self._refresh_calibration_panel(force=True)
-        self._set_status("Live capture stopped")
+        self._set_status("Live weergave gestopt")
 
     def _default_recordings_base_dir(self) -> Path:
         # config paths are normalized to the project root, so this stays inside
@@ -2202,7 +2205,7 @@ class MainWindow(QMainWindow):
         active_frames = frames if frames is not None else self._latest_frames
         if not active_frames:
             if not auto_trigger:
-                self._show_warning("No frames available. Start live capture first.")
+                self._show_warning("Geen beeld beschikbaar. Start eerst de live weergave.")
             return False
 
         workflow_mode = self._calibration_workflow_mode()
@@ -2213,7 +2216,7 @@ class MainWindow(QMainWindow):
         allow_relaxed_sync = workflow_mode == "sync_extrinsics"
         if workflow_mode == "sync_extrinsics" and len(active_frames) < 2:
             if not auto_trigger:
-                self._show_warning("Sync / Extrinsics mode requires at least 2 active camera feeds.")
+                self._show_warning("Sync/Extrinsics vereist minimaal 2 actieve camera's.")
             return False
         sync_metadata: dict[str, Any] | None = None
         if workflow_mode == "sync_extrinsics":
@@ -2347,13 +2350,13 @@ class MainWindow(QMainWindow):
         self._last_calibration_auto_capture_at = 0.0
         message = self._auto_capture_idle_text()
         self._calibration_panel.set_auto_capture_status(message)
-        self._calibration_panel.show_feedback("Auto capture started from preview.", success=True)
-        self._set_status("Auto capture started")
+        self._calibration_panel.show_feedback("Automatisch vastleggen gestart vanuit preview.", success=True)
+        self._set_status("Automatisch vastleggen gestart")
         self._update_calibration_preview(force=True)
 
     def _on_solve_calibration(self) -> None:
         if self._intrinsics_solve_worker is not None:
-            self._calibration_panel.show_feedback("Intrinsics solve is already running.", success=False)
+            self._calibration_panel.show_feedback("Intrinsics berekenen is al bezig.", success=False)
             return
 
         worker = IntrinsicsSolveWorker(calibration_manager=self._calibration_manager)
@@ -2364,13 +2367,13 @@ class MainWindow(QMainWindow):
         worker.finished.connect(self._on_intrinsics_solve_finished)
         self._intrinsics_solve_worker = worker
         total_samples = sum(self._calibration_manager.observations_summary(include_sync_only=False).values())
-        progress_message = f"Solving intrinsics ({total_samples} samples)..."
+        progress_message = f"Intrinsics berekenen ({total_samples} samples)..."
         self._calibration_panel.set_intrinsics_solve_running(True, progress_message)
         self._calibration_panel.show_feedback(
-            f"Solving intrinsics in the background ({total_samples} samples)...",
+            f"Intrinsics berekenen op de achtergrond ({total_samples} samples)...",
             success=True,
         )
-        self._set_status("Solving intrinsics...")
+        self._set_status("Intrinsics berekenen...")
         self._intrinsics_solve_started_at = time.perf_counter()
         worker.start()
 
@@ -2407,8 +2410,8 @@ class MainWindow(QMainWindow):
 
     def _on_intrinsics_solve_error(self, message: str) -> None:
         LOGGER.error("Intrinsics solve error: %s", message)
-        self._calibration_panel.show_feedback(f"Intrinsics solve failed: {message}", success=False)
-        self._set_status(f"Intrinsics solve failed: {message}")
+        self._calibration_panel.show_feedback(f"Intrinsics berekenen mislukt: {message}", success=False)
+        self._set_status(f"Intrinsics berekenen mislukt: {message}")
         self._last_intrinsics_solve_ok = False
 
     def _on_intrinsics_solve_progress(self, done: int, total: int) -> None:
@@ -2474,12 +2477,12 @@ class MainWindow(QMainWindow):
             )
             return False
         if self._extrinsics_solve_worker is not None:
-            self._calibration_panel.show_feedback("Extrinsics solve is already running.", success=False)
+            self._calibration_panel.show_feedback("Extrinsics berekenen is al bezig.", success=False)
             return False
 
         base_bundle = self._current_calibration_bundle or self._calibration_manager.last_solution()
         if base_bundle is None and not self._calibration_manager.sources():
-            self._show_warning("Capture calibration samples first before solving extrinsics.")
+            self._show_warning("Leg eerst kalibratiesamples vast voordat je extrinsics berekent.")
             return False
         # When no intrinsics bundle exists yet, solve_extrinsics() falls back to an
         # intrinsics solve internally; that heavy path also runs on the worker.
@@ -2508,7 +2511,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.StandardButton.Cancel,
                 )
                 if reply != QMessageBox.StandardButton.Yes:
-                    self._set_status("Extrinsics solve cancelled: not all cameras connect to the reference yet.")
+                    self._set_status("Extrinsics berekenen geannuleerd: nog niet alle camera's zijn verbonden met de referentiecamera.")
                     return False
 
         reference_source_id = active_ids[0] if active_ids else None
@@ -2528,8 +2531,8 @@ class MainWindow(QMainWindow):
         # so no new sets should be appended while it runs (unlike the intrinsics solve,
         # which runs in parallel with extrinsics capture).
         self._calibration_panel.set_intrinsics_solve_running(True, "Solving extrinsics...", lock_capture=True)
-        self._calibration_panel.show_feedback("Solving extrinsics in the background...", success=True)
-        self._set_status("Solving extrinsics...")
+        self._calibration_panel.show_feedback("Extrinsics berekenen op de achtergrond...", success=True)
+        self._set_status("Extrinsics berekenen...")
         self._extrinsics_solve_started_at = time.perf_counter()
         worker.start()
         return True
@@ -2570,8 +2573,8 @@ class MainWindow(QMainWindow):
     def _on_extrinsics_solve_error(self, message: str) -> None:
         LOGGER.error("Extrinsics solve error: %s", message)
         self._extrinsics_solve_ok = False
-        self._calibration_panel.show_feedback(f"Extrinsics solve failed: {message}", success=False)
-        self._set_status(f"Extrinsics solve failed: {message}")
+        self._calibration_panel.show_feedback(f"Extrinsics berekenen mislukt: {message}", success=False)
+        self._set_status(f"Extrinsics berekenen mislukt: {message}")
 
     def _on_extrinsics_solve_progress(self, done: int, total: int) -> None:
         self._calibration_panel.set_solve_progress("extrinsics", done, total)
@@ -2599,8 +2602,8 @@ class MainWindow(QMainWindow):
         if self._auto_calibration_active:
             self._finish_auto_calibration_chain()
         self._refresh_calibration_panel(force=True)
-        self._calibration_panel.show_feedback("Calibration samples reset.", success=True)
-        self._set_status("Calibration samples reset")
+        self._calibration_panel.show_feedback("Samples gewist.", success=True)
+        self._set_status("Samples gewist")
 
     def _build_export_text(self, fmt: str) -> tuple[str | None, str | None, bool]:
         """Return (text, info_message, usable). text is None when no calibration exists.
@@ -2673,27 +2676,38 @@ class MainWindow(QMainWindow):
         self._set_status(f"Calibration exported: {path.name}")
 
     def _on_new_project(self) -> None:
-        reply = QMessageBox.question(
-            self,
-            "New Project",
-            (
-                "Start a new calibration project?\n\n"
+        # Confirm the new project and let the user change its location from the
+        # same popup. The "Locatie wijzigen…" button re-shows the dialog with the
+        # newly picked folder; cancelling the picker keeps the current location.
+        project_dir = self._new_project_dir
+        while True:
+            box = QMessageBox(self)
+            box.setWindowTitle("New Project")
+            box.setIcon(QMessageBox.Icon.Question)
+            box.setText(
+                f"Start a new calibration project in:\n{project_dir}\n\n"
                 "This clears captured samples, unloads the active calibration, and prevents the previous "
                 "auto-loaded calibration from coming back on restart. Saved profiles stay on disk."
-            ),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Cancel,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
+            )
+            start_button = box.addButton("Start", QMessageBox.ButtonRole.AcceptRole)
+            change_button = box.addButton("Locatie wijzigen…", QMessageBox.ButtonRole.ActionRole)
+            cancel_button = box.addButton(QMessageBox.StandardButton.Cancel)
+            box.setDefaultButton(cancel_button)
+            box.exec()
 
-        # Let the user choose where the new project lives. Default to the current
-        # project folder; cancelling keeps the default calibration location.
-        default_dir = str(self._calibration_panel.project_home())
-        chosen = QFileDialog.getExistingDirectory(
-            self, "Kies een locatie voor het nieuwe project", default_dir
-        )
-        project_dir = Path(chosen) if chosen else self._config.calibration_dir
+            clicked = box.clickedButton()
+            if clicked is change_button:
+                chosen = QFileDialog.getExistingDirectory(
+                    self, "Kies een locatie voor het nieuwe project", str(project_dir)
+                )
+                if chosen:
+                    project_dir = Path(chosen)
+                continue
+            if clicked is not start_button:
+                return
+            break
+
+        self._new_project_dir = project_dir
         try:
             project_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
