@@ -1397,9 +1397,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         # Independent acceptance thresholds: intrinsics is strict per-camera,
         # extrinsics covers synchronized multi-camera sets (usually more lenient).
         self._intrinsics_quality_spin = self._double_spin(0.0, 1.0, 0.25, 0.05, 2)
-        self._intrinsics_coverage_spin = self._double_spin(0.0, 25.0, 1.8, 0.2, 1)
-        self._extrinsics_quality_spin = self._double_spin(0.0, 1.0, 0.15, 0.05, 2)
-        self._extrinsics_coverage_spin = self._double_spin(0.0, 25.0, 1.0, 0.2, 1)
+        self._intrinsics_coverage_spin = self._double_spin(0.0, 25.0, 0.3, 0.2, 1)
+        self._extrinsics_quality_spin = self._double_spin(0.0, 1.0, 0.4, 0.05, 2)
+        self._extrinsics_coverage_spin = self._double_spin(0.0, 25.0, 0.4, 0.2, 1)
         self._grid_cols_spin = self._spin(1, 20, 6)
         self._grid_rows_spin = self._spin(1, 20, 4)
         # Keep the intrinsics sample budget divisible over the grid: track the

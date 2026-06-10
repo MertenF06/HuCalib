@@ -188,11 +188,11 @@ class CalibrationManager:
         square_size_m: float = 0.024,
         min_samples_per_camera: int = 8,
         min_quality_score: float = 0.25,
-        min_coverage_ratio: float = 0.018,
+        min_coverage_ratio: float = 0.003,
         # Extrinsics/sync capture only needs the board shared between cameras, so
-        # its acceptance thresholds are deliberately more lenient than the
-        # intrinsics ones; they are applied automatically in sync_extrinsics mode.
-        sync_min_quality_score: float = 0.04,
+        # its acceptance thresholds are tuned independently from the intrinsics
+        # ones; they are applied automatically in sync_extrinsics mode.
+        sync_min_quality_score: float = 0.4,
         sync_min_coverage_ratio: float = 0.004,
         default_pattern: Literal["chessboard", "charuco"] = "charuco",
         charuco_squares_x: int = 5,
@@ -209,8 +209,8 @@ class CalibrationManager:
         self._min_samples_per_camera = min_samples_per_camera
         self._min_quality_score = min_quality_score
         self._min_coverage_ratio = min_coverage_ratio
-        self._sync_min_quality_score = min(sync_min_quality_score, min_quality_score)
-        self._sync_min_coverage_ratio = min(sync_min_coverage_ratio, min_coverage_ratio)
+        self._sync_min_quality_score = sync_min_quality_score
+        self._sync_min_coverage_ratio = sync_min_coverage_ratio
         self._default_pattern: Literal["chessboard", "charuco"] = default_pattern
         self._charuco_squares_x = max(2, charuco_squares_x)
         self._charuco_squares_y = max(2, charuco_squares_y)
