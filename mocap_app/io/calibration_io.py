@@ -2117,7 +2117,9 @@ class CalibrationManager:
 
         notes.append("Next step: solve synchronized multi-camera extrinsics from shared calibration captures.")
         notes.append("Bundle adjustment refinement runs after synchronized extrinsics when enough shared views are available.")
-        notes.append("TODO: Add pairwise baseline diagnostics and epipolar residual plots.")
+        # Pairwise baseline diagnostics (baseline_m / stereo RMS / pair count) are
+        # produced by the extrinsics solve; epipolar residual plots remain a future
+        # enhancement but are not surfaced as a user-facing note.
         notes.append(
             "Triangulation assumption: camera rotation/translation must be world-to-camera extrinsics "
             "provided separately from intrinsics solve."

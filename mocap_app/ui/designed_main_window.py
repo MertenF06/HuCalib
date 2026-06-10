@@ -453,6 +453,134 @@ class _PreviewCanvas(QLabel):
         )
 
 
+def _cut_corner_background(image: QImage, threshold: int = 210) -> QImage:
+    """Flood-fill the near-white background inward from the four corners and make
+    it transparent. The cube's interior white checker squares survive because the
+    dark outline/grid lines wall them off from the border, so the fill stops at
+    the cube's edge. Done once at load time on the full-resolution image so the
+    cut stays crisp."""
+    image = image.convertToFormat(QImage.Format.Format_ARGB32)
+    width = image.width()
+    height = image.height()
+    if width == 0 or height == 0:
+        return image
+
+    def is_background(packed: int) -> bool:
+        return (
+            ((packed >> 16) & 0xFF) >= threshold
+            and ((packed >> 8) & 0xFF) >= threshold
+            and (packed & 0xFF) >= threshold
+        )
+
+    visited = bytearray(width * height)
+    stack = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
+    while stack:
+        x, y = stack.pop()
+        index = y * width + x
+        if visited[index]:
+            continue
+        visited[index] = 1
+        if not is_background(image.pixel(x, y)):
+            continue
+        image.setPixel(x, y, 0)  # fully transparent
+        if x > 0:
+            stack.append((x - 1, y))
+        if x < width - 1:
+            stack.append((x + 1, y))
+        if y > 0:
+            stack.append((x, y - 1))
+        if y < height - 1:
+            stack.append((x, y + 1))
+    return image
+
+
+class _SpinningCube(QWidget):
+    """The HuCalib logo-cube, rotated continuously as an indeterminate busy
+    indicator. The solve has no reliable fine-grained progress, so steady motion
+    reads as "working" without faking a percentage. The source logo ships on a
+    white background, so its background is cut out to transparent at load time;
+    the full-resolution pixmap is kept and scaled down only while painting so the
+    cube stays sharp. Falls back to drawing nothing if the logo can't be loaded."""
+
+    def __init__(self, image_path: Path, side: int = 36, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._angle = 0.0
+        self._side = side
+        source = QImage(str(image_path))
+        self._pixmap = (
+            QPixmap.fromImage(_cut_corner_background(source))
+            if not source.isNull()
+            else QPixmap()
+        )
+        # Give the widget enough room for the rotated diagonal so corners are
+        # never clipped as it turns.
+        box = int(round(side * 1.5))
+        self.setFixedSize(box, box)
+        self._timer = QtCore.QTimer(self)
+        self._timer.setInterval(33)  # ~30 fps
+        self._timer.timeout.connect(self._advance)
+
+    def _advance(self) -> None:
+        self._angle = (self._angle + 5.0) % 360.0
+        self.update()
+
+    def start(self) -> None:
+        if not self._timer.isActive():
+            self._timer.start()
+
+    def stop(self) -> None:
+        self._timer.stop()
+
+    def paintEvent(self, event: QEvent) -> None:  # noqa: N802 - Qt override
+        if self._pixmap.isNull():
+            return
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, True)
+        center = self.rect().center()
+        painter.translate(center.x() + 0.5, center.y() + 0.5)
+        painter.rotate(self._angle)
+        # Draw the high-res cutout scaled down into a crisp side x side box.
+        side = float(self._side)
+        target = QtCore.QRectF(-side / 2.0, -side / 2.0, side, side)
+        painter.drawPixmap(target, self._pixmap, QtCore.QRectF(self._pixmap.rect()))
+
+
+class _SolveActivityIndicator(QWidget):
+    """Spinning logo-cube above a phase label, shown while an intrinsics or
+    extrinsics solve runs. Replaces the old thin progress bar: it conveys
+    activity through steady rotation. Laid out vertically (cube on top, wrapping
+    label below) so it fits the narrow navigation sidebar."""
+
+    def __init__(self, image_path: Path, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 6, 4, 6)
+        layout.setSpacing(6)
+        self._cube = _SpinningCube(image_path, side=44, parent=self)
+        self._label = QLabel("", self)
+        self._label.setWordWrap(True)
+        self._label.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+        # Light green so it stays legible on the dark navigation rail.
+        self._label.setStyleSheet("color: #4ade80; font-weight: 600;")
+        layout.addWidget(self._cube, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self._label, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.setVisible(False)
+
+    def start(self, text: str) -> None:
+        self._label.setText(text)
+        self._cube.start()
+        self.setVisible(True)
+
+    def set_text(self, text: str) -> None:
+        self._label.setText(text)
+
+    def stop(self) -> None:
+        self._cube.stop()
+        self._label.clear()
+        self.setVisible(False)
+
+
 class _ConnectivityProgressBar(QProgressBar):
     """Sample-progress bar whose fill is the quota and whose colour reflects the
     extrinsics connectivity to the reference camera.
@@ -1039,6 +1167,19 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._intrinsics_solve_seconds: float | None = None
         self._extrinsics_solve_seconds: float | None = None
 
+        # Diagnostics: wall-clock time each capture mode has been *active* (the
+        # Start/Stop toggle), as opposed to the compute time above. Accumulates
+        # across on/off cycles; the ``_started_at`` fields hold the start of the
+        # currently-running segment (``None`` when that mode is off). A 1 s timer
+        # keeps the display ticking while a mode runs.
+        self._intrinsics_mode_seconds = 0.0
+        self._extrinsics_mode_seconds = 0.0
+        self._intrinsics_mode_started_at: float | None = None
+        self._extrinsics_mode_started_at: float | None = None
+        self._mode_time_ticker = QtCore.QTimer(self)
+        self._mode_time_ticker.setInterval(1000)
+        self._mode_time_ticker.timeout.connect(self._refresh_mode_time_diagnostics)
+
         self._setup_navigation()
         self._setup_console()
         self._setup_camera_page(default_camera_csv, default_fps)
@@ -1256,6 +1397,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self.window.text_diag_current_fps,
             self.window.text_diag_dropped_frames,
             self.window.text_diag_used_cams,
+            self.window.text_diag_intrinsics_mode_time,
+            self.window.text_diag_extrinsics_mode_time,
             self.window.text_diag_Intrinsics_time,
             self.window.text_diag_extrinsics_time,
             self.window.text_diag_total_time,
@@ -1266,14 +1409,89 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.text_diag_current_fps.setPlainText("-")
         self.window.text_diag_dropped_frames.setPlainText("0")
         self.window.text_diag_used_cams.setPlainText("0")
+        self.window.text_diag_intrinsics_mode_time.setPlainText("-")
+        self.window.text_diag_extrinsics_mode_time.setPlainText("-")
         self.window.text_diag_Intrinsics_time.setPlainText("-")
         self.window.text_diag_extrinsics_time.setPlainText("-")
         self.window.text_diag_total_time.setPlainText("-")
-        # These fields now report the actual compute time of each solve (set when
-        # the background solve finishes), so spell that out in the labels.
+        # "Intrinsics/Extrinsics tijd" report how long each capture mode was
+        # active (the Start/Stop toggle); the "berekentijd" fields report the
+        # actual compute time of each solve, set when the background solve
+        # finishes. Spell that distinction out in the labels.
+        self.window.lab_diag_intrinsics_mode_time.setText("Intrinsics tijd")
+        self.window.lab_diag_extrinsics_mode_time.setText("Extrinsics tijd")
         self.window.lab_diag_intrinsics_time.setText("Intrinsics berekentijd")
         self.window.lab_diag_extrinsics_time.setText("Extrinsics berekentijd")
         self.window.lab_diag_total_time.setText("Totale berekentijd")
+
+    # --- Diagnostics: per-stage capture-mode active time -----------------------
+    def _start_mode_timer(self, mode: str) -> None:
+        """Begin (or resume) timing how long a capture mode is active. Modes are
+        mutually exclusive, so starting one stops the other first."""
+        now = time.perf_counter()
+        if mode == "intrinsics":
+            self._stop_mode_timer("sync_extrinsics")
+            if self._intrinsics_mode_started_at is None:
+                self._intrinsics_mode_started_at = now
+        else:  # sync_extrinsics / extrinsics
+            self._stop_mode_timer("intrinsics")
+            if self._extrinsics_mode_started_at is None:
+                self._extrinsics_mode_started_at = now
+        if not self._mode_time_ticker.isActive():
+            self._mode_time_ticker.start()
+        self._refresh_mode_time_diagnostics()
+
+    def _stop_mode_timer(self, mode: str) -> None:
+        """Fold the currently-running segment of a mode into its accumulator."""
+        now = time.perf_counter()
+        if mode == "intrinsics" and self._intrinsics_mode_started_at is not None:
+            self._intrinsics_mode_seconds += now - self._intrinsics_mode_started_at
+            self._intrinsics_mode_started_at = None
+        elif mode in ("extrinsics", "sync_extrinsics") and self._extrinsics_mode_started_at is not None:
+            self._extrinsics_mode_seconds += now - self._extrinsics_mode_started_at
+            self._extrinsics_mode_started_at = None
+        if (
+            self._intrinsics_mode_started_at is None
+            and self._extrinsics_mode_started_at is None
+            and self._mode_time_ticker.isActive()
+        ):
+            self._mode_time_ticker.stop()
+        self._refresh_mode_time_diagnostics()
+
+    def _reset_mode_timers(self) -> None:
+        self._mode_time_ticker.stop()
+        self._intrinsics_mode_seconds = 0.0
+        self._extrinsics_mode_seconds = 0.0
+        self._intrinsics_mode_started_at = None
+        self._extrinsics_mode_started_at = None
+        self.window.text_diag_intrinsics_mode_time.setPlainText("-")
+        self.window.text_diag_extrinsics_mode_time.setPlainText("-")
+
+    def _refresh_mode_time_diagnostics(self) -> None:
+        now = time.perf_counter()
+        intrinsics = self._intrinsics_mode_seconds + (
+            now - self._intrinsics_mode_started_at
+            if self._intrinsics_mode_started_at is not None
+            else 0.0
+        )
+        extrinsics = self._extrinsics_mode_seconds + (
+            now - self._extrinsics_mode_started_at
+            if self._extrinsics_mode_started_at is not None
+            else 0.0
+        )
+        # "-" until a mode has actually been entered at least once.
+        intrinsics_active = (
+            self._intrinsics_mode_seconds > 0.0 or self._intrinsics_mode_started_at is not None
+        )
+        extrinsics_active = (
+            self._extrinsics_mode_seconds > 0.0 or self._extrinsics_mode_started_at is not None
+        )
+        self.window.text_diag_intrinsics_mode_time.setPlainText(
+            self._format_compute_duration(intrinsics) if intrinsics_active else "-"
+        )
+        self.window.text_diag_extrinsics_mode_time.setPlainText(
+            self._format_compute_duration(extrinsics) if extrinsics_active else "-"
+        )
 
     # --- Diagnostics: per-stage solve (compute) time ---------------------------
     def set_solve_duration(self, stage: str, seconds: float) -> None:
@@ -1337,10 +1555,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._capture_resolution_combo.addItem("960 x 540", (960, 540))
         self._capture_resolution_combo.addItem("1280 x 720", (1280, 720))
         self._capture_resolution_combo.addItem("1920 x 1080", (1920, 1080))
-        # Default capture at 1080p for sharp, detailed calibration frames; the
-        # preview is downscaled separately so the live view stays smooth.
+        # Default capture at 720p: a good balance between sharp calibration
+        # frames and a smooth live view. 1080p across several cameras saturates
+        # USB bandwidth and drops the achievable frame rate, so raise this in
+        # advanced settings only if the cameras can sustain it.
         self._capture_resolution_combo.setCurrentIndex(
-            self._capture_resolution_combo.findData((1920, 1080))
+            self._capture_resolution_combo.findData((1280, 720))
         )
         self._preview_resolution_combo = QComboBox()
         self._preview_resolution_combo.addItem("Auto", (0, 0))
@@ -2378,6 +2598,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         start_button.setText("Stop")
         start_button.setStyleSheet(self._MODE_ACTIVE_STYLE)
 
+        # Start the diagnostics stopwatch for this mode (stops the other one).
+        self._start_mode_timer(mode)
+
         self.set_workflow_mode(mode)
         # Drives _on_calibration_workflow_mode_changed, which switches the active
         # acceptance thresholds (relaxed for sync/extrinsics) automatically.
@@ -2415,6 +2638,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         # recording keeps going (stop it with the record button), so calibration
         # mode switches never interrupt an ongoing recording.
         self.set_auto_capture_enabled(False)
+        self._stop_mode_timer(mode)
         self._reset_mode_button(button)
 
     def _reset_mode_button(self, button: QPushButton) -> None:
@@ -2459,6 +2683,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         for tile in self._tiles.values():
             tile.set_sample_count(0)
         self._reset_solve_durations()
+        self._reset_mode_timers()
         self.reset_requested.emit()
 
     def _capture_intrinsics_sample(self) -> None:
@@ -3096,15 +3321,13 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def probe_max_index(self) -> int:
         return int(self._probe_max_spin.value())
 
-    def _solve_progress_bar(self) -> QProgressBar | None:
-        return getattr(self.window, "_solve_progress_bar_widget", None)
+    def _solve_indicator(self) -> _SolveActivityIndicator | None:
+        return getattr(self.window, "_solve_indicator_widget", None)
 
     def _hide_solve_progress_bar(self) -> None:
-        bar = self._solve_progress_bar()
-        if bar is not None:
-            bar.setVisible(False)
-            bar.reset()
-            bar.setRange(0, 0)
+        indicator = self._solve_indicator()
+        if indicator is not None:
+            indicator.stop()
 
     def set_intrinsics_solve_running(
         self,
@@ -3132,35 +3355,30 @@ class DesignedCalibrationPanel(QtCore.QObject):
             button.setEnabled(not (running and lock_capture))
         if running:
             self._feedback.setText(message)
-            # Show the loading bar in busy mode until the first determinate
-            # progress callback arrives. ``stage`` only sets the label text.
+            # Start the spinning-cube indicator; the camera count is filled in
+            # by set_solve_progress as each camera is processed. ``stage`` only
+            # sets the label text.
             label = "Extrinsics" if stage == "extrinsics" else "Intrinsics"
-            bar = self._solve_progress_bar()
-            if bar is not None:
-                bar.setRange(0, 0)
-                bar.setFormat(f"{label} berekenen...")
-                bar.setVisible(True)
+            indicator = self._solve_indicator()
+            if indicator is not None:
+                indicator.start(f"{label} berekenen...")
         else:
             self._hide_solve_progress_bar()
 
     def set_solve_progress(self, stage: str, done: int, total: int) -> None:
-        """Show the running solve as an increasing percentage in the feedback line,
-        replacing the static "solving..." text. ``stage`` is "intrinsics" or
-        "extrinsics"; done/total are cameras processed so far."""
+        """Update the feedback line and the spinning-cube label with the camera
+        count as the solve advances. ``stage`` is "intrinsics" or "extrinsics";
+        done/total are cameras processed so far. Progress is reported as a count
+        (not a percentage bar) because the per-camera solve time is uneven."""
         if total <= 0:
             return
         pct = max(0, min(100, int(round(100 * done / total))))
         label = "Extrinsics" if stage == "extrinsics" else "Intrinsics"
         self._feedback.setStyleSheet("color: #0f7b0f;")
         self._feedback.setText(f"{label} berekenen... {pct}% ({done}/{total} camera's)")
-        bar = self._solve_progress_bar()
-        if bar is not None:
-            # Switch out of busy mode into a determinate percentage on first call.
-            if bar.maximum() == 0:
-                bar.setRange(0, 100)
-            bar.setValue(pct)
-            bar.setFormat(f"{label} berekenen... {pct}%  ({done}/{total})")
-            bar.setVisible(True)
+        indicator = self._solve_indicator()
+        if indicator is not None:
+            indicator.set_text(f"{label} berekenen... {done}/{total} camera's")
 
     def force_capture_resolution(self, width: int, height: int) -> bool:
         """Select a capture resolution programmatically (adding it if missing).
@@ -3552,14 +3770,16 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
                 layout.setContentsMargins(8, 4, 8, 4)
                 layout.setSpacing(3)
 
-        # Shared solve progress bar along the bottom of the calibration controls.
-        # Placed on the frame grid (not inside the per-phase cards) so it stays
-        # visible in both manual mode and the default auto-navigation mode, where
-        # the cards are hidden. Driven by set_intrinsics_solve_running and
+        # Shared solve activity indicator (spinning logo-cube + phase label).
+        # Pinned to the bottom of the navigation rail so it is visible from any
+        # page while a solve runs. Driven by set_intrinsics_solve_running and
         # set_solve_progress on the panel; its label says which phase is running.
-        self._solve_progress_bar_widget = self._make_solve_progress_bar()
-        if isinstance(top_layout, QGridLayout):
-            top_layout.addWidget(self._solve_progress_bar_widget, 2, 0, 1, 5)
+        self._solve_indicator_widget = self._make_solve_indicator()
+        # verticalLayout (the sidebar) already ends with a stretch, so adding
+        # here drops the indicator into the empty space at the bottom-left.
+        self.verticalLayout.addWidget(
+            self._solve_indicator_widget, 0, Qt.AlignmentFlag.AlignHCenter
+        )
 
         for button in [
             self.btn_cap_intrinsics_start,
@@ -3584,19 +3804,12 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self.btn_cap_reset_calibration.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.btn_cap_reset_calibration.setProperty("danger", True)
         self.frame.setMinimumHeight(104)
-        # A little extra headroom so a solve progress bar can appear under the
-        # Berekenen buttons without clipping the card contents.
         self.frame.setMaximumHeight(140)
 
-    def _make_solve_progress_bar(self) -> QProgressBar:
-        bar = QProgressBar(self.frame)
-        # Start in busy/indeterminate mode; switches to a determinate percentage
-        # once the first per-camera progress callback arrives.
-        bar.setRange(0, 0)
-        bar.setTextVisible(True)
-        bar.setMaximumHeight(12)
-        bar.setVisible(False)
-        return bar
+    def _make_solve_indicator(self) -> _SolveActivityIndicator:
+        from ui.gui import IMAGES_DIR
+
+        return _SolveActivityIndicator(IMAGES_DIR / "HuCalib_icon.png", self.frame_menu)
 
     def _setup_resizable_shell(self) -> None:
         central_layout = self.centralwidget.layout()

@@ -619,6 +619,8 @@ class Ui_MainWindow(object):
             ("lab_diag_dropped_frames", "Dropped frames", "text_diag_dropped_frames"),
             ("lab_diag_current_fps", "Huidige FPS", "text_diag_current_fps"),
             ("lab_diag_used_cams", "Camera's in gebruik", "text_diag_used_cams"),
+            ("lab_diag_intrinsics_mode_time", "Intrinsics tijd", "text_diag_intrinsics_mode_time"),
+            ("lab_diag_extrinsics_mode_time", "Extrinsics tijd", "text_diag_extrinsics_mode_time"),
             ("lab_diag_intrinsics_time", "Intrinsics tijd", "text_diag_Intrinsics_time"),
             ("lab_diag_extrinsics_time", "Extrinsics tijd", "text_diag_extrinsics_time"),
             ("lab_diag_total_time", "Totale tijd", "text_diag_total_time"),
