@@ -194,12 +194,16 @@ class LiveCaptureWorker(QThread):
             # configured FPS, and every decoded frame is processed in order.
             return
 
-        if hasattr(cv2, "VideoWriter_fourcc"):
-            capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        # Set the resolution before the FOURCC: several Windows drivers reset the
+        # pixel format when the frame size changes, which silently undoes an
+        # MJPG request and drops the camera back to uncompressed YUY2 (lower
+        # maximum FPS at high resolutions).
         if self._requested_width > 0:
             capture.set(cv2.CAP_PROP_FRAME_WIDTH, float(self._requested_width))
         if self._requested_height > 0:
             capture.set(cv2.CAP_PROP_FRAME_HEIGHT, float(self._requested_height))
+        if hasattr(cv2, "VideoWriter_fourcc"):
+            capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         capture.set(cv2.CAP_PROP_FPS, float(self._target_fps))
 
         # Surface the resolution the camera actually delivers: webcams silently

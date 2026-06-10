@@ -15,13 +15,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 def resize_for_preview(frame_bgr: Any, max_width: int, max_height: int) -> Any:
-    """Scale a frame to the configured preview box for display only.
+    """Shrink a frame to fit the configured preview box for display only.
 
-    The frame is scaled down *or* up so it fills the ``max_width`` x ``max_height``
-    box as much as possible while preserving its aspect ratio. This normalises
-    every camera's preview to the same configured resolution regardless of its
-    native capture resolution. A non-positive width/height means "unconstrained"
-    on that axis; when both are unset the frame is returned untouched.
+    The frame is scaled *down* (aspect ratio preserved) when it exceeds the
+    ``max_width`` x ``max_height`` box. Frames that already fit are returned
+    untouched: the preview canvas scales the pixmap up to the tile during paint
+    (with smooth transform), so upscaling here would only burn CPU and memory
+    without adding detail. A non-positive width/height means "unconstrained" on
+    that axis; when both are unset the frame is returned untouched.
     """
     max_width = int(max_width or 0)
     max_height = int(max_height or 0)
@@ -38,25 +39,25 @@ def resize_for_preview(frame_bgr: Any, max_width: int, max_height: int) -> Any:
     if not scale_candidates:
         return frame_bgr
     scale = min(scale_candidates)
-    if scale <= 0:
+    if scale <= 0 or scale >= 1.0:
         return frame_bgr
     target_width = max(1, int(round(width * scale)))
     target_height = max(1, int(round(height * scale)))
     if target_width == width and target_height == height:
         return frame_bgr
-    # INTER_AREA gives the best quality when shrinking; INTER_LINEAR when growing.
-    interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
-    return cv2.resize(frame_bgr, (target_width, target_height), interpolation=interpolation)
+    # INTER_AREA gives the best quality when shrinking.
+    return cv2.resize(frame_bgr, (target_width, target_height), interpolation=cv2.INTER_AREA)
 
 
 class PreviewRenderWorker(QObject):
     """Prepares display-ready preview images off the UI thread.
 
     For each source it replicates the on-screen preview pipeline (undistort →
-    mirror → downscale → BGR-to-RGB → QImage) that previously ran on the UI
-    thread every display tick. Detection and calibration are untouched: they
-    still use the full-resolution capture frame, so this only affects what is
-    drawn, not calibration quality.
+    mirror → downscale → QImage) that previously ran on the UI thread every
+    display tick. The QImage wraps the BGR data directly (Format_BGR888), so no
+    per-frame colour conversion is needed. Detection and calibration are
+    untouched: they still use the full-resolution capture frame, so this only
+    affects what is drawn, not calibration quality.
 
     QImages may be constructed on a worker thread; the cheap ``QPixmap`` step is
     left to the UI thread. Each emitted QImage is ``.copy()``-ed so it owns its
@@ -120,9 +121,10 @@ class PreviewRenderWorker(QObject):
         if mirror:
             frame_bgr = cv2.flip(frame_bgr, 1)
         frame_bgr = resize_for_preview(frame_bgr, max_width, max_height)
-        rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        rgb = np.ascontiguousarray(rgb)
-        height, width, channels = rgb.shape
+        # Format_BGR888 lets Qt consume the OpenCV buffer as-is, skipping a
+        # full-frame BGR-to-RGB conversion per camera per tick.
+        frame_bgr = np.ascontiguousarray(frame_bgr)
+        height, width, channels = frame_bgr.shape
         return QImage(
-            rgb.data, width, height, channels * width, QImage.Format.Format_RGB888
+            frame_bgr.data, width, height, channels * width, QImage.Format.Format_BGR888
         ).copy()

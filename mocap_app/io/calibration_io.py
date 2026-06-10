@@ -712,6 +712,9 @@ class CalibrationManager:
                 )
                 corners = refined.astype(np.float32)
 
+        if corners is not None and found:
+            corners = self._normalize_chessboard_corner_order(corners)
+
         if corners is None or not found:
             return ChessboardDetectionResult(
                 source_id=source_id,
@@ -753,6 +756,27 @@ class CalibrationManager:
             board_center_px=board_center_px,
             diagnostics=diagnostics,
         )
+
+    def _normalize_chessboard_corner_order(self, corners: FloatArray) -> FloatArray:
+        """Make the chessboard corner order deterministic across cameras.
+
+        A plain chessboard has a 180-degree ambiguity: ``findChessboardCorners``
+        may traverse the grid from either end, and the stereo-extrinsics pairing
+        matches corners purely by index. Flip the order so the first corner is
+        always the upper (then left-most) of the two end corners, which keeps the
+        index-to-physical-corner mapping consistent between cameras as long as
+        they share a roughly common up direction. The object-point grid is
+        centrally symmetric, so a full reversal remains a valid correspondence
+        for intrinsics (the board pose simply rotates 180 degrees).
+        """
+        points = corners.reshape(-1, 2)
+        if points.shape[0] < 2:
+            return corners
+        first = (float(points[0][1]), float(points[0][0]))
+        last = (float(points[-1][1]), float(points[-1][0]))
+        if first > last:
+            return np.ascontiguousarray(corners[::-1])
+        return corners
 
     def _detect_charuco_corners(self, gray: U8Array) -> tuple[Any, Any, Any]:
         """Detect ArUco markers and interpolate ChArUco corners.
@@ -885,7 +909,23 @@ class CalibrationManager:
         image_area = float(width * height) if width and height else 1.0
         coverage_ratio = board_area / image_area
 
-        lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        # Measure sharpness on the board region only: the Laplacian variance of
+        # the whole frame is dominated by the background, so a busy room would
+        # mask a blurred board (and a plain wall would penalise a sharp one).
+        # The margin extends past the inner corners to include the outer squares.
+        sharpness_region = gray
+        if points.shape[0] >= 2:
+            min_xy = points.min(axis=0)
+            max_xy = points.max(axis=0)
+            margin_x = max(8.0, (max_xy[0] - min_xy[0]) * 0.15)
+            margin_y = max(8.0, (max_xy[1] - min_xy[1]) * 0.15)
+            x0 = int(np.clip(min_xy[0] - margin_x, 0, width))
+            x1 = int(np.clip(max_xy[0] + margin_x, 0, width))
+            y0 = int(np.clip(min_xy[1] - margin_y, 0, height))
+            y1 = int(np.clip(max_xy[1] + margin_y, 0, height))
+            if (x1 - x0) >= 16 and (y1 - y0) >= 16:
+                sharpness_region = gray[y0:y1, x0:x1]
+        lap_var = float(cv2.Laplacian(sharpness_region, cv2.CV_64F).var())
         sharpness_score = float(np.clip(lap_var / 220.0, 0.0, 1.0))
         coverage_score = float(np.clip(coverage_ratio / 0.18, 0.0, 1.0))
         corner_ratio = float(np.clip(points.shape[0] / max(expected_corner_count, 1), 0.0, 1.0))
@@ -3092,6 +3132,30 @@ class CalibrationManager:
                 self._undistort_map_cache[source_id] = cached
             _signature, map1, map2 = cached
         return cv2.remap(frame_bgr, map1, map2, interpolation=cv2.INTER_LINEAR)
+
+    def undistort_points(
+        self,
+        source_id: str,
+        points_xy: NDArray[np.floating],
+        bundle: CalibrationBundle | None,
+    ) -> NDArray[np.float32]:
+        """Map raw-image pixel coordinates to their undistorted positions.
+
+        Uses the same camera matrix as :meth:`undistort_frame` (``P = K``), so a
+        point mapped here lands exactly on the corresponding pixel of an
+        undistorted preview frame. Returns the input unchanged when no
+        intrinsics exist for this camera.
+        """
+        points = np.asarray(points_xy, dtype=np.float64).reshape(-1, 1, 2)
+        if points.size == 0 or bundle is None:
+            return np.asarray(points_xy, dtype=np.float32)
+        camera = bundle.cameras.get(source_id)
+        if camera is None or camera.intrinsics is None or camera.distortion is None:
+            return np.asarray(points_xy, dtype=np.float32)
+        matrix = np.asarray(camera.intrinsics, dtype=np.float64)
+        distortion = np.asarray(camera.distortion, dtype=np.float64)
+        mapped = cv2.undistortPoints(points, matrix, distortion, P=matrix)
+        return mapped.reshape(-1, 2).astype(np.float32)
 
     def draw_detection_overlay(
         self,

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+import queue
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,11 @@ LOGGER = logging.getLogger(__name__)
 # nominal one by more than this fraction; small jitter is not worth a re-encode.
 _FPS_REENCODE_TOLERANCE = 0.03
 
+# Bounded hand-off between the capture thread and the encoder thread. At 25 FPS
+# this buffers a little over two seconds of batches; if encoding cannot keep up
+# we drop the newest batch instead of stalling the live capture loop.
+_WRITE_QUEUE_MAX_BATCHES = 64
+
 
 class VideoRecorder:
     """Writes incoming live frames to one video file per camera source.
@@ -24,6 +31,13 @@ class VideoRecorder:
     (before any preview downscaling) so the clips are full quality and clean
     (no overlays, mirroring or undistortion), ready to validate the
     calibration in external tooling.
+
+    Encoding runs on a dedicated writer thread: ``write_frames`` only enqueues
+    the batch, so the capture loop is never slowed down by the (potentially
+    slow) video encode and the live view stays smooth while recording. When the
+    encoder cannot keep up the newest batches are dropped; the measured frame
+    rate (and the re-encode correction based on it) keeps the saved clips
+    playing back at real-time speed regardless.
     """
 
     def __init__(
@@ -45,6 +59,15 @@ class VideoRecorder:
         # is rarely achieved exactly by the capture loop).
         self._first_frame_at: float | None = None
         self._last_frame_at: float | None = None
+        self._dropped_batches = 0
+        self._closed = False
+        self._write_queue: queue.Queue[dict[str, Any] | None] = queue.Queue(
+            maxsize=_WRITE_QUEUE_MAX_BATCHES
+        )
+        self._writer_thread = threading.Thread(
+            target=self._writer_loop, name="video-recorder-writer", daemon=True
+        )
+        self._writer_thread.start()
 
     @property
     def output_dir(self) -> Path:
@@ -91,7 +114,35 @@ class VideoRecorder:
         self._frame_counts[source_id] = 0
         return writer
 
-    def write_frame(self, source_id: str, frame: Any) -> None:
+    def write_frames(self, frames: dict[str, Any]) -> None:
+        """Queue a batch for encoding. Called from the capture thread; never
+        blocks — when the encoder lags behind, the batch is dropped instead."""
+        if self._closed or not frames:
+            return
+        try:
+            self._write_queue.put_nowait(dict(frames))
+        except queue.Full:
+            self._dropped_batches += 1
+            return
+        # Timestamps track only batches that were actually accepted, so the
+        # measured frame rate matches the frames that end up in the clips.
+        now = time.perf_counter()
+        if self._first_frame_at is None:
+            self._first_frame_at = now
+        self._last_frame_at = now
+
+    def _writer_loop(self) -> None:
+        while True:
+            item = self._write_queue.get()
+            if item is None:
+                return
+            for source_id, frame in item.items():
+                try:
+                    self._write_frame(source_id, frame)
+                except Exception:  # noqa: BLE001 - one bad frame must not end the recording
+                    LOGGER.exception("Failed to encode a frame for source '%s'.", source_id)
+
+    def _write_frame(self, source_id: str, frame: Any) -> None:
         if frame is None:
             return
         writer = self._ensure_writer(source_id, frame)
@@ -102,14 +153,6 @@ class VideoRecorder:
             frame = cv2.resize(frame, expected)
         writer.write(frame)
         self._frame_counts[source_id] += 1
-        now = time.perf_counter()
-        if self._first_frame_at is None:
-            self._first_frame_at = now
-        self._last_frame_at = now
-
-    def write_frames(self, frames: dict[str, Any]) -> None:
-        for source_id, frame in frames.items():
-            self.write_frame(source_id, frame)
 
     def total_frames(self) -> int:
         return sum(self._frame_counts.values())
@@ -127,13 +170,25 @@ class VideoRecorder:
         return (max_frames - 1) / duration
 
     def close(self) -> dict[str, Path]:
-        """Release the writers and return the written clip paths.
+        """Drain the encoder, release the writers and return the written clip paths.
 
         This only stops writing; correcting the clips to the real measured frame
         rate (see :meth:`needs_frame_rate_correction` / :meth:`correct_frame_rate`)
         is done separately so the potentially slow re-encode can run off the UI
         thread.
         """
+        if not self._closed:
+            self._closed = True
+            # Sentinel ends the writer loop after the queued batches are encoded.
+            self._write_queue.put(None)
+            self._writer_thread.join(timeout=30)
+            if self._writer_thread.is_alive():
+                LOGGER.warning("Recording encoder thread did not finish in time; closing anyway.")
+        if self._dropped_batches > 0:
+            LOGGER.warning(
+                "Recording encoder lagged behind capture: dropped %d frame batch(es).",
+                self._dropped_batches,
+            )
         for writer in self._writers.values():
             try:
                 writer.release()

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import cv2
+import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
@@ -123,13 +124,26 @@ class _AggregateCheckBox(QCheckBox):
 
 
 class ConsoleStream(io.StringIO):
+    """Redirects stdout/stderr into the in-app console widget.
+
+    ``write`` can be called from any thread (worker threads, OpenCV warnings on
+    capture threads, ...), but Qt widgets may only be touched from the GUI
+    thread. The text is therefore handed over with a queued ``invokeMethod``
+    instead of calling ``appendPlainText`` directly.
+    """
+
     def __init__(self, console_widget: QPlainTextEdit) -> None:
         super().__init__()
         self._console_widget = console_widget
 
     def write(self, text: str) -> int:
         if text.strip():
-            self._console_widget.appendPlainText(text.rstrip())
+            QtCore.QMetaObject.invokeMethod(
+                self._console_widget,
+                "appendPlainText",
+                Qt.ConnectionType.QueuedConnection,
+                QtCore.Q_ARG(str, text.rstrip()),
+            )
         return len(text)
 
     def flush(self) -> None:
@@ -942,9 +956,13 @@ class DesignedPreviewTile(QFrame):
         detection: ChessboardDetectionResult | None = None,
         overlay_state: dict[str, Any] | None = None,
     ) -> None:
-        rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        height, width, channels = rgb.shape
-        image = QImage(rgb.data, width, height, channels * width, QImage.Format.Format_RGB888).copy()
+        # Format_BGR888 consumes the OpenCV buffer directly, skipping a
+        # full-frame BGR-to-RGB conversion on the UI thread.
+        frame_bgr = np.ascontiguousarray(frame_bgr)
+        height, width, channels = frame_bgr.shape
+        image = QImage(
+            frame_bgr.data, width, height, channels * width, QImage.Format.Format_BGR888
+        ).copy()
         self.set_frame_image(image, status, sample_count, detection, overlay_state)
 
     def set_frame_image(

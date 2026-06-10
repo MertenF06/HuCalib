@@ -931,10 +931,15 @@ class MainWindow(QMainWindow):
             # most recent detections. The result is applied asynchronously in
             # _on_detection_result, which also drives auto-capture. The frames
             # snapshot lets that step pair the detected corners with the exact
-            # frames they came from. Undistort happens here (cheap cached remap)
-            # so detection sees the same preview frame it did before.
+            # frames they came from. Detection always runs on the *raw* capture
+            # frames: stored sample corners must live in raw pixel space or the
+            # solve would be poisoned whenever the undistort preview toggle is on
+            # (corners from an already-rectified image describe a distortion-free
+            # camera). The display-only undistortion is applied to the corner
+            # *positions* instead when the overlay is drawn (see
+            # _undistort_detection_for_display).
             previews = {
-                source_id: self._prepare_calibration_preview_frame(source_id, frame.frame_bgr)
+                source_id: frame.frame_bgr
                 for source_id, frame in self._latest_frames.items()
             }
             self._last_calibration_detection_at = now
@@ -1069,7 +1074,7 @@ class MainWindow(QMainWindow):
         detections = dict(self._latest_calibration_detections)
         overlay_states = self._build_preview_overlay_states(detections, sample_counts)
         self._calibration_panel.update_preview_images(
-            images, detections, sample_counts, overlay_states
+            images, self._display_detections(detections), sample_counts, overlay_states
         )
 
     def _uses_qt_preview_overlay(self) -> bool:
@@ -1083,10 +1088,77 @@ class MainWindow(QMainWindow):
         sample_counts: dict[str, int],
         overlay_states: dict[str, dict[str, Any]] | None = None,
     ) -> None:
+        detections = self._display_detections(detections)
         if overlay_states is not None and self._uses_qt_preview_overlay():
             self._calibration_panel.update_previews(preview_frames, detections, sample_counts, overlay_states)
             return
         self._calibration_panel.update_previews(preview_frames, detections, sample_counts)
+
+    def _display_detections(
+        self,
+        detections: dict[str, ChessboardDetectionResult],
+    ) -> dict[str, ChessboardDetectionResult]:
+        """Map detections to display space for sources shown undistorted.
+
+        Detection runs on raw frames (sample corners must stay in raw pixel
+        space); when a tile displays the undistorted preview, the drawn corner
+        marks have to move with it or they would drift near the image edges.
+        """
+        return {
+            source_id: self._undistort_detection_for_display(source_id, detection)
+            for source_id, detection in detections.items()
+        }
+
+    def _undistort_detection_for_display(
+        self,
+        source_id: str,
+        detection: ChessboardDetectionResult,
+    ) -> ChessboardDetectionResult:
+        if detection is None or detection.corners is None or not detection.found:
+            return detection
+        if not self._calibration_panel.undistort_enabled_for(source_id):
+            return detection
+        bundle = self._current_calibration_bundle
+        if bundle is None:
+            return detection
+        camera = bundle.cameras.get(source_id)
+        if camera is None or camera.intrinsics is None or camera.distortion is None:
+            return detection
+
+        mapped = self._calibration_manager.undistort_points(
+            source_id=source_id,
+            points_xy=detection.corners.reshape(-1, 2),
+            bundle=bundle,
+        )
+        corners = mapped.reshape(detection.corners.shape).astype(np.float32)
+        points = corners.reshape(-1, 2)
+        min_xy = points.min(axis=0)
+        max_xy = points.max(axis=0)
+        bbox = (
+            float(min_xy[0]),
+            float(min_xy[1]),
+            float(max_xy[0] - min_xy[0]),
+            float(max_xy[1] - min_xy[1]),
+        )
+        center = (
+            float(min_xy[0] + (max_xy[0] - min_xy[0]) * 0.5),
+            float(min_xy[1] + (max_xy[1] - min_xy[1]) * 0.5),
+        )
+        return ChessboardDetectionResult(
+            source_id=detection.source_id,
+            found=detection.found,
+            image_size=detection.image_size,
+            pattern_type=detection.pattern_type,
+            corners=corners,
+            charuco_ids=detection.charuco_ids,
+            detected_corners=detection.detected_corners,
+            quality_score=detection.quality_score,
+            coverage_ratio=detection.coverage_ratio,
+            sharpness_score=detection.sharpness_score,
+            board_bbox_px=bbox,
+            board_center_px=center,
+            diagnostics=list(detection.diagnostics),
+        )
 
     def _build_preview_overlay_states(
         self,
@@ -1216,13 +1288,13 @@ class MainWindow(QMainWindow):
             return 1.0
 
     def _downscale_for_display(self, frame_bgr: Any) -> Any:
-        """Render a frame at the configured preview resolution for display only.
+        """Shrink a frame to the configured preview box for display only.
 
-        The frame is scaled (down *or* up) to fit the preview box while keeping
-        its aspect ratio, so every camera's preview lands on the same configured
-        resolution immediately - regardless of its native capture resolution.
-        Detection, calibration and recording use the full capture-resolution
-        frame; this only affects the on-screen preview.
+        Frames larger than the preview box are scaled down (aspect ratio
+        preserved); smaller frames pass through untouched and are scaled up by
+        the preview canvas during paint. Detection, calibration and recording
+        use the full capture-resolution frame; this only affects the on-screen
+        preview.
         """
         max_width = int(getattr(self._runtime_tuning, "preview_max_width", 0) or 0)
         max_height = int(getattr(self._runtime_tuning, "preview_max_height", 0) or 0)
@@ -1386,6 +1458,9 @@ class MainWindow(QMainWindow):
         display_frame_bgr: Any,
         mirror_preview: bool,
     ) -> ChessboardDetectionResult:
+        # Detection corners live in raw pixel space; move them to the undistorted
+        # preview positions first when that source displays undistorted.
+        detection = self._undistort_detection_for_display(detection.source_id, detection)
         transformed = (
             self._mirror_detection_for_preview(detection, source_frame_bgr)
             if mirror_preview
