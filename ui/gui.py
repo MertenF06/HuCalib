@@ -34,7 +34,7 @@ class Ui_MainWindow(object):
         MainWindow.setMinimumSize(QtCore.QSize(960, 600))
 
         icon = QtGui.QIcon()
-        icon.addPixmap(_load_pixmap("HU_Logo.png"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
+        icon.addPixmap(_load_pixmap("hucalib_cube_icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
         MainWindow.setWindowIcon(icon)
 
         self.centralwidget = QtWidgets.QWidget(MainWindow)
@@ -67,7 +67,7 @@ class Ui_MainWindow(object):
         self.label_logo.setMinimumHeight(110)
         self.label_logo.setMaximumHeight(150)
         self.label_logo.setText("")
-        logo_pixmap = _load_pixmap("HuMoCap groot.png")
+        logo_pixmap = _load_pixmap("Nieuw Logo 4.png")
         if not logo_pixmap.isNull():
             self.label_logo.setPixmap(logo_pixmap)
         self.label_logo.setScaledContents(True)
