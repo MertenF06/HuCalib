@@ -12,3 +12,7 @@ calibration/current_calibration.json
 # Python
 __pycache__/
 *.py[cod]
+
+# PyInstaller build output
+build/
+dist/

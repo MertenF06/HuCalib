@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _app_root() -> Path:
+    if getattr(sys, "frozen", False):
+        # Packaged with PyInstaller: keep writable data (calibration, logs,
+        # sessions, settings) next to the executable instead of inside the
+        # read-only bundle, which is a temporary extraction dir.
+        return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[2]
 
 
