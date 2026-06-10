@@ -5,6 +5,12 @@ Velopack package. If one is found the user is asked whether to install it; on
 confirmation the update is downloaded in the background and applied, after
 which the app restarts itself on the new version.
 
+The silent startup check retries transient failures (see _RETRY_DELAYS_MS) and
+then re-checks every _PERIODIC_INTERVAL_MS, so an update published while the
+app is open is still offered. A version the user declines is skipped by the
+periodic checks for the rest of the session; the manual menu check always
+reports and offers everything.
+
 All network/disk work runs on background QThreads so the UI never blocks.
 Nothing happens when running from a source checkout (not frozen), because
 Velopack can only update an installed build.
@@ -15,7 +21,7 @@ from __future__ import annotations
 import logging
 import sys
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import QMessageBox, QProgressDialog, QWidget
 
 LOGGER = logging.getLogger(__name__)
@@ -24,6 +30,16 @@ LOGGER = logging.getLogger(__name__)
 # pushes the update feed (RELEASES file + .nupkg packages) here, and the
 # installed app reads it back from the same place.
 GITHUB_REPO_URL = "https://github.com/MertenF06/HuCalib"
+
+# The silent check runs once shortly after startup. A single transient network
+# failure (sleeping wifi, captive portal, GitHub rate limit) would otherwise
+# mean no update prompt for the entire session, so failures are retried with
+# these delays before falling back to the periodic interval.
+_RETRY_DELAYS_MS = (60_000, 300_000, 900_000)  # 1 min, 5 min, 15 min
+
+# Long-running sessions re-check on this interval so a release published while
+# the app is open still gets offered without a restart.
+_PERIODIC_INTERVAL_MS = 4 * 60 * 60 * 1000  # 4 hours
 
 
 def updates_supported() -> bool:
@@ -106,6 +122,16 @@ class UpdateController(QObject):
         # "you're up to date" / "check failed" cases; the silent startup check
         # stays quiet so it never nags.
         self._notify_when_current = False
+        # Position in _RETRY_DELAYS_MS for the silent check; reset on success.
+        self._retry_index = 0
+        # Version the user declined this session: the periodic re-check skips
+        # it instead of asking again, a manual check still offers it.
+        self._declined_version: str | None = None
+        # Single pending timer for the next silent check (retry or periodic);
+        # restarting it replaces the previous schedule so checks never stack.
+        self._next_check_timer = QTimer(self)
+        self._next_check_timer.setSingleShot(True)
+        self._next_check_timer.timeout.connect(self.start_background_check)
 
     # -- public entry points ------------------------------------------------
 
@@ -140,7 +166,15 @@ class UpdateController(QObject):
         self._check_worker = worker
         worker.start()
 
+    def _schedule_silent_check(self, delay_ms: int) -> None:
+        self._next_check_timer.start(delay_ms)
+
     def _on_no_update(self) -> None:
+        self._retry_index = 0
+        # Always keep the periodic chain alive, also after a manual check (the
+        # pending timer may have fired into the early-return of _begin_check
+        # while this check was running).
+        self._schedule_silent_check(_PERIODIC_INTERVAL_MS)
         if self._notify_when_current:
             QMessageBox.information(
                 self._window, "Updates", "Je gebruikt al de nieuwste versie."
@@ -148,14 +182,35 @@ class UpdateController(QObject):
 
     def _on_check_failed(self, message: str) -> None:
         if self._notify_when_current:
+            self._schedule_silent_check(_PERIODIC_INTERVAL_MS)
             QMessageBox.warning(
                 self._window,
                 "Updates",
                 "Kon niet controleren op updates:\n" + message,
             )
+            return
+        if self._retry_index < len(_RETRY_DELAYS_MS):
+            delay_ms = _RETRY_DELAYS_MS[self._retry_index]
+            self._retry_index += 1
+            LOGGER.info(
+                "Silent update check failed, retrying in %ds (attempt %d/%d)",
+                delay_ms // 1000,
+                self._retry_index,
+                len(_RETRY_DELAYS_MS),
+            )
+        else:
+            delay_ms = _PERIODIC_INTERVAL_MS
+            LOGGER.info("Silent update check kept failing; next try in %d min", delay_ms // 60000)
+        self._schedule_silent_check(delay_ms)
 
     def _on_update_found(self, update_info: object) -> None:
-        version = update_info.TargetFullRelease.Version
+        self._retry_index = 0
+        version = str(update_info.TargetFullRelease.Version)
+        if not self._notify_when_current and version == self._declined_version:
+            # Already declined this version this session; don't nag on the
+            # periodic re-check. A newer version will prompt again.
+            self._schedule_silent_check(_PERIODIC_INTERVAL_MS)
+            return
         answer = QMessageBox.question(
             self._window,
             "Update beschikbaar",
@@ -165,6 +220,8 @@ class UpdateController(QObject):
             QMessageBox.StandardButton.Yes,
         )
         if answer != QMessageBox.StandardButton.Yes:
+            self._declined_version = version
+            self._schedule_silent_check(_PERIODIC_INTERVAL_MS)
             return
 
         progress = QProgressDialog(
@@ -189,6 +246,10 @@ class UpdateController(QObject):
         if self._progress is not None:
             self._progress.close()
             self._progress = None
+        # The version was not declined, so the periodic re-check will offer it
+        # again — a transient download failure shouldn't end updates for the
+        # whole session.
+        self._schedule_silent_check(_PERIODIC_INTERVAL_MS)
         QMessageBox.warning(
             self._window,
             "Update mislukt",
