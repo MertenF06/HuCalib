@@ -44,7 +44,9 @@ vpk pack `
     --packDir $packDir `
     --mainExe HuCalib.exe `
     --packTitle "HuCalib" `
-    --icon "ui\imagesGUI\hucalib_cube_icon.ico"
+    --icon "ui\imagesGUI\hucalib_cube_icon.ico" `
+    --splashImage "ui\imagesGUI\HuCalib_icon.png" `
+    --splashProgressColor "#0096D6"
 if ($LASTEXITCODE -ne 0) { throw "vpk pack failed" }
 
 Write-Host "==> Done. Output is in .\Releases\" -ForegroundColor Green
