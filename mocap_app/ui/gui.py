@@ -192,12 +192,15 @@ class Ui_MainWindow(object):
         self.actionQuit.setObjectName("actionQuit")
         self.actionOpen_documentation = QtGui.QAction(MainWindow)
         self.actionOpen_documentation.setObjectName("actionOpen_documentation")
+        self.actionInfo = QtGui.QAction(MainWindow)
+        self.actionInfo.setObjectName("actionInfo")
 
         self.menuFile.addAction(self.actionNew_project)
         self.menuFile.addAction(self.actionOpen_project)
         self.menuFile.addSeparator()
         self.menuFile.addAction(self.actionQuit)
         self.menuHelp.addAction(self.actionOpen_documentation)
+        self.menuHelp.addAction(self.actionInfo)
         self.menuBar.addAction(self.menuFile.menuAction())
         self.menuBar.addAction(self.menuHelp.menuAction())
 
@@ -679,3 +682,4 @@ class Ui_MainWindow(object):
         self.actionOpen_project.setText(_t("MainWindow", "Project openen"))
         self.actionQuit.setText(_t("MainWindow", "Afsluiten"))
         self.actionOpen_documentation.setText(_t("MainWindow", "Documentatie openen"))
+        self.actionInfo.setText(_t("MainWindow", "Info"))
