@@ -60,6 +60,7 @@ class VideoRecorder:
         self._first_frame_at: float | None = None
         self._last_frame_at: float | None = None
         self._dropped_batches = 0
+        self._dropped_frames = 0
         self._closed = False
         self._write_queue: queue.Queue[dict[str, Any] | None] = queue.Queue(
             maxsize=_WRITE_QUEUE_MAX_BATCHES
@@ -123,6 +124,7 @@ class VideoRecorder:
             self._write_queue.put_nowait(dict(frames))
         except queue.Full:
             self._dropped_batches += 1
+            self._dropped_frames += len(frames)
             return
         # Timestamps track only batches that were actually accepted, so the
         # measured frame rate matches the frames that end up in the clips.
@@ -157,6 +159,10 @@ class VideoRecorder:
     def total_frames(self) -> int:
         return sum(self._frame_counts.values())
 
+    def dropped_frames(self) -> int:
+        """Number of individual camera frames dropped before encoding."""
+        return self._dropped_frames
+
     def measured_fps(self) -> float | None:
         """Average frame rate actually achieved during the recording, or ``None``
         if too few frames were captured to estimate it."""
@@ -186,7 +192,8 @@ class VideoRecorder:
                 LOGGER.warning("Recording encoder thread did not finish in time; closing anyway.")
         if self._dropped_batches > 0:
             LOGGER.warning(
-                "Recording encoder lagged behind capture: dropped %d frame batch(es).",
+                "Recording encoder lagged behind capture: dropped %d frame(s) across %d batch(es).",
+                self._dropped_frames,
                 self._dropped_batches,
             )
         for writer in self._writers.values():

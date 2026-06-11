@@ -1387,12 +1387,13 @@ class DesignedCalibrationPanel(QtCore.QObject):
         # "Intrinsics/Extrinsics tijd" report how long each capture mode was
         # active (the Start/Stop toggle); the "berekentijd" fields report the
         # actual compute time of each solve, set when the background solve
-        # finishes. Spell that distinction out in the labels.
+        # finishes. The total is capture-mode time so it represents the complete
+        # calibration session instead of only the two solver calls.
         self.window.lab_diag_intrinsics_mode_time.setText("Intrinsics tijd")
         self.window.lab_diag_extrinsics_mode_time.setText("Extrinsics tijd")
         self.window.lab_diag_intrinsics_time.setText("Intrinsics berekentijd")
         self.window.lab_diag_extrinsics_time.setText("Extrinsics berekentijd")
-        self.window.lab_diag_total_time.setText("Totale berekentijd")
+        self.window.lab_diag_total_time.setText("Totale kalibratietijd")
 
     # --- Diagnostics: per-stage capture-mode active time -----------------------
     def _start_mode_timer(self, mode: str) -> None:
@@ -1436,6 +1437,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._extrinsics_mode_started_at = None
         self.window.text_diag_intrinsics_mode_time.setPlainText("-")
         self.window.text_diag_extrinsics_mode_time.setPlainText("-")
+        self.window.text_diag_total_time.setPlainText("-")
 
     def _refresh_mode_time_diagnostics(self) -> None:
         now = time.perf_counter()
@@ -1462,6 +1464,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.text_diag_extrinsics_mode_time.setPlainText(
             self._format_compute_duration(extrinsics) if extrinsics_active else "-"
         )
+        if intrinsics_active or extrinsics_active:
+            self.window.text_diag_total_time.setPlainText(
+                self._format_compute_duration(intrinsics + extrinsics)
+            )
+        else:
+            self.window.text_diag_total_time.setPlainText("-")
 
     # --- Diagnostics: per-stage solve (compute) time ---------------------------
     def set_solve_duration(self, stage: str, seconds: float) -> None:
@@ -1480,7 +1488,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._extrinsics_solve_seconds = None
         self.window.text_diag_Intrinsics_time.setPlainText("-")
         self.window.text_diag_extrinsics_time.setPlainText("-")
-        self.window.text_diag_total_time.setPlainText("-")
 
     def _refresh_solve_time_diagnostics(self) -> None:
         intrinsics = self._intrinsics_solve_seconds
@@ -1491,12 +1498,6 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.text_diag_extrinsics_time.setPlainText(
             self._format_compute_duration(extrinsics) if extrinsics is not None else "-"
         )
-        if intrinsics is None and extrinsics is None:
-            self.window.text_diag_total_time.setPlainText("-")
-        else:
-            self.window.text_diag_total_time.setPlainText(
-                self._format_compute_duration((intrinsics or 0.0) + (extrinsics or 0.0))
-            )
 
     @staticmethod
     def _format_compute_duration(seconds: float) -> str:
@@ -2596,6 +2597,18 @@ class DesignedCalibrationPanel(QtCore.QObject):
         button.setText("Stop kalibratie" if active else "Start kalibratie")
         button.setStyleSheet(self._CALIBRATION_RUN_ACTIVE_STYLE if active else "")
 
+    def stop_calibration_run(self) -> None:
+        """Stop every capture-mode state while leaving the live preview running."""
+        self.set_auto_capture_enabled(False)
+        self._stop_mode_timer("intrinsics")
+        self._stop_mode_timer("sync_extrinsics")
+        self.set_calibration_run_active(False)
+        for button in [self.window.btn_cap_intrinsics_start, self.window.btn_cap_extrinsics_start]:
+            button.blockSignals(True)
+            button.setChecked(False)
+            self._reset_mode_button(button)
+            button.blockSignals(False)
+
     def _update_calibration_controls_visibility(self) -> None:
         """Show the single Start-kalibratie button when auto-navigation is on,
         otherwise show the per-phase Intrinsics/Extrinsics cards."""
@@ -2604,8 +2617,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.frame_2.setVisible(not auto)
         self.window.frame_3.setVisible(not auto)
         if not auto and self._start_calibration_button.isChecked():
-            # Switching to manual mode cancels any running chain on the button.
-            self.set_calibration_run_active(False)
+            # Let the regular toggle path notify the controller so its automatic
+            # chain state is cancelled too, not only the button appearance.
+            self._start_calibration_button.setChecked(False)
 
     def open_all_detected_cameras(self) -> list[CameraSourceConfig]:
         """Open every detected webcam as a source tile and return the resulting
@@ -2779,6 +2793,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self.window.text_diag_current_fps.setPlainText("-")
         else:
             self.window.text_diag_current_fps.setPlainText(f"{fps:.1f}")
+
+    def set_dropped_frames(self, count: int) -> None:
+        """Show frames dropped by the asynchronous recording encoder."""
+        self.window.text_diag_dropped_frames.setPlainText(str(max(0, int(count))))
 
     def _sync_source_input_preview(self) -> None:
         self._video_sources = []
@@ -3338,13 +3356,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         state = "On" if live_active else "Off"
         self._feedback.setText(f"Live: {state} | Cameras: {active_cameras}")
         if not live_active:
-            # Stopping live disarms both capture modes.
-            for button in [self.window.btn_cap_intrinsics_start, self.window.btn_cap_extrinsics_start]:
-                button.blockSignals(True)
-                button.setChecked(False)
-                button.setText("Start")
-                button.setStyleSheet("")
-                button.blockSignals(False)
+            # Stopping live must freeze the active-time diagnostics as well as
+            # disarming capture; resetting only the buttons left timers running.
+            self.stop_calibration_run()
 
     def set_camera_probe_running(self, running: bool) -> None:
         self._camera_probe_running = running

@@ -854,16 +854,24 @@ class MainWindow(QMainWindow):
         """Stop the automatic chain. Auto-capture stops; live keeps running."""
         self._auto_calibration_active = False
         self._pending_auto_extrinsics_solve = False
-        self._calibration_panel.set_auto_capture_enabled(False)
+        stopper = getattr(self._calibration_panel, "stop_calibration_run", None)
+        if callable(stopper):
+            stopper()
+        else:
+            self._calibration_panel.set_auto_capture_enabled(False)
         self._set_status("Automatische kalibratie gestopt.")
 
     def _finish_auto_calibration_chain(self) -> None:
         """Clear the chain state and reset the Start/Stop button."""
         self._auto_calibration_active = False
         self._pending_auto_extrinsics_solve = False
-        setter = getattr(self._calibration_panel, "set_calibration_run_active", None)
-        if callable(setter):
-            setter(False)
+        stopper = getattr(self._calibration_panel, "stop_calibration_run", None)
+        if callable(stopper):
+            stopper()
+        else:
+            setter = getattr(self._calibration_panel, "set_calibration_run_active", None)
+            if callable(setter):
+                setter(False)
 
     def _maybe_auto_advance_to_extrinsics(self) -> None:
         """Switch from intrinsics to extrinsics capture mode when auto-navigation
@@ -1678,7 +1686,7 @@ class MainWindow(QMainWindow):
         sources: list[CameraSourceConfig],
         target_fps: float,
     ) -> None:
-        self._on_stop_live()
+        self._on_stop_live(cancel_calibration=False)
         self._stop_camera_probe_worker()
         self._on_runtime_tuning_changed(self._calibration_panel.runtime_tuning())
 
@@ -1690,6 +1698,7 @@ class MainWindow(QMainWindow):
         # A new live session: re-check whether the cameras deliver matching sizes.
         self._resolution_mismatch_prompted = False
         self._reset_measured_fps()
+        self._set_dropped_frames(0)
         source_ids = [source.source_id for source in sources]
         self._calibration_panel.set_sources(source_ids)
         self._active_camera_count = len(sources)
@@ -1754,10 +1763,12 @@ class MainWindow(QMainWindow):
         if self._auto_calibration_active:
             self._finish_auto_calibration_chain()
 
-    def _on_stop_live(self) -> None:
+    def _on_stop_live(self, cancel_calibration: bool = True) -> None:
         self._finalize_recording()
         if self._live_worker is None:
             self._refresh_live_status(force=True)
+            if cancel_calibration and self._auto_calibration_active:
+                self._finish_auto_calibration_chain()
             return
         self._live_worker.stop()
         if not self._live_worker.wait(3000):
@@ -1777,6 +1788,8 @@ class MainWindow(QMainWindow):
         self._reset_measured_fps()
         self._refresh_live_status(force=True)
         self._refresh_calibration_panel(force=True)
+        if cancel_calibration and self._auto_calibration_active:
+            self._finish_auto_calibration_chain()
         self._set_status("Live weergave gestopt")
 
     def _default_recordings_base_dir(self) -> Path:
@@ -1817,6 +1830,7 @@ class MainWindow(QMainWindow):
             self._calibration_panel.set_recording_active(False)
             self._show_error(f"Kon de opname niet starten: {exc}")
             return
+        self._set_dropped_frames(0)
         self._live_worker.attach_recorder(self._video_recorder)
         self._calibration_panel.set_recording_active(True)
         self._calibration_panel.show_feedback(
@@ -1834,6 +1848,7 @@ class MainWindow(QMainWindow):
             self._live_worker.detach_recorder()
         self._calibration_panel.set_recording_active(False)
         written = recorder.close()
+        self._set_dropped_frames(recorder.dropped_frames())
         if not written:
             self._calibration_panel.show_feedback("Opname gestopt; geen frames opgeslagen.", success=False)
             self._set_status("Opname gestopt (geen frames).")
@@ -1973,6 +1988,8 @@ class MainWindow(QMainWindow):
         self._latest_frames = frames
         self._active_camera_count = len(frames)
         self._update_measured_fps()
+        if self._video_recorder is not None:
+            self._set_dropped_frames(self._video_recorder.dropped_frames())
         self._maybe_warn_resolution_mismatch()
         self._refresh_live_status()
         # Render as soon as a frame arrives (frame-driven) for the lowest
@@ -2077,6 +2094,11 @@ class MainWindow(QMainWindow):
         setter = getattr(self._calibration_panel, "set_current_fps", None)
         if callable(setter):
             setter(None)
+
+    def _set_dropped_frames(self, count: int) -> None:
+        setter = getattr(self._calibration_panel, "set_dropped_frames", None)
+        if callable(setter):
+            setter(count)
 
     def _build_calibration_preview_frame(
         self,
