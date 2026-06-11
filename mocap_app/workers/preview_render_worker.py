@@ -1,3 +1,5 @@
+"""Off-thread preparation of display-ready preview images."""
+
 from __future__ import annotations
 
 import logging
@@ -64,14 +66,24 @@ class PreviewRenderWorker(QObject):
     pixels and the source numpy buffers can be released.
     """
 
+    ## Emitted with ``{"images": dict[str, QImage], "frame_indices": dict}``.
     rendered = Signal(object)
 
     def __init__(self, manager: CalibrationManager) -> None:
+        """@param manager  Calibration manager used for undistortion (read-only)."""
         super().__init__()
         self._manager = manager
 
     @Slot(object)
     def render(self, payload: object) -> None:
+        """Render every frame in the request to a display-ready QImage.
+
+        @param payload  Mapping with ``frames`` (``dict[str, frame]``),
+                        per-source ``undistort``/``mirror`` flag dicts, the
+                        calibration ``bundle`` for undistortion, the preview
+                        box (``max_width``/``max_height``) and the
+                        ``frame_indices`` that are echoed back in ``rendered``.
+        """
         try:
             request = dict(payload)  # type: ignore[arg-type]
         except (TypeError, ValueError):
@@ -114,6 +126,8 @@ class PreviewRenderWorker(QObject):
         max_width: int,
         max_height: int,
     ) -> QImage:
+        """Apply undistort → mirror → downscale to one frame and wrap it in a
+        self-owned QImage (``Format_BGR888``, ``.copy()``-ed)."""
         if undistort:
             frame_bgr = self._manager.undistort_frame(
                 source_id=source_id, frame_bgr=frame_bgr, bundle=bundle

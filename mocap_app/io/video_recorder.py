@@ -1,3 +1,5 @@
+"""Per-camera video recording with a dedicated encoder thread."""
+
 from __future__ import annotations
 
 import logging
@@ -46,6 +48,13 @@ class VideoRecorder:
         fps: float,
         labels: dict[str, str] | None = None,
     ) -> None:
+        """Create the output folder and start the encoder thread.
+
+        @param output_dir  Folder that receives one clip per source.
+        @param fps         Nominal frame rate the clips are written at.
+        @param labels      Optional user-facing names per source id, used for
+                           the clip file names.
+        """
         self._output_dir = Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
         self._fps = max(1.0, float(fps))
@@ -72,15 +81,23 @@ class VideoRecorder:
 
     @property
     def output_dir(self) -> Path:
+        """The folder the clips are written to."""
         return self._output_dir
 
     def _safe_name(self, source_id: str) -> str:
+        """Turn the source's label (or id) into a filesystem-safe file stem."""
         label = self._labels.get(source_id, source_id)
         cleaned = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in label)
         cleaned = cleaned.strip("_")
         return cleaned or source_id
 
     def _ensure_writer(self, source_id: str, frame) -> cv2.VideoWriter | None:
+        """Return the writer for ``source_id``, opening it on first use.
+
+        The clip dimensions are taken from the first frame. Tries MP4 (mp4v)
+        first and falls back to AVI (XVID); returns ``None`` when neither
+        opens, which skips recording for this source.
+        """
         writer = self._writers.get(source_id)
         if writer is not None:
             return writer
@@ -134,6 +151,7 @@ class VideoRecorder:
         self._last_frame_at = now
 
     def _writer_loop(self) -> None:
+        """Encoder thread: drain the queue until the ``None`` sentinel arrives."""
         while True:
             item = self._write_queue.get()
             if item is None:
@@ -145,6 +163,8 @@ class VideoRecorder:
                     LOGGER.exception("Failed to encode a frame for source '%s'.", source_id)
 
     def _write_frame(self, source_id: str, frame: Any) -> None:
+        """Encode one frame, resizing it when the source changed resolution
+        after the writer was opened."""
         if frame is None:
             return
         writer = self._ensure_writer(source_id, frame)
@@ -157,6 +177,7 @@ class VideoRecorder:
         self._frame_counts[source_id] += 1
 
     def total_frames(self) -> int:
+        """Total number of frames encoded so far, summed over all sources."""
         return sum(self._frame_counts.values())
 
     def dropped_frames(self) -> int:

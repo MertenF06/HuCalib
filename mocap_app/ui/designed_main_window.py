@@ -1,3 +1,13 @@
+"""The visual shell of the application, built on the designed UI.
+
+DesignedMainWindow combines the application logic of
+mocap_app.ui.main_window.MainWindow with the designed widget tree from
+mocap_app.ui.gui.Ui_MainWindow. DesignedCalibrationPanel implements the
+"calibration panel" contract that MainWindow drives: navigation, the camera
+preview grid (tiles with pop-outs and Qt-painted overlays), the results,
+directory, diagnostics and advanced-settings pages, and the in-app console.
+"""
+
 from __future__ import annotations
 
 import io
@@ -62,6 +72,10 @@ LOGGER = logging.getLogger(__name__)
 
 # Maximum number of cameras that can be added to the preview grid at once.
 _MAX_CAMERAS = 12
+
+# Hosted Doxygen documentation, opened by Help > Documentatie openen. Published
+# by .github/workflows/docs.yml (GitHub Pages) on every push to main.
+DOCUMENTATION_URL = "https://mertenf06.github.io/HuCalib/"
 
 _CONTRIBUTORS = (
     "Merten Flantua",
@@ -139,6 +153,7 @@ class _AggregateCheckBox(QCheckBox):
     yet only toggles between checked and unchecked on a user click."""
 
     def nextCheckState(self) -> None:  # type: ignore[override]
+        """Skip the partial state when the user clicks: toggle checked/unchecked."""
         self.setCheckState(
             Qt.CheckState.Unchecked
             if self.checkState() == Qt.CheckState.Checked
@@ -156,10 +171,12 @@ class ConsoleStream(io.StringIO):
     """
 
     def __init__(self, console_widget: QPlainTextEdit) -> None:
+        """@param console_widget  The in-app console that receives the text."""
         super().__init__()
         self._console_widget = console_widget
 
     def write(self, text: str) -> int:
+        """Queue non-blank text onto the console widget (thread-safe)."""
         if text.strip():
             QtCore.QMetaObject.invokeMethod(
                 self._console_widget,
@@ -170,11 +187,23 @@ class ConsoleStream(io.StringIO):
         return len(text)
 
     def flush(self) -> None:
+        """No-op; writes are delivered immediately."""
         return None
 
 
 class _PreviewCanvas(QLabel):
+    """Camera image area of a tile/pop-out, painting frame plus Qt overlay.
+
+    Draws the (already prepared) frame pixmap scaled into the widget and
+    paints the coverage grid and detected-corner marks on top from the
+    overlay-state dict. The rendered overlay is cached across paints (see the
+    inline comment) so the per-frame cost stays low.
+    """
+
     def __init__(self, message: str = "Geen beeld", parent: QWidget | None = None) -> None:
+        """@param message  Placeholder text shown while no frame arrived yet.
+        @param parent   Optional parent widget.
+        """
         super().__init__(message, parent)
         self._frame_pixmap: QPixmap | None = None
         self._detection: ChessboardDetectionResult | None = None
@@ -194,6 +223,7 @@ class _PreviewCanvas(QLabel):
         self.setStyleSheet("background-color: black; color: white;")
 
     def set_frame_pixmap(self, pixmap: QPixmap) -> None:
+        """Adopt a new frame and schedule a repaint."""
         self._frame_pixmap = pixmap
         self.update()
 
@@ -203,6 +233,8 @@ class _PreviewCanvas(QLabel):
         overlay_state: dict[str, Any] | None,
         status: str = "",
     ) -> None:
+        """Adopt new detection/overlay state, invalidating the overlay cache
+        only when the overlay-relevant data actually changed."""
         state = dict(overlay_state or {})
         # Cheap change-detection: a new detection cycle produces a new detection
         # object (so id() captures board movement) and the grid/sample fields are
@@ -217,10 +249,12 @@ class _PreviewCanvas(QLabel):
         self.update()
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
+        """Invalidate the cached overlay; its geometry no longer matches."""
         self._overlay_cache_rect = None
         super().resizeEvent(event)
 
     def paintEvent(self, event) -> None:  # type: ignore[override]
+        """Paint the scaled frame and the (cached) overlay, or the placeholder."""
         painter = QtGui.QPainter(self)
         painter.fillRect(self.rect(), QtGui.QColor(0, 0, 0))
         if self._frame_pixmap is None or self._frame_pixmap.isNull():
@@ -240,6 +274,7 @@ class _PreviewCanvas(QLabel):
         painter.end()
 
     def _image_rect(self) -> QtCore.QRectF:
+        """The aspect-ratio-preserving rectangle the frame is drawn into."""
         if self._frame_pixmap is None or self._frame_pixmap.isNull():
             return QtCore.QRectF(self.rect())
         pixmap_size = self._frame_pixmap.size()
@@ -256,6 +291,8 @@ class _PreviewCanvas(QLabel):
         return QtCore.QRectF(x, y, draw_w, draw_h)
 
     def _overlay_pixmap(self, image_rect: QtCore.QRectF) -> QPixmap | None:
+        """The overlay layer for the current state, rebuilt only when dirty or
+        when the draw rectangle changed; ``None`` when the overlay is off."""
         if self._detection is None or not self._overlay_state.get("overlay_enabled", False):
             self._overlay_cache = None
             self._overlay_cache_rect = None
@@ -292,6 +329,7 @@ class _PreviewCanvas(QLabel):
         detection: ChessboardDetectionResult | None,
         state: dict[str, Any],
     ) -> tuple[Any, ...]:
+        """Cheap change signature of everything the overlay rendering uses."""
         # Identity of the detection object stands in for its corner coordinates: a
         # new detection cycle yields a fresh object, so id() changes exactly when
         # the drawn marks would. The remaining fields are small (grid counts and
@@ -319,12 +357,14 @@ class _PreviewCanvas(QLabel):
         )
 
     def _overlay_scale(self) -> float:
+        """Overlay scale from the state, clamped to 0.3..3.0."""
         try:
             return max(0.3, min(3.0, float(self._overlay_state.get("overlay_scale", 1.0))))
         except (TypeError, ValueError):
             return 1.0
 
     def _draw_overlay(self, painter: QtGui.QPainter, image_rect: QtCore.QRectF) -> None:
+        """Draw the coverage grid (when shown) and the detection marks."""
         if self._detection is None:
             return
         # The textual feedback (source/samples/state/metrics) is shown in a label
@@ -337,6 +377,8 @@ class _PreviewCanvas(QLabel):
         self._draw_detection_marks(painter, image_rect)
 
     def _draw_grid(self, painter: QtGui.QPainter, image_rect: QtCore.QRectF) -> None:
+        """Draw the coverage grid: per-cell tint, grid lines, ``hits/target``
+        counters and a highlight on the cells the current detection touches."""
         cols, rows = self._grid_shape()
         if cols <= 0 or rows <= 0:
             return
@@ -401,6 +443,7 @@ class _PreviewCanvas(QLabel):
                     )
 
     def _draw_detection_marks(self, painter: QtGui.QPainter, image_rect: QtCore.QRectF) -> None:
+        """Draw the detected corners (and, for chessboards, the corner path)."""
         detection = self._detection
         if detection is None or not detection.found or detection.corners is None:
             return
@@ -416,6 +459,7 @@ class _PreviewCanvas(QLabel):
             painter.drawEllipse(point, radius, radius)
 
     def _grid_shape(self) -> tuple[int, int]:
+        """Coverage-grid shape (cols, rows) from the state, defaulting to 6x4."""
         value = self._overlay_state.get("grid_shape", (6, 4))
         if isinstance(value, tuple) and len(value) == 2:
             return max(1, int(value[0])), max(1, int(value[1]))
@@ -424,6 +468,7 @@ class _PreviewCanvas(QLabel):
         return 6, 4
 
     def _hit_count_for_cell(self, hit_counts: Any, row: int, col: int, cols: int) -> int:
+        """Hit count for a displayed cell, flipping columns when mirrored."""
         source_col = cols - 1 - col if self._overlay_state.get("mirror", False) else col
         if isinstance(hit_counts, list) and row < len(hit_counts):
             row_counts = hit_counts[row]
@@ -432,6 +477,7 @@ class _PreviewCanvas(QLabel):
         return 0
 
     def _cell_tint(self, hit_count: int, target: int) -> QtGui.QColor:
+        """Translucent cell tint: greener as the hit count nears the target."""
         if hit_count >= target:
             return QtGui.QColor(60, 185, 80, 40)
         if hit_count >= max(1, int(target * 2 / 3)):
@@ -439,6 +485,7 @@ class _PreviewCanvas(QLabel):
         return QtGui.QColor(95, 215, 240, 36)
 
     def _current_detection_cells(self, cols: int, rows: int) -> set[tuple[int, int]]:
+        """Grid cells touched by the current detection (corners, bbox, centre)."""
         detection = self._detection
         if detection is None or not detection.found:
             return set()
@@ -460,6 +507,7 @@ class _PreviewCanvas(QLabel):
         return {self._point_to_grid_cell(x, y, cols, rows) for x, y in points}
 
     def _point_to_grid_cell(self, x_px: float, y_px: float, cols: int, rows: int) -> tuple[int, int]:
+        """Map a detection-space pixel to its (row, col) cell, honouring mirror."""
         detection = self._detection
         if detection is None:
             return 0, 0
@@ -473,6 +521,7 @@ class _PreviewCanvas(QLabel):
         return row, col
 
     def _map_point(self, x_px: float, y_px: float, image_rect: QtCore.QRectF) -> QtCore.QPointF:
+        """Map a detection-space pixel to widget coordinates, honouring mirror."""
         detection = self._detection
         if detection is None:
             return QtCore.QPointF(image_rect.left(), image_rect.top())
@@ -500,6 +549,7 @@ def _cut_corner_background(image: QImage, threshold: int = 210) -> QImage:
         return image
 
     def is_background(packed: int) -> bool:
+        """True when a packed ARGB pixel is near-white (i.e. background)."""
         return (
             ((packed >> 16) & 0xFF) >= threshold
             and ((packed >> 8) & 0xFF) >= threshold
@@ -537,6 +587,10 @@ class _SpinningCube(QWidget):
     cube stays sharp. Falls back to drawing nothing if the logo can't be loaded."""
 
     def __init__(self, image_path: Path, side: int = 36, parent: QWidget | None = None) -> None:
+        """@param image_path  The logo image to spin.
+        @param side        Edge length (px) the cube is drawn at.
+        @param parent      Optional parent widget.
+        """
         super().__init__(parent)
         self._angle = 0.0
         self._side = side
@@ -555,17 +609,21 @@ class _SpinningCube(QWidget):
         self._timer.timeout.connect(self._advance)
 
     def _advance(self) -> None:
+        """Timer tick: rotate a step and repaint."""
         self._angle = (self._angle + 5.0) % 360.0
         self.update()
 
     def start(self) -> None:
+        """Start spinning."""
         if not self._timer.isActive():
             self._timer.start()
 
     def stop(self) -> None:
+        """Stop spinning (the cube freezes at its current angle)."""
         self._timer.stop()
 
     def paintEvent(self, event: QEvent) -> None:  # noqa: N802 - Qt override
+        """Draw the cutout logo rotated by the current angle."""
         if self._pixmap.isNull():
             return
         painter = QtGui.QPainter(self)
@@ -587,6 +645,9 @@ class _SolveActivityIndicator(QWidget):
     label below) so it fits the narrow navigation sidebar."""
 
     def __init__(self, image_path: Path, parent: QWidget | None = None) -> None:
+        """@param image_path  Logo image for the spinning cube.
+        @param parent      Optional parent widget.
+        """
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 6, 4, 6)
@@ -602,14 +663,17 @@ class _SolveActivityIndicator(QWidget):
         self.setVisible(False)
 
     def start(self, text: str) -> None:
+        """Show the indicator with ``text`` and start the cube."""
         self._label.setText(text)
         self._cube.start()
         self.setVisible(True)
 
     def set_text(self, text: str) -> None:
+        """Update the phase label while running."""
         self._label.setText(text)
 
     def stop(self) -> None:
+        """Hide the indicator and stop the cube."""
         self._cube.stop()
         self._label.clear()
         self.setVisible(False)
@@ -633,6 +697,7 @@ class _ConnectivityProgressBar(QProgressBar):
     }
 
     def __init__(self) -> None:
+        """Build an empty bar (0/0, no connectivity tint)."""
         super().__init__()
         self.setRange(0, 100)
         self.setValue(0)
@@ -645,19 +710,24 @@ class _ConnectivityProgressBar(QProgressBar):
         self._refresh()
 
     def set_target(self, target: int) -> None:
+        """Set the sample quota (0 = unlimited; the bar then shows raw counts)."""
         self._target = max(int(target), 0)
         self._refresh()
 
     def set_count(self, count: int) -> None:
+        """Set the current sample count."""
         self._count = max(int(count), 0)
         self._refresh()
 
     def set_connectivity(self, state: str, text: str = "") -> None:
+        """Set the connectivity tint (``reference``/``direct``/``indirect``/
+        ``none``; empty restores plain quota behaviour) and its tooltip text."""
         self._connectivity = str(state or "")
         self._connectivity_text = str(text or "")
         self._refresh()
 
     def _style_for(self, full: bool) -> str:
+        """The colour key for the current connectivity/fullness combination."""
         if not self._connectivity:
             return "green" if full else "default"
         if self._connectivity == "none":
@@ -668,6 +738,7 @@ class _ConnectivityProgressBar(QProgressBar):
         return "green" if full else "default"
 
     def _refresh(self) -> None:
+        """Recompute fill percentage, colour and tooltip from the stored state."""
         count = self._count
         target = self._target
         if target > 0:
@@ -688,13 +759,28 @@ class _ConnectivityProgressBar(QProgressBar):
 
 
 class DesignedPreviewPopout(QDialog):
+    """Enlarged single-camera window opened from a tile's "Groot" button.
+
+    Mirrors the tile's controls (rename, overlay, mirror, undistort, remove)
+    and its sample/connectivity progress bar; the tile keeps both in sync.
+    """
+
+    ## The user clicked the title button to rename the camera.
     rename_requested = Signal()
+    ## Overlay button toggled (checked state).
     overlay_toggled = Signal(bool)
+    ## Mirror button toggled (checked state).
     mirror_toggled = Signal(bool)
+    ## Undistort button toggled (checked state).
     undistort_toggled = Signal(bool)
+    ## The user asked to remove this camera from the source list.
     remove_requested = Signal()
 
     def __init__(self, title: str, display_name: str, parent: QWidget | None = None) -> None:
+        """@param title         Window title.
+        @param display_name  Camera name shown on the rename button.
+        @param parent        Optional parent widget.
+        """
         super().__init__(parent)
         self._last_pixmap: QPixmap | None = None
         self.setWindowTitle(title)
@@ -758,25 +844,30 @@ class DesignedPreviewPopout(QDialog):
         self._delete_button.clicked.connect(self.remove_requested)
 
     def set_display_name(self, name: str) -> None:
+        """Update the camera name on the rename button."""
         self._title_button.setText(name)
         self._title_button.setToolTip(f"Rename camera: {name}")
 
     def set_overlay_active(self, active: bool) -> None:
+        """Reflect the tile's overlay state without re-emitting the signal."""
         self._overlay_button.blockSignals(True)
         self._overlay_button.setChecked(active)
         self._overlay_button.blockSignals(False)
 
     def set_mirror_active(self, active: bool) -> None:
+        """Reflect the tile's mirror state without re-emitting the signal."""
         self._mirror_button.blockSignals(True)
         self._mirror_button.setChecked(active)
         self._mirror_button.blockSignals(False)
 
     def set_undistort_active(self, active: bool) -> None:
+        """Reflect the tile's undistort state without re-emitting the signal."""
         self._undistort_button.blockSignals(True)
         self._undistort_button.setChecked(active)
         self._undistort_button.blockSignals(False)
 
     def set_sample_target(self, target: int) -> None:
+        """Forward the sample quota to the progress bar."""
         self._progress.set_target(target)
 
     def set_frame(
@@ -787,6 +878,8 @@ class DesignedPreviewPopout(QDialog):
         status: str = "",
         sample_count: int = 0,
     ) -> None:
+        """Show a new frame with its detection/overlay state, status line and
+        sample/connectivity progress."""
         self._last_pixmap = pixmap
         state = dict(overlay_state or {})
         connectivity = str(state.get("connectivity", "") or "")
@@ -800,12 +893,24 @@ class DesignedPreviewPopout(QDialog):
 
 
 class DesignedPreviewTile(QFrame):
+    """One camera card in the preview grid.
+
+    Shows the live image (with the Qt overlay), a compact control row (rename,
+    enlarge, overlay, mirror, undistort, remove) and a sample/connectivity
+    progress bar, and can open a synchronized DesignedPreviewPopout window.
+    """
+
+    ## Undistort toggled for ``(source_id, enabled)``.
     undistort_toggled = Signal(str, bool)
+    ## Any preview option (overlay/mirror/undistort) changed on this tile.
     preview_options_changed = Signal()
+    ## The user asked to remove ``source_id`` from the source list.
     remove_requested = Signal(str)
+    ## Camera renamed to ``(source_id, new_name)``.
     name_changed = Signal(str, str)
 
     def __init__(self, source_id: str) -> None:
+        """@param source_id  Stable id of the camera this tile represents."""
         super().__init__()
         self._source_id = source_id
         self._last_pixmap: QPixmap | None = None
@@ -898,21 +1003,27 @@ class DesignedPreviewTile(QFrame):
 
     @property
     def source_id(self) -> str:
+        """The camera id this tile represents."""
         return self._source_id
 
     def undistort_enabled(self) -> bool:
+        """Whether the undistort (lens-correction) preview is on for this tile."""
         return self._undistort.isChecked()
 
     def overlay_enabled(self) -> bool:
+        """Whether the detection overlay is on for this tile."""
         return self._overlay_button.isChecked()
 
     def mirror_enabled(self) -> bool:
+        """Whether the preview is mirrored for this tile."""
         return self._mirror_button.isChecked()
 
     def display_name(self) -> str:
+        """The camera's display name (falls back to the source id)."""
         return self._display_name.strip() or self._source_id
 
     def set_display_name(self, name: str) -> None:
+        """Set the display name on the tile and any open pop-out."""
         self._display_name = name.strip() or self._source_id
         self._title_button.setText(self._display_name)
         self._title_button.setToolTip(f"Rename camera: {self._display_name}")
@@ -921,9 +1032,11 @@ class DesignedPreviewTile(QFrame):
             self._popout.set_display_name(self._display_name)
 
     def _emit_name_changed(self) -> None:
+        """Notify listeners that this camera was renamed."""
         self.name_changed.emit(self._source_id, self.display_name())
 
     def _rename_camera(self) -> None:
+        """Prompt for a new camera name and apply it on confirmation."""
         name, accepted = QInputDialog.getText(
             self,
             "Rename camera",
@@ -936,6 +1049,8 @@ class DesignedPreviewTile(QFrame):
         self._emit_name_changed()
 
     def set_overlay_active(self, active: bool) -> None:
+        """Set the overlay state without re-triggering the button, syncing the
+        pop-out, and notify listeners."""
         self._overlay_button.blockSignals(True)
         self._overlay_button.setChecked(active)
         self._overlay_button.blockSignals(False)
@@ -944,6 +1059,8 @@ class DesignedPreviewTile(QFrame):
         self.preview_options_changed.emit()
 
     def set_mirror_active(self, active: bool) -> None:
+        """Set the mirror state without re-triggering the button, syncing the
+        pop-out, and notify listeners."""
         self._mirror_button.blockSignals(True)
         self._mirror_button.setChecked(active)
         self._mirror_button.blockSignals(False)
@@ -952,12 +1069,14 @@ class DesignedPreviewTile(QFrame):
         self.preview_options_changed.emit()
 
     def set_sample_target(self, target: int) -> None:
+        """Set the sample quota on the progress bar (and the pop-out's)."""
         self._sample_target = max(int(target), 0)
         self._progress.set_target(self._sample_target)
         if self._popout is not None:
             self._popout.set_sample_target(self._sample_target)
 
     def set_sample_count(self, count: int) -> None:
+        """Set the current sample count on the progress bar."""
         self._last_sample_count = max(int(count), 0)
         self._progress.set_count(self._last_sample_count)
 
@@ -979,6 +1098,8 @@ class DesignedPreviewTile(QFrame):
         detection: ChessboardDetectionResult | None = None,
         overlay_state: dict[str, Any] | None = None,
     ) -> None:
+        """Show a BGR numpy frame, wrapping it as a QImage and delegating to
+        set_frame_image()."""
         # Format_BGR888 consumes the OpenCV buffer directly, skipping a
         # full-frame BGR-to-RGB conversion on the UI thread.
         frame_bgr = np.ascontiguousarray(frame_bgr)
@@ -996,6 +1117,8 @@ class DesignedPreviewTile(QFrame):
         detection: ChessboardDetectionResult | None = None,
         overlay_state: dict[str, Any] | None = None,
     ) -> None:
+        """Show an already-prepared QImage with its detection/overlay state,
+        status line and sample count, mirroring it to any open pop-out."""
         # The frame is already undistorted, mirrored, downscaled and converted
         # to RGB on the preview-render worker thread, so the UI thread only does
         # the cheap QPixmap conversion and paint.
@@ -1023,28 +1146,33 @@ class DesignedPreviewTile(QFrame):
             )
 
     def _toggle_popout(self, checked: bool) -> None:
+        """Open or close the enlarged pop-out window from the "Groot" button."""
         if checked:
             self._open_popout()
         elif self._popout is not None:
             self._popout.close()
 
     def _toggle_undistort(self, checked: bool) -> None:
+        """Handle the tile's undistort button: sync the pop-out and emit."""
         if self._popout is not None:
             self._popout.set_undistort_active(checked)
         self.undistort_toggled.emit(self._source_id, checked)
         self.preview_options_changed.emit()
 
     def _toggle_overlay(self, checked: bool) -> None:
+        """Handle the tile's overlay button: sync the pop-out and emit."""
         if self._popout is not None:
             self._popout.set_overlay_active(checked)
         self.preview_options_changed.emit()
 
     def _toggle_mirror(self, checked: bool) -> None:
+        """Handle the tile's mirror button: sync the pop-out and emit."""
         if self._popout is not None:
             self._popout.set_mirror_active(checked)
         self.preview_options_changed.emit()
 
     def _set_undistort_from_popout(self, checked: bool) -> None:
+        """Mirror the pop-out's undistort toggle back onto the tile button."""
         self._undistort.blockSignals(True)
         self._undistort.setChecked(checked)
         self._undistort.blockSignals(False)
@@ -1052,22 +1180,27 @@ class DesignedPreviewTile(QFrame):
         self.preview_options_changed.emit()
 
     def _set_overlay_from_popout(self, checked: bool) -> None:
+        """Mirror the pop-out's overlay toggle back onto the tile button."""
         self._overlay_button.blockSignals(True)
         self._overlay_button.setChecked(checked)
         self._overlay_button.blockSignals(False)
         self.preview_options_changed.emit()
 
     def _set_mirror_from_popout(self, checked: bool) -> None:
+        """Mirror the pop-out's mirror toggle back onto the tile button."""
         self._mirror_button.blockSignals(True)
         self._mirror_button.setChecked(checked)
         self._mirror_button.blockSignals(False)
         self.preview_options_changed.emit()
 
     def close_popout(self) -> None:
+        """Close the pop-out window if one is open."""
         if self._popout is not None:
             self._popout.close()
 
     def _open_popout(self) -> None:
+        """Create (or re-show) the pop-out, wiring its controls to this tile
+        and seeding it with the latest frame."""
         if self._popout is None:
             self._popout = DesignedPreviewPopout(f"Live Feed - {self.display_name()}", self.display_name(), self)
             self._popout.rename_requested.connect(self._rename_camera)
@@ -1096,44 +1229,86 @@ class DesignedPreviewTile(QFrame):
         self._open_button.blockSignals(False)
 
     def _on_popout_closed(self) -> None:
+        """Drop the pop-out reference and un-check the enlarge button."""
         self._popout = None
         self._open_button.blockSignals(True)
         self._open_button.setChecked(False)
         self._open_button.blockSignals(False)
 
 class DesignedCalibrationPanel(QtCore.QObject):
+    """The concrete calibration panel that MainWindow drives.
+
+    Implements the full panel contract on top of the designed widget tree:
+    navigation between pages, the camera preview grid (creating/removing
+    DesignedPreviewTile widgets), the results/directory/diagnostics pages, the
+    apply-gated advanced-settings page and the in-app console. It owns no
+    calibration logic — it emits the signals below and exposes getters/setters
+    that MainWindow reads and updates.
+    """
+
+    ## The user requested a new project.
     new_project_requested = Signal()
+    ## The user requested to open an existing project folder (emits the path).
     project_open_requested = Signal(object)
+    ## Start live capture with ``(sources, target_fps)``.
     start_live_requested = Signal(object, float)
+    ## Stop live capture.
     stop_live_requested = Signal()
+    ## Runtime tuning (preview/capture/detection) changed; emits a RuntimeTuning.
     runtime_tuning_changed = Signal(object)
+    ## Scan webcams up to the given max index.
     probe_cameras_requested = Signal(int)
+    ## Show a warning message to the user.
     ui_message = Signal(str)
+    ## Capture calibration sample(s) now.
     capture_requested = Signal()
+    ## Solve intrinsics.
     solve_requested = Signal()
+    ## Solve extrinsics.
     solve_extrinsics_requested = Signal()
+    ## Reset all captured samples.
     reset_requested = Signal()
+    ## Save the calibration profile to disk.
     save_profile_requested = Signal()
+    ## Load a calibration profile from disk.
     load_profile_requested = Signal()
+    ## Undistort toggled for ``(source_id, enabled)``.
     undistort_toggled = Signal(str, bool)
+    ## Arm auto-capture from the preview.
     auto_capture_start_requested = Signal()
+    ## Board pattern changed (chessboard/charuco).
     pattern_changed = Signal(str)
+    ## Apply new board settings (emits a CalibrationBoardSettings).
     board_settings_applied = Signal(object)
-    # intrinsics_quality, intrinsics_coverage_ratio, extrinsics_quality, extrinsics_coverage_ratio
+    ## intrinsics_quality, intrinsics_coverage_ratio, extrinsics_quality, extrinsics_coverage_ratio
     acceptance_thresholds_changed = Signal(float, float, float, float)
+    ## Capture workflow mode changed (intrinsics/sync_extrinsics).
     workflow_mode_changed = Signal(str)
+    ## Coverage grid shape changed (cols, rows).
     spatial_grid_changed = Signal(int, int)
+    ## Camera source list changed (emits the list of CameraSourceConfig).
     sources_changed = Signal(object)
+    ## A per-tile preview option (overlay/mirror/undistort) changed.
     preview_options_changed = Signal()
+    ## Recording toggled on/off.
     record_toggled = Signal(bool)
+    ## Request an export preview in the given format.
     export_preview_requested = Signal(str)
+    ## Export the calibration in the given format.
     export_requested = Signal(str)
-    # Emitted by the single "Start kalibratie"/"Stop kalibratie" button shown when
-    # auto-navigation is enabled; drives the fully automatic calibration chain.
+    ## Emitted by the single "Start kalibratie"/"Stop kalibratie" button shown when
+    ## auto-navigation is enabled; drives the fully automatic calibration chain.
     start_calibration_requested = Signal()
+    ## Stop the automatic calibration chain.
     stop_calibration_requested = Signal()
 
     def __init__(self, window: "DesignedMainWindow", default_camera_csv: str, default_fps: float) -> None:
+        """Build all pages and wire the widgets to this panel's signals.
+
+        @param window              The host window owning the designed widgets.
+        @param default_camera_csv  Initial camera-source CSV.
+        @param default_fps         Initial capture frame rate.
+        """
         super().__init__(window)
         self.window = window
         self._tiles: dict[str, DesignedPreviewTile] = {}
@@ -1185,6 +1360,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.switch_page(0)
 
     def _setup_navigation(self) -> None:
+        """Wire the sidebar buttons to page switches."""
         self._nav_buttons = [
             self.window.btn_home,
             self.window.btn_cameras,
@@ -1197,15 +1373,19 @@ class DesignedCalibrationPanel(QtCore.QObject):
             button.clicked.connect(lambda _checked=False, page=index: self.switch_page(page))
 
     def _setup_console(self) -> None:
+        """Make the console read-only and redirect stdout/stderr into it."""
         self.window.plaintextedit_console.setReadOnly(True)
         self.window.lineedit_console_input.returnPressed.connect(self._handle_console_input)
         sys.stdout = ConsoleStream(self.window.plaintextedit_console)
         sys.stderr = ConsoleStream(self.window.plaintextedit_console)
 
     def uses_qt_preview_overlay(self) -> bool:
+        """This panel paints the overlay in Qt, so MainWindow skips cv2-baking."""
         return True
 
     def _setup_camera_page(self, default_camera_csv: str, default_fps: float) -> None:
+        """Build the camera page: capture controls, the Start-kalibratie button
+        and the scrollable tile grid."""
         self._setup_camera_splitter()
         self.window.spin_cap_fps.setRange(1, 120)
         self.window.spin_cap_fps.setValue(max(1, int(round(default_fps))))
@@ -1265,6 +1445,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._rebuild_camera_grid()
 
     def _setup_camera_splitter(self) -> None:
+        """Put the capture-controls card and the tile grid in a vertical splitter."""
         page_layout = self.window.page_cameras.layout()
         if page_layout is None or getattr(self.window, "_camera_splitter", None) is not None:
             return
@@ -1284,6 +1465,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window._camera_splitter = splitter
 
     def _setup_results_page(self) -> None:
+        """Build the results page: per-section text panes, the export bar with
+        format selector and TOML preview, and the verdict banner."""
         self._intrinsics_text = self._plain_text_in_frame(self.window.frame_res_intrinsic_results)
         self._extrinsics_text = self._plain_text_in_frame(self.window.frame_res_extrinsics_results)
         self._frames_text = self._plain_text_in_frame(self.window.frame_res_aantal_frames)
@@ -1339,6 +1522,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             results_layout.insertWidget(0, self._results_verdict)
 
     def _setup_directory_page(self) -> None:
+        """Build the project file browser: toolbar (home/up/down/refresh/browse)
+        and the directory tree."""
         layout = QVBoxLayout(self.window.frame_directory)
         layout.setContentsMargins(10, 10, 10, 10)
 
@@ -1384,6 +1569,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.load_root_directory(self._project_root)
 
     def _setup_diagnostics_page(self) -> None:
+        """Make the diagnostics fields read-only, seed their placeholders and
+        relabel the mode-time vs. compute-time fields."""
         for widget in [
             self.window.text_diag_current_fps,
             self.window.text_diag_dropped_frames,
@@ -1451,6 +1638,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_mode_time_diagnostics()
 
     def _reset_mode_timers(self) -> None:
+        """Stop and zero the per-mode active-time stopwatches."""
         self._mode_time_ticker.stop()
         self._intrinsics_mode_seconds = 0.0
         self._extrinsics_mode_seconds = 0.0
@@ -1461,6 +1649,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.text_diag_total_time.setPlainText("-")
 
     def _refresh_mode_time_diagnostics(self) -> None:
+        """Update the per-mode active-time fields (including the running segment)."""
         now = time.perf_counter()
         intrinsics = self._intrinsics_mode_seconds + (
             now - self._intrinsics_mode_started_at
@@ -1505,12 +1694,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_solve_time_diagnostics()
 
     def _reset_solve_durations(self) -> None:
+        """Clear the recorded per-stage solve (compute) times."""
         self._intrinsics_solve_seconds = None
         self._extrinsics_solve_seconds = None
         self.window.text_diag_Intrinsics_time.setPlainText("-")
         self.window.text_diag_extrinsics_time.setPlainText("-")
 
     def _refresh_solve_time_diagnostics(self) -> None:
+        """Update the per-stage and total solve-time fields."""
         intrinsics = self._intrinsics_solve_seconds
         extrinsics = self._extrinsics_solve_seconds
         self.window.text_diag_Intrinsics_time.setPlainText(
@@ -1522,6 +1713,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
 
     @staticmethod
     def _format_compute_duration(seconds: float) -> str:
+        """Format a solve duration as seconds (sub-minute) or ``m min s.s``."""
         # Solves are usually well under a minute, so keep sub-second precision.
         if seconds < 60:
             return f"{seconds:.2f} s"
@@ -1529,6 +1721,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return f"{int(minutes)} min {secs:04.1f} s"
 
     def _setup_advanced_page(self, default_camera_csv: str, default_fps: float) -> None:
+        """Build the advanced-settings page: all live/board/workflow/navigation
+        controls, the action buttons and the status section, inside a scroll area."""
         # Baseline of the apply-gated advanced controls (group -> {key: value}),
         # used to detect changes left unapplied when the user leaves the tab. Set
         # on each entry to the page and refreshed per group when its Apply runs.
@@ -1679,6 +1873,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._capture_advanced_defaults()
 
     def _compact_advanced_controls(self) -> None:
+        """Give the advanced inputs fixed compact widths and route their wheel
+        events to the page scroll bar."""
         self._compact_field(self._sources_input, 360)
         for widget in [
             self._capture_resolution_combo,
@@ -1723,14 +1919,18 @@ class DesignedCalibrationPanel(QtCore.QObject):
             button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
     def _compact_field(self, widget: QWidget, width: int) -> None:
+        """Pin a widget to a fixed width so the forms stay compact."""
         widget.setFixedWidth(width)
         widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
     def _wheel_scrolls_page(self, widget: QWidget) -> None:
+        """Mark a widget so its wheel events scroll the advanced page instead of
+        changing its value (handled in eventFilter)."""
         widget.setProperty("wheel-scrolls-advanced-page", True)
         widget.installEventFilter(self)
 
     def _connect_designed_actions(self) -> None:
+        """Wire the designed (.ui) buttons, menu actions and capture controls."""
         self.window.btn_newproject.clicked.connect(self.new_project_requested)
         self.window.btn_loadproject.clicked.connect(self._browse_directory)
         self.window.actionNew_project.triggered.connect(self.new_project_requested)
@@ -1750,6 +1950,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.spin_cap_fps.valueChanged.connect(self._warn_capture_restart_needed)
 
     def _connect_advanced_controls(self) -> None:
+        """Wire the advanced-page buttons and the auto-applying controls."""
         self._start_live_button.clicked.connect(self._emit_start_live)
         self._stop_live_button.clicked.connect(self.stop_live_requested)
         self._probe_button.clicked.connect(lambda: self.probe_cameras_requested.emit(int(self._probe_max_spin.value())))
@@ -1783,6 +1984,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
     _RESULTS_TEXT_POINT_SIZE = 8
 
     def _plain_text_in_frame(self, frame: QFrame) -> QPlainTextEdit:
+        """Return the frame's read-only text widget, creating one if absent."""
         existing = frame.findChild(QPlainTextEdit)
         if existing is not None:
             existing.setReadOnly(True)
@@ -1801,11 +2003,13 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return text
 
     def _apply_results_text_font(self, widget: QPlainTextEdit) -> None:
+        """Apply the compact results-pane font size to a text widget."""
         font = widget.font()
         font.setPointSize(self._RESULTS_TEXT_POINT_SIZE)
         widget.setFont(font)
 
     def _clear_layout(self, layout: QtWidgets.QLayout) -> None:
+        """Recursively remove and unparent every item from a layout."""
         while layout.count():
             item = layout.takeAt(0)
             widget = item.widget()
@@ -1823,6 +2027,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         step: float,
         decimals: int,
     ) -> QDoubleSpinBox:
+        """Build a configured QDoubleSpinBox (range, decimals, step, value)."""
         spin = QDoubleSpinBox()
         spin.setRange(minimum, maximum)
         spin.setDecimals(decimals)
@@ -1831,12 +2036,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return spin
 
     def _spin(self, minimum: int, maximum: int, value: int) -> QSpinBox:
+        """Build a configured QSpinBox (range, value)."""
         spin = QSpinBox()
         spin.setRange(minimum, maximum)
         spin.setValue(value)
         return spin
 
     def _section(self, title: str, content: QWidget) -> QFrame:
+        """Wrap ``content`` in a titled, framed section for the advanced page."""
         frame = QFrame()
         frame.setFrameShape(QFrame.Shape.StyledPanel)
         layout = QVBoxLayout(frame)
@@ -1848,6 +2055,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return frame
 
     def _setup_compact_form(self, form: QFormLayout) -> None:
+        """Apply the shared compact layout policy to an advanced-settings form."""
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
@@ -1855,6 +2063,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         form.setVerticalSpacing(8)
 
     def _live_settings_form(self) -> QWidget:
+        """The "Live source settings" form (sources, capture/preview res & fps,
+        detect Hz, probe range)."""
         form_widget = QWidget()
         form = QFormLayout(form_widget)
         self._setup_compact_form(form)
@@ -1870,6 +2080,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return form_widget
 
     def _chessboard_settings_form(self) -> QWidget:
+        """The "Chessboard settings" form (columns, rows, square size)."""
         form_widget = QWidget()
         form = QFormLayout(form_widget)
         self._setup_compact_form(form)
@@ -1880,6 +2091,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return form_widget
 
     def _charuco_settings_form(self) -> QWidget:
+        """The "ChArUco settings" form (squares X/Y, square & marker size)."""
         form_widget = QWidget()
         form = QFormLayout(form_widget)
         self._setup_compact_form(form)
@@ -1891,6 +2103,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return form_widget
 
     def _workflow_settings_form(self) -> QWidget:
+        """The "Workflow and thresholds" form (pattern, overlay/mirror, cooldown,
+        per-mode sample budgets, acceptance thresholds, spatial grid)."""
         form_widget = QWidget()
         form = QFormLayout(form_widget)
         self._setup_compact_form(form)
@@ -1919,6 +2133,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return form_widget
 
     def _navigation_settings_form(self) -> QWidget:
+        """The "Navigatie" form (the auto-navigation toggle)."""
         form_widget = QWidget()
         form = QFormLayout(form_widget)
         self._setup_compact_form(form)
@@ -1926,6 +2141,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return form_widget
 
     def _advanced_actions_widget(self) -> QWidget:
+        """The "Advanced actions" grid of buttons plus the reset-to-defaults row."""
         widget = QWidget()
         layout = QGridLayout(widget)
         buttons = [
@@ -1950,6 +2166,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return widget
 
     def _status_widget(self) -> QWidget:
+        """The "Status and warnings" section (feedback, auto-capture status,
+        warnings pane)."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1963,6 +2181,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
     _PAGE_RESULTS = 2
 
     def auto_navigation_enabled(self) -> bool:
+        """Whether automatic tab switching is enabled in advanced settings."""
         return self._auto_navigate_checkbox.isChecked()
 
     def maybe_auto_navigate(self, destination: str) -> None:
@@ -2002,6 +2221,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
     }
 
     def _advanced_settings_snapshot(self) -> dict[str, dict[str, Any]]:
+        """Current values of the apply-gated controls, grouped by Apply button."""
         return {
             "live": {
                 "sources": self._sources_input.text().strip(),
@@ -2030,6 +2250,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
 
     @staticmethod
     def _format_advanced_value(value: Any) -> str:
+        """Render an advanced-setting value for the unapplied-changes prompt
+        (tuples as ``WxH``)."""
         if isinstance(value, tuple) and len(value) == 2:
             return f"{value[0]}x{value[1]}"
         return str(value)
@@ -2052,6 +2274,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return changes
 
     def _refresh_advanced_baseline(self, group: str | None = None) -> None:
+        """Record the current values as the applied baseline (all groups, or one)."""
         snapshot = self._advanced_settings_snapshot()
         if group is None:
             self._advanced_baseline = snapshot
@@ -2250,6 +2473,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def _prompt_unapplied_advanced(self, changes: dict[str, list[tuple[str, Any, Any]]]) -> str:
+        """Ask what to do with unapplied advanced edits when leaving the tab.
+
+        @return ``"apply"``, ``"discard"`` or ``"cancel"``.
+        """
         lines = []
         for diffs in changes.values():
             for label, old, new in diffs:
@@ -2275,6 +2502,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return "cancel"
 
     def _apply_changed_advanced_groups(self, changes: dict[str, list[tuple[str, Any, Any]]]) -> None:
+        """Run the Apply action for each group that has pending changes."""
         if "live" in changes:
             self._apply_live_settings()
         if "board" in changes:
@@ -2283,6 +2511,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._apply_workflow_settings()
 
     def switch_page(self, index: int) -> None:
+        """Switch the stacked page and update the nav highlight.
+
+        When leaving the advanced tab with unapplied edits, prompt to apply,
+        discard or cancel (cancel keeps the user on the advanced tab).
+        """
         advanced_index = self._nav_buttons.index(self.window.btn_advanced_settings)
         leaving_advanced = (
             self.window.stackedWidget.currentIndex() == advanced_index and index != advanced_index
@@ -2312,6 +2545,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._refresh_advanced_baseline()
 
     def _handle_console_input(self) -> None:
+        """Parse and dispatch a command typed in the in-app console."""
         text = self.window.lineedit_console_input.text().strip()
         self.window.lineedit_console_input.clear()
         if not text:
@@ -2348,12 +2582,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._log(f"Unknown command: {text}")
 
     def _log(self, text: str, with_timestamp: bool = True) -> None:
+        """Append a line to the console and scroll to the bottom."""
         prefix = datetime.now().strftime("[%H:%M:%S] ") if with_timestamp else ""
         self.window.plaintextedit_console.appendPlainText(f"{prefix}{text}")
         scrollbar = self.window.plaintextedit_console.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
     def _show_console_help(self) -> None:
+        """Print the list of available console commands."""
         self._log(
             "Commands: help | home | cameras | results | directory | diagnostics | settings | "
             "start live | stop live | capture intrinsics | capture extrinsics | solve intrinsics | solve extrinsics",
@@ -2361,10 +2597,12 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def _open_documentation(self) -> None:
-        webbrowser.open("https://github.com/MertenF06/HuCalib")
-        self._log("Documentation opened in web browser.")
+        """Open the hosted project documentation in the system web browser."""
+        webbrowser.open(DOCUMENTATION_URL)
+        self._log(f"Documentatie geopend in de browser: {DOCUMENTATION_URL}")
 
     def _show_info(self) -> None:
+        """Show the application info dialog (version and credits)."""
         QMessageBox.information(self.window, "Info over HuCalib", _application_info_text())
 
     def _warn_capture_restart_needed(self) -> None:
@@ -2380,6 +2618,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             )
 
     def _apply_live_settings(self) -> None:
+        """Apply the live-source group: refresh sources and runtime tuning, then
+        update the baseline (warns about a restart when live is running)."""
         self._sync_source_input_preview()
         self._emit_runtime_tuning_changed()
         self._refresh_advanced_baseline("live")
@@ -2389,6 +2629,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self.show_feedback("Live source settings applied.", success=True)
 
     def _apply_workflow_settings(self) -> None:
+        """Apply the workflow group: preview options, thresholds, workflow mode
+        and spatial grid (order matters — see the inline comment)."""
         self._apply_preview_options_to_tiles()
         self._emit_runtime_tuning_changed()
         # Apply the threshold values to the manager BEFORE the workflow-mode
@@ -2438,6 +2680,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def _set_aggregate_check_state(self, checkbox: QCheckBox, states: list[bool]) -> None:
+        """Set a tristate checkbox from per-camera booleans: checked when all
+        true, unchecked when all false, partial otherwise."""
         if not states:
             return
         if all(states):
@@ -2451,6 +2695,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         checkbox.blockSignals(False)
 
     def eventFilter(self, obj: object, event: object) -> bool:
+        """Redirect wheel events on marked advanced inputs to the page scroll
+        bar, so scrolling the page never changes a spinbox/combo value."""
         if (
             isinstance(obj, QWidget)
             and obj.property("wheel-scrolls-advanced-page")
@@ -2469,25 +2715,31 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return super().eventFilter(obj, event)
 
     def _apply_board_settings(self, message: str) -> None:
+        """Emit the current board settings, refresh the baseline and show feedback."""
         self.board_settings_applied.emit(self.board_settings())
         self._refresh_advanced_baseline("board")
         self.show_feedback(message, success=True)
 
     def _current_export_format(self) -> str:
+        """The selected export format key (``"toml"`` or ``"json"``)."""
         data = self._export_format_combo.currentData()
         return str(data if data is not None else "toml").lower().strip()
 
     def _request_export_preview(self) -> None:
+        """Request an export preview in the selected format."""
         self.export_preview_requested.emit(self._current_export_format())
 
     def _request_export(self) -> None:
+        """Request an export to file in the selected format."""
         self.export_requested.emit(self._current_export_format())
 
     def show_export_preview(self, text: str) -> None:
+        """Display export text in the preview pane and switch to it."""
         self._tmol_preview.setPlainText(text)
         self.window.stackedWidget_2.setCurrentIndex(1)
 
     def _emit_start_live(self) -> None:
+        """Request live capture for the configured sources (warns on bad CSV)."""
         try:
             sources = self.current_sources()
         except ValueError as exc:
@@ -2496,9 +2748,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.start_live_requested.emit(sources, self.target_fps())
 
     def _toggle_record(self, checked: bool) -> None:
+        """Forward the record button toggle as a panel signal."""
         self.record_toggled.emit(checked)
 
     def set_recording_active(self, active: bool) -> None:
+        """Reflect the recording state on the record button (label and colour)."""
         button = self.window.btn_camera_record
         button.blockSignals(True)
         button.setChecked(active)
@@ -2509,6 +2763,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def _update_record_button_enabled(self) -> None:
+        """Enable recording only when no videos are loaded as sources."""
         button = getattr(self.window, "btn_camera_record", None)
         if button is None:
             return
@@ -2520,6 +2775,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_add_camera_button()
 
     def _load_video_sources(self) -> None:
+        """Pick video files to use as calibration sources, then start live on them."""
         files, _ = QFileDialog.getOpenFileNames(
             self.window,
             "Selecteer video('s) voor kalibratie",
@@ -2559,6 +2815,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.switch_page(1)
 
     def _apply_video_fps(self, video_path: str) -> None:
+        """Set the capture FPS spinbox to a loaded video's frame rate (best effort)."""
         try:
             capture = cv2.VideoCapture(video_path)
             fps = capture.get(cv2.CAP_PROP_FPS)
@@ -2580,12 +2837,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
     _CALIBRATION_RUN_ACTIVE_STYLE = "background-color: #A33434; color: white; font-weight: bold;"
 
     def _toggle_intrinsics_start(self, checked: bool) -> None:
+        """Enter or exit the intrinsics capture mode from its Start button."""
         if checked:
             self._enter_capture_mode("intrinsics")
         else:
             self._exit_capture_mode("intrinsics")
 
     def _toggle_extrinsics_start(self, checked: bool) -> None:
+        """Enter or exit the extrinsics capture mode from its Start button."""
         if checked:
             self._enter_capture_mode("sync_extrinsics")
         else:
@@ -2727,6 +2986,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def _exit_capture_mode(self, mode: str) -> None:
+        """Leave a capture mode: disarm auto-capture and reset its button (live
+        and any recording keep running)."""
         button = (
             self.window.btn_cap_intrinsics_start
             if mode == "intrinsics"
@@ -2741,6 +3002,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._reset_mode_button(button)
 
     def _reset_mode_button(self, button: QPushButton) -> None:
+        """Return a capture-mode Start button to its idle label and style."""
         button.setText("Start")
         button.setStyleSheet("")
 
@@ -2762,11 +3024,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.preview_options_changed.emit()
 
     def _emit_solve_extrinsics(self) -> None:
+        """Switch to sync/extrinsics mode and request the extrinsics solve."""
         self.set_workflow_mode("sync_extrinsics")
         self.workflow_mode_changed.emit("sync_extrinsics")
         self.solve_extrinsics_requested.emit()
 
     def _emit_reset(self) -> None:
+        """Stop the calibration run, reset the mode buttons/timers and request
+        a sample reset."""
         # Reset fully stops any running calibration: disarm auto-capture and clear
         # the single Start-kalibratie run button as well as the per-phase mode
         # buttons. Without disarming auto-capture the frame loop keeps storing
@@ -2786,30 +3051,37 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.reset_requested.emit()
 
     def _capture_intrinsics_sample(self) -> None:
+        """Switch to intrinsics mode and request a manual capture."""
         self.set_workflow_mode("intrinsics")
         self.workflow_mode_changed.emit("intrinsics")
         self.capture_requested.emit()
 
     def _capture_sync_sample(self) -> None:
+        """Switch to sync/extrinsics mode and request a manual capture."""
         self.set_workflow_mode("sync_extrinsics")
         self.workflow_mode_changed.emit("sync_extrinsics")
         self.capture_requested.emit()
 
     def _emit_pattern_changed(self) -> None:
+        """Emit the currently selected board pattern."""
         self.pattern_changed.emit(self.current_pattern())
 
     def _emit_workflow_mode_changed(self) -> None:
+        """Emit the current workflow mode."""
         self.workflow_mode_changed.emit(self.current_workflow_mode())
 
     def _emit_acceptance_thresholds_changed(self) -> None:
+        """Emit the four current acceptance-threshold values."""
         intr_q, intr_cov, extr_q, extr_cov = self.acceptance_threshold_values()
         self.acceptance_thresholds_changed.emit(intr_q, intr_cov, extr_q, extr_cov)
 
     def _emit_spatial_grid_changed(self) -> None:
+        """Emit the current coverage-grid shape."""
         cols, rows = self.spatial_grid_values()
         self.spatial_grid_changed.emit(cols, rows)
 
     def _emit_runtime_tuning_changed(self) -> None:
+        """Emit the current runtime tuning."""
         self.runtime_tuning_changed.emit(self.runtime_tuning())
 
     def set_current_fps(self, fps: float | None) -> None:
@@ -2824,6 +3096,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.text_diag_dropped_frames.setPlainText(str(max(0, int(count))))
 
     def _sync_source_input_preview(self) -> None:
+        """Rebuild the tile grid from the source CSV and notify listeners."""
         self._video_sources = []
         self._update_record_button_enabled()
         self._source_csv = self._sources_input.text().strip()
@@ -2832,6 +3105,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_add_camera_button()
 
     def _append_camera_source(self) -> None:
+        """Add the next detected webcam to the source list (with popup feedback
+        when none is available, videos are loaded, or the max is reached)."""
         if self._video_sources:
             QMessageBox.information(
                 self.window,
@@ -2872,6 +3147,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._sync_source_input_preview()
 
     def _remove_source(self, source_id: str) -> None:
+        """Remove a camera (webcam token or loaded video) from the source list."""
         if self._video_sources:
             self._video_sources = [
                 source for source in self._video_sources if source.source_id != source_id
@@ -2898,13 +3174,16 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_add_camera_button()
 
     def _source_ids_for_csv(self, csv: str) -> list[str]:
+        """Source ids for a CSV of camera tokens (capped at the max count)."""
         tokens = [token.strip() for token in csv.split(",") if token.strip()]
         return [self._source_id_for_token(token, index) for index, token in enumerate(tokens[:_MAX_CAMERAS])]
 
     def _source_id_for_token(self, token: str, index: int) -> str:
+        """Source id for one token: ``cam<index>`` for webcams, ``cam<pos>`` else."""
         return f"cam{int(token)}" if token.isdigit() else f"cam{index}"
 
     def _emit_sources_changed(self) -> None:
+        """Emit the current source list (empty when the CSV is invalid)."""
         try:
             sources = self.current_sources()
         except ValueError:
@@ -2912,6 +3191,10 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.sources_changed.emit(sources)
 
     def current_sources(self) -> list[CameraSourceConfig]:
+        """Build the configured camera sources from the loaded videos or the CSV.
+
+        @throws ValueError  When the CSV is empty/invalid or has more than 4 sources.
+        """
         if self._video_sources:
             return list(self._video_sources)
         raw = self._sources_input.text().strip()
@@ -2947,9 +3230,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return sources
 
     def target_fps(self) -> float:
+        """The configured capture frame rate."""
         return float(self.window.spin_cap_fps.value())
 
     def runtime_tuning(self) -> RuntimeTuning:
+        """Assemble a RuntimeTuning from the capture/preview/detect controls."""
         capture_size = self._capture_resolution_combo.currentData()
         if not isinstance(capture_size, tuple) or len(capture_size) != 2:
             capture_size = (0, 0)
@@ -2967,6 +3252,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def set_sources(self, source_ids: list[str]) -> None:
+        """Reconcile the tile grid with ``source_ids``: drop removed tiles, add
+        new ones, and rebuild the grid (no-op when nothing changed)."""
         source_ids = source_ids[:_MAX_CAMERAS]
         if source_ids == self._source_order and set(self._tiles) == set(source_ids):
             # Nothing changed: keep the existing grid so live tiles don't flicker
@@ -2998,6 +3285,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_add_camera_button()
 
     def _rebuild_camera_grid(self) -> None:
+        """Re-lay the tile grid (packed top-left, up to 4 columns) with the
+        add-camera button in the next free cell."""
         while self._camera_grid.count():
             item = self._camera_grid.takeAt(0)
             widget = item.widget()
@@ -3042,14 +3331,17 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_add_camera_button()
 
     def _current_source_tokens(self) -> list[str]:
+        """The non-empty tokens currently in the source CSV field."""
         if not hasattr(self, "_sources_input"):
             return []
         return [token.strip() for token in self._sources_input.text().split(",") if token.strip()]
 
     def _detected_camera_indices(self) -> list[int]:
+        """Indices of the webcams found by the last probe."""
         return [camera.index for camera in self._detected_cameras]
 
     def _next_detected_camera_index(self, used_indices: set[int] | None = None) -> int | None:
+        """First detected webcam index not already in ``used_indices``, or ``None``."""
         used = set(used_indices or set())
         for index in self._detected_camera_indices():
             if index not in used:
@@ -3057,6 +3349,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return None
 
     def _sync_sources_to_detected_cameras(self) -> None:
+        """Reconcile the source CSV with the detected cameras: keep webcam
+        tokens that still exist (and seed the first one when none are valid),
+        preserving any non-numeric (video) tokens."""
         if not self._detected_cameras or self._video_sources:
             return
         detected = self._detected_camera_indices()
@@ -3085,6 +3380,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._refresh_add_camera_button()
 
     def _refresh_add_camera_button(self) -> None:
+        """Update the add-camera button's label/tooltip/enabled state for the
+        current situation (scanning, videos loaded, at max, or ready)."""
         if not hasattr(self, "_add_camera_button") or not hasattr(self, "_sources_input"):
             return
         tokens = self._current_source_tokens()
@@ -3108,6 +3405,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._add_camera_button.setToolTip("Voeg de volgende gevonden camera toe.")
 
     def _tile_status(self, count: int, detection: ChessboardDetectionResult | None) -> str:
+        """One-line tile status: mode + sample count, plus detection metrics
+        when a board is found."""
         label = "Extrinsics" if self.current_workflow_mode() == "sync_extrinsics" else "Intrinsics"
         status = f"{label}={count}"
         if detection is not None and detection.found:
@@ -3128,6 +3427,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         sample_counts: dict[str, int],
         overlay_states: dict[str, dict[str, Any]] | None = None,
     ) -> None:
+        """Push BGR preview frames (with detection/overlay state) onto the tiles."""
         overlay_states = overlay_states or {}
         target = self.auto_capture_max_samples()
         for source_id, frame_bgr in preview_frames.items():
@@ -3171,12 +3471,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
             )
 
     def _display_name(self, source_id: str) -> str:
+        """Display name for a source: its tile's name, else the stored label."""
         tile = self._tiles.get(source_id)
         if tile is not None:
             return tile.display_name()
         return self._camera_names.get(source_id, source_id)
 
     def _on_camera_name_changed(self, source_id: str, name: str) -> None:
+        """Persist a renamed camera label to the config and log it."""
         clean_name = name.strip() or source_id
         self._camera_names[source_id] = clean_name
         if hasattr(self.window._config, "camera_labels"):
@@ -3196,6 +3498,16 @@ class DesignedCalibrationPanel(QtCore.QObject):
         bundle: CalibrationBundle | None,
         live_detection: dict[str, ChessboardDetectionResult] | None = None,
     ) -> None:
+        """Populate the results-page panes (intrinsics, extrinsics, frames,
+        camera info, warnings) and the verdict banner from the bundle and the
+        live detections.
+
+        @param source_ids        Cameras to report on, in display order.
+        @param sample_counts      Usable sample count per camera.
+        @param sample_breakdown   total/intrinsics/synchronized/sync_only per camera.
+        @param bundle             The active calibration bundle, or ``None``.
+        @param live_detection     Latest detections, for live diagnostics.
+        """
         intrinsics: list[str] = []
         extrinsics: list[str] = []
         frames: list[str] = []
@@ -3345,6 +3657,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def _set_results_verdict(self, state: str, text: str) -> None:
+        """Style and set the verdict banner for the given state
+        (``none``/``success``/``warning``/``fail``)."""
         # foreground, background, border per verdict state.
         palette = {
             "success": ("#0f7b0f", "#e7f6e7", "#0f7b0f"),
@@ -3361,19 +3675,24 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._results_verdict.setText(text)
 
     def _camera_status_text(self, camera: CameraCalibration | None) -> str:
+        """Human-readable label for a camera's raw status enum."""
         raw = camera.status if camera else "unsolved"
         return _STATUS_LABELS.get(raw, raw)
 
     def show_feedback(self, message: str, success: bool) -> None:
+        """Show a feedback message (green on success, amber otherwise) and log it."""
         color = "#0f7b0f" if success else "#9a6700"
         self._feedback.setStyleSheet(f"color: {color};")
         self._feedback.setText(message)
         self._log(message)
 
     def show_warnings(self, lines: list[str]) -> None:
+        """Replace the advanced-page warnings pane with the given lines."""
         self._warnings.setPlainText("\n".join(lines))
 
     def set_live_status(self, live_active: bool, active_cameras: int) -> None:
+        """Reflect the live state: enable/disable start/stop, update the camera
+        count and disarm the capture modes when live stops."""
         self._live_active = live_active
         self.window.btn_camera_start_live.setEnabled(not live_active)
         self.window.btn_camera_stop_live.setEnabled(live_active)
@@ -3386,6 +3705,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self.stop_calibration_run()
 
     def set_camera_probe_running(self, running: bool) -> None:
+        """Reflect a running/idle camera scan on the probe and add buttons."""
         self._camera_probe_running = running
         self._probe_button.setEnabled(not running)
         self.window.btn_camera_detect.setEnabled(not running)
@@ -3396,6 +3716,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._refresh_add_camera_button()
 
     def set_detected_cameras(self, cameras: list[CameraProbeResult]) -> None:
+        """Adopt the probe results, report them in the status line and reconcile
+        the source CSV with what was found."""
         self._detected_cameras = sorted(cameras, key=lambda camera: camera.index)
         if not cameras:
             self._probe_status.setText("Camera scan: no cameras found.")
@@ -3413,12 +3735,15 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._sync_sources_to_detected_cameras()
 
     def probe_max_index(self) -> int:
+        """The configured highest webcam index to probe."""
         return int(self._probe_max_spin.value())
 
     def _solve_indicator(self) -> _SolveActivityIndicator | None:
+        """The shared solve activity indicator widget, if it exists."""
         return getattr(self.window, "_solve_indicator_widget", None)
 
     def _hide_solve_progress_bar(self) -> None:
+        """Stop and hide the solve activity indicator."""
         indicator = self._solve_indicator()
         if indicator is not None:
             indicator.stop()
@@ -3430,6 +3755,14 @@ class DesignedCalibrationPanel(QtCore.QObject):
         lock_capture: bool = False,
         stage: str = "intrinsics",
     ) -> None:
+        """Lock the solve/config buttons and drive the activity indicator while
+        a solve runs (capture is locked only when ``lock_capture`` is set).
+
+        @param running       Whether a solve is in progress.
+        @param message       Feedback text shown while running.
+        @param lock_capture  Also disable the capture buttons (extrinsics solve).
+        @param stage         ``"intrinsics"`` or ``"extrinsics"`` (label only).
+        """
         # The (re)solve and config/reset actions are always locked while a solve
         # runs. Capture stays enabled during the intrinsics solve so synchronized
         # extrinsics sets can be collected in parallel; it is locked only when
@@ -3492,10 +3825,13 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return True
 
     def current_pattern(self) -> str:
+        """The selected board pattern key (defaults to ``"chessboard"``)."""
         data = self.window.combo_cap_pattern.currentData()
         return str(data if data is not None else "chessboard").lower().strip()
 
     def set_pattern_options(self, pattern_names: list[str], selected: str) -> None:
+        """Repopulate the pattern dropdown with the available patterns and
+        select ``selected``."""
         self.window.combo_cap_pattern.blockSignals(True)
         self.window.combo_cap_pattern.clear()
         for name in pattern_names:
@@ -3509,6 +3845,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._emit_pattern_changed()
 
     def board_settings(self) -> CalibrationBoardSettings:
+        """Build a CalibrationBoardSettings from the board spinboxes (mm → m)."""
         return CalibrationBoardSettings(
             chessboard_cols=int(self._chess_cols_spin.value()),
             chessboard_rows=int(self._chess_rows_spin.value()),
@@ -3520,6 +3857,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         )
 
     def set_board_settings(self, settings: CalibrationBoardSettings) -> None:
+        """Load board settings into the spinboxes (m → mm) and refresh the baseline."""
         self._chess_cols_spin.setValue(int(settings.chessboard_cols))
         self._chess_rows_spin.setValue(int(settings.chessboard_rows))
         self.window.doubleSpinBox.setValue(float(settings.chessboard_square_size_m) * 1000.0)
@@ -3533,11 +3871,13 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._refresh_advanced_baseline("board")
 
     def current_workflow_mode(self) -> Literal["intrinsics", "sync_extrinsics"]:
+        """The active capture workflow mode."""
         data = self._workflow_combo.currentData()
         mode = str(data if data is not None else "intrinsics").lower().strip()
         return "sync_extrinsics" if mode == "sync_extrinsics" else "intrinsics"
 
     def set_workflow_mode(self, mode: str) -> None:
+        """Select the workflow mode in the combo without emitting its signal."""
         index = self._workflow_combo.findData(mode.lower().strip())
         self._workflow_combo.blockSignals(True)
         self._workflow_combo.setCurrentIndex(index if index >= 0 else 0)
@@ -3549,15 +3889,18 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._capture_sync_button.setEnabled(True)
 
     def auto_capture_enabled(self) -> bool:
+        """Whether auto-capture is currently armed."""
         return self._auto_capture_checkbox.isChecked()
 
     def set_auto_capture_enabled(self, enabled: bool) -> None:
+        """Arm or disarm auto-capture (driven by the active capture mode)."""
         # Auto capture is no longer a per-camera button; it is driven by the
         # active intrinsics/extrinsics mode (see _enter_capture_mode) through this
         # single checkbox, which the backend reads via auto_capture_enabled().
         self._auto_capture_checkbox.setChecked(enabled)
 
     def auto_capture_cooldown_sec(self) -> float:
+        """Minimum delay between auto-captures, in seconds."""
         return float(self._auto_cooldown_spin.value())
 
     # Offer 1..12 samples per spatial-grid cell as the intrinsics budget; the
@@ -3584,6 +3927,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         combo.blockSignals(False)
 
     def _on_intrinsics_max_changed(self, _index: int) -> None:
+        """Remember the chosen per-cell target so it survives grid changes."""
         total = int(self._auto_max_intrinsics_combo.currentData() or 0)
         if total > 0:
             cols, rows = self.spatial_grid_values()
@@ -3591,12 +3935,15 @@ class DesignedCalibrationPanel(QtCore.QObject):
             self._intrinsics_per_cell_target = max(1, total // cells)
 
     def intrinsics_max_samples(self) -> int:
+        """The intrinsics sample budget (0 = unlimited)."""
         return int(self._auto_max_intrinsics_combo.currentData() or 0)
 
     def extrinsics_max_samples(self) -> int:
+        """The extrinsics sample budget (0 = unlimited)."""
         return int(self._auto_max_extrinsics_spin.value())
 
     def auto_capture_max_samples(self) -> int:
+        """The sample budget for the active mode (intrinsics vs. extrinsics)."""
         # Mode-specific budget: intrinsics and extrinsics keep separate sample
         # limits so capturing one no longer eats into the other's progress.
         if self.current_workflow_mode() == "sync_extrinsics":
@@ -3604,29 +3951,36 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return self.intrinsics_max_samples()
 
     def set_auto_capture_status(self, message: str) -> None:
+        """Update the auto-capture status line."""
         self._auto_status.setText(message)
 
     def overlay_enabled(self) -> bool:
+        """Whether the overlay is on for any tile (or the checkbox when none)."""
         if not self._tiles:
             return self._overlay_checkbox.isChecked()
         return any(tile.overlay_enabled() for tile in self._tiles.values())
 
     def overlay_enabled_for(self, source_id: str) -> bool:
+        """Whether the overlay is on for a specific source."""
         tile = self._tiles.get(source_id)
         return tile.overlay_enabled() if tile else self._overlay_checkbox.isChecked()
 
     def mirror_preview_enabled_for(self, source_id: str) -> bool:
+        """Whether the preview is mirrored for a source (global or per-tile)."""
         tile = self._tiles.get(source_id)
         return self._mirror_checkbox.isChecked() or (tile.mirror_enabled() if tile else False)
 
     def undistort_enabled_for(self, source_id: str) -> bool:
+        """Whether undistort is on for a specific source."""
         tile = self._tiles.get(source_id)
         return tile.undistort_enabled() if tile else False
 
     def spatial_grid_values(self) -> tuple[int, int]:
+        """The configured coverage-grid shape (cols, rows)."""
         return int(self._grid_cols_spin.value()), int(self._grid_rows_spin.value())
 
     def set_spatial_grid_values(self, cols: int, rows: int) -> None:
+        """Set the coverage-grid spinboxes and rebuild the intrinsics budget options."""
         self._grid_cols_spin.blockSignals(True)
         self._grid_rows_spin.blockSignals(True)
         self._grid_cols_spin.setValue(max(1, int(cols)))
@@ -3644,6 +3998,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         extrinsics_quality: float,
         extrinsics_coverage_ratio: float,
     ) -> None:
+        """Load the four acceptance thresholds into the spinboxes (coverage
+        ratios shown as percentages)."""
         for spin, value in (
             (self._intrinsics_quality_spin, float(intrinsics_quality)),
             (self._intrinsics_coverage_spin, float(intrinsics_coverage_ratio) * 100.0),
@@ -3655,6 +4011,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
             spin.blockSignals(False)
 
     def acceptance_threshold_values(self) -> tuple[float, float, float, float]:
+        """The four acceptance thresholds (coverage as 0..1 ratios):
+        ``(intr_quality, intr_coverage, extr_quality, extr_coverage)``."""
         return (
             float(self._intrinsics_quality_spin.value()),
             float(self._intrinsics_coverage_spin.value()) / 100.0,
@@ -3672,9 +4030,11 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.load_root_directory(self._project_home)
 
     def _go_to_project_home(self) -> None:
+        """Jump the directory browser back to the project home folder."""
         self.load_root_directory(self._project_home)
 
     def load_root_directory(self, directory_path: Path | str) -> None:
+        """Show ``directory_path`` as the root of the directory tree."""
         path = Path(directory_path)
         if not path.exists() or not path.is_dir():
             self._log(f"Directory not found: {path}")
@@ -3692,6 +4052,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         root.setExpanded(True)
 
     def _populate_directory_item(self, parent: QTreeWidgetItem, path: Path, depth: int) -> None:
+        """Fill a tree node with the folder's entries (folders first, hidden
+        files skipped), lazily stubbing subfolders for on-demand expansion."""
         while parent.childCount() > 0:
             parent.removeChild(parent.child(0))
         try:
@@ -3721,11 +4083,13 @@ class DesignedCalibrationPanel(QtCore.QObject):
             item.setText(2, modified)
 
     def _on_directory_item_expanded(self, item: QTreeWidgetItem) -> None:
+        """Lazily populate a folder node the first time it is expanded."""
         if item.data(0, Qt.ItemDataRole.UserRole + 1) is False:
             path = Path(str(item.data(0, Qt.ItemDataRole.UserRole)))
             self._populate_directory_item(item, path, self._directory_depth(item) + 1)
 
     def _directory_depth(self, item: QTreeWidgetItem) -> int:
+        """Depth of a tree item below the root (root = 0)."""
         depth = 0
         current = item
         while current.parent() is not None:
@@ -3734,6 +4098,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         return depth
 
     def _go_up_directory(self) -> None:
+        """Go one folder up in the browser, never above the project home."""
         if self._project_root == self._project_home:
             self._log("Al in de projectmap; gebruik 'Bladeren...' om een ander project te openen.")
             return
@@ -3745,6 +4110,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.load_root_directory(parent)
 
     def _go_down_directory(self, item: QTreeWidgetItem | None = None) -> None:
+        """Descend into the selected (or given) folder in the browser."""
         target_item = item or self._directory_tree.currentItem()
         if target_item is None:
             self._log("Select a folder first.")
@@ -3759,6 +4125,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self._log(f"Not a folder: {path.name}")
 
     def _browse_directory(self) -> None:
+        """Pick a project folder to open and request it, then show the browser."""
         selected = QFileDialog.getExistingDirectory(self.window, "Selecteer een project map", str(self._project_home))
         if not selected:
             return
@@ -3769,7 +4136,15 @@ class DesignedCalibrationPanel(QtCore.QObject):
 
 
 class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
+    """Concrete main window: the application logic plus the designed widgets.
+
+    Provides the calibration panel implementation MainWindow needs, restructures
+    the designed layout into resizable splitters, builds the Settings (UI/overlay
+    scale) and update-check menus, and applies the persisted UI scale.
+    """
+
     def _create_calibration_panel(self, default_camera_csv: str, default_fps: float):
+        """Build the designed UI and return its DesignedCalibrationPanel."""
         if not hasattr(QtCore.Qt, "QFrame"):
             QtCore.Qt.QFrame = QtWidgets.QFrame
         if not hasattr(QtWidgets, "QAction"):
@@ -3785,6 +4160,9 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         )
 
     def _compact_camera_controls(self) -> None:
+        """Restructure the camera-page control card: build the live/video action
+        buttons, relayout the intrinsics/extrinsics cards and add the solve
+        activity indicator to the sidebar."""
         self.btn_camera_detect = QPushButton("Camera's zoeken", self.frame)
         self.btn_camera_detect.setObjectName("btn_camera_detect")
         self.btn_camera_start_live = QPushButton("Live starten", self.frame)
@@ -3896,11 +4274,14 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self.frame.setMaximumHeight(140)
 
     def _make_solve_indicator(self) -> _SolveActivityIndicator:
+        """Create the spinning-cube solve indicator parented to the sidebar."""
         from mocap_app.ui.gui import IMAGES_DIR
 
         return _SolveActivityIndicator(IMAGES_DIR / "HuCalib_icon.png", self.frame_menu)
 
     def _setup_resizable_shell(self) -> None:
+        """Rebuild the central layout as nested splitters (menu | content/console)
+        so the panes are user-resizable."""
         central_layout = self.centralwidget.layout()
         if central_layout is None or getattr(self, "_main_splitter", None) is not None:
             return
@@ -3951,6 +4332,8 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
             central_layout.setRowStretch(1, 0)
 
     def _setup_settings_menu(self) -> None:
+        """Build the Settings menu with the UI-scale and overlay-scale submenus,
+        and add the update-check entry to Help."""
         if getattr(self, "menuSettings", None) is not None:
             return
 
@@ -4031,26 +4414,32 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self.menuHelp.addAction(action)
 
     def _check_for_updates_clicked(self) -> None:
+        """Trigger a manual update check via the update controller."""
         controller = getattr(self, "update_controller", None)
         if controller is not None:
             controller.check_now()
 
     def _setup_ui(self) -> None:
+        """Override the base setup: the designed widgets are already in place."""
         self._designed_status_bar().showMessage("Idle")
 
     def _designed_status_bar(self):
+        """Return the status bar, calling it when ``statusBar`` is a method."""
         status_bar = getattr(self, "statusBar", None)
         return status_bar() if callable(status_bar) else status_bar
 
     def _set_status(self, message: str) -> None:
+        """Show ``message`` in the status bar (no-op when unavailable)."""
         status_bar = self._designed_status_bar()
         if status_bar is not None:
             status_bar.showMessage(message)
 
     def _apply_window_style(self) -> None:
+        """Apply the configured UI scale (and thus the stylesheet) at startup."""
         self._apply_ui_scale(self._configured_ui_scale(), persist=False)
 
     def _configured_ui_scale(self) -> float:
+        """The persisted UI scale, clamped to 0.30..1.6 (default 0.70)."""
         try:
             value = float(getattr(self._config, "ui_scale", 0.70))
         except (TypeError, ValueError):
@@ -4058,6 +4447,11 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         return max(0.30, min(1.6, value))
 
     def _apply_ui_scale(self, scale: float, persist: bool) -> None:
+        """Apply a UI scale to the app font and stylesheet, optionally saving it.
+
+        @param scale    Desired scale (clamped to 0.30..1.6).
+        @param persist  Save the scale to the config when ``True``.
+        """
         scale = max(0.30, min(1.6, float(scale)))
         self._current_ui_scale = scale
 
@@ -4081,6 +4475,7 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
                 pass
 
     def _sync_ui_scale_menu(self) -> None:
+        """Check the UI-scale menu entry matching the current scale."""
         actions = getattr(self, "_ui_scale_actions", [])
         if not actions:
             return
@@ -4091,6 +4486,7 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
             action.blockSignals(False)
 
     def _configured_overlay_scale(self) -> float:
+        """The persisted overlay scale, clamped to 0.3..3.0 (default 1.0)."""
         try:
             value = float(getattr(self._config, "overlay_scale", 1.0))
         except (TypeError, ValueError):
@@ -4098,6 +4494,7 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         return max(0.3, min(3.0, value))
 
     def _apply_overlay_scale(self, scale: float) -> None:
+        """Save a new overlay scale and refresh the preview so overlays redraw."""
         scale = max(0.3, min(3.0, float(scale)))
         self._config.overlay_scale = scale
         try:
@@ -4111,6 +4508,7 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
             panel.preview_options_changed.emit()
 
     def _sync_overlay_scale_menu(self) -> None:
+        """Check the overlay-scale menu entry matching the current scale."""
         actions = getattr(self, "_overlay_scale_actions", [])
         if not actions:
             return
@@ -4121,4 +4519,5 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
             action.blockSignals(False)
 
     def _apply_initial_window_geometry(self) -> None:
+        """Set the initial window size for the designed shell."""
         self.resize(1280, 800)

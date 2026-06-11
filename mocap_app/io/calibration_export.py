@@ -15,10 +15,16 @@ _BARE_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def to_json(payload: dict[str, Any]) -> str:
+    """Serialize the calibration payload to pretty-printed JSON."""
     return json.dumps(payload, indent=2)
 
 
 def to_toml(payload: dict[str, Any]) -> str:
+    """Serialize the calibration payload to TOML.
+
+    @param payload  Top-level mapping; ``None`` values are dropped first.
+    @return         TOML text ending in a single newline.
+    """
     cleaned = _strip_none(payload)
     if not isinstance(cleaned, dict):
         raise TypeError("TOML export expects a mapping at the top level.")
@@ -97,6 +103,7 @@ def to_motion_capture_toml(payload: dict[str, Any]) -> tuple[str, list[str], int
 
 
 def _strip_none(value: Any) -> Any:
+    """Recursively drop ``None`` entries from dicts and lists (TOML has no null)."""
     if isinstance(value, dict):
         return {key: _strip_none(item) for key, item in value.items() if item is not None}
     if isinstance(value, list):
@@ -105,11 +112,13 @@ def _strip_none(value: Any) -> Any:
 
 
 def _format_key(key: Any) -> str:
+    """Render a table key, quoting it when it is not a TOML bare key."""
     text = str(key)
     return text if _BARE_KEY.match(text) else _format_string(text)
 
 
 def _format_string(text: str) -> str:
+    """Render a TOML basic string with the required escapes."""
     escaped = (
         text.replace("\\", "\\\\")
         .replace('"', '\\"')
@@ -121,6 +130,11 @@ def _format_string(text: str) -> str:
 
 
 def _format_scalar(value: Any) -> str:
+    """Render a scalar or (nested) list of scalars as a TOML value.
+
+    NaN and infinity are written as quoted strings because they are not valid
+    TOML floats. Unsupported types raise ``TypeError``.
+    """
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, int):
@@ -137,10 +151,18 @@ def _format_scalar(value: Any) -> str:
 
 
 def _is_array_of_tables(value: Any) -> bool:
+    """Whether ``value`` must be written as a TOML array of tables (``[[x]]``)."""
     return isinstance(value, list) and len(value) > 0 and all(isinstance(item, dict) for item in value)
 
 
 def _dump_table(table: dict[str, Any], prefix: list[str]) -> list[str]:
+    """Render one table and, recursively, its sub-tables and arrays of tables.
+
+    @param table   The mapping to render.
+    @param prefix  Already-formatted key path of the parent tables ([] at the
+                   top level).
+    @return        The TOML lines for this table.
+    """
     lines: list[str] = []
     simple: list[tuple[str, Any]] = []
     sub_tables: list[tuple[str, Any]] = []

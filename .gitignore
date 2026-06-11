@@ -23,3 +23,6 @@ dist/
 
 # Velopack release output (installer + update packages)
 Releases/
+
+# Doxygen-gegenereerde documentatie (Doxyfile wordt WEL gecommit)
+docs/doxygen/

@@ -9,6 +9,7 @@ balanced.
 from __future__ import annotations
 
 
+## Base application stylesheet at 100% scale; see stylesheet_for_scale().
 STYLESHEET = """
 QMainWindow, QWidget {
     background-color: #eef2f7;
@@ -346,6 +347,11 @@ QLabel[camera-video="true"] {
 
 
 def stylesheet_for_scale(scale: float) -> str:
+    """The base stylesheet with font sizes and control heights scaled.
+
+    @param scale  UI scale factor, clamped to 0.30..1.6 (1.0 = 100%).
+    @return       The stylesheet text with scale overrides appended.
+    """
     scale = max(0.30, min(1.6, float(scale)))
     font_pt = 11.0 * scale
     console_pt = 10.0 * scale
@@ -397,9 +403,15 @@ class apply_styles:
     """Compatibility shim - mirrors the team's original API."""
 
     def __init__(self, window, scale: float = 1.0) -> None:
+        """Apply the scaled stylesheet to ``window`` immediately.
+
+        @param window  Widget that receives the stylesheet.
+        @param scale   UI scale factor (see stylesheet_for_scale()).
+        """
         self.window = window
         self.scale = scale
         self.set_custom_style()
 
     def set_custom_style(self) -> None:
+        """(Re)apply the stylesheet for the stored scale to the window."""
         self.window.setStyleSheet(stylesheet_for_scale(self.scale))

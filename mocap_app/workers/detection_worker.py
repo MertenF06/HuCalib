@@ -1,3 +1,5 @@
+"""Off-thread calibration pattern detection."""
+
 from __future__ import annotations
 
 import logging
@@ -26,14 +28,25 @@ class CalibrationDetectionWorker(QObject):
     same instant.
     """
 
+    ## Emitted with ``{"detections", "frames_snapshot", "token"}`` per request.
     result_ready = Signal(object)
 
     def __init__(self, manager: CalibrationManager) -> None:
+        """@param manager  Calibration manager whose board configuration and
+        detectors are used (read-only)."""
         super().__init__()
         self._manager = manager
 
     @Slot(object)
     def run_detection(self, payload: object) -> None:
+        """Detect the calibration pattern on each frame in the request.
+
+        @param payload  Mapping with ``frames`` (``dict[str, frame]``),
+                        ``pattern`` (board kind), ``frames_snapshot`` and
+                        ``token``; the latter two are echoed back unchanged in
+                        the ``result_ready`` payload so the UI can pair the
+                        result with the exact frames it sent.
+        """
         try:
             request = dict(payload)  # type: ignore[arg-type]
         except (TypeError, ValueError):

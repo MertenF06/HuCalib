@@ -1,3 +1,9 @@
+"""HuCalib launcher.
+
+Runs the Velopack install/update hooks first (they may exit the process) and
+only then imports the heavyweight application modules and starts the Qt app.
+"""
+
 import sys
 
 

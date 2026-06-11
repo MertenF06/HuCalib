@@ -1,3 +1,5 @@
+"""Background thread that grabs synchronised frames from all camera sources."""
+
 from __future__ import annotations
 
 import logging
@@ -17,8 +19,21 @@ LOGGER = logging.getLogger(__name__)
 
 
 class LiveCaptureWorker(QThread):
+    """Captures frames from all enabled sources in a paced grab/retrieve loop.
+
+    Each loop iteration first ``grab()``-s every camera and only then
+    ``retrieve()``-s the images, so the frames within a batch are taken as
+    close together in time as possible. The full capture-resolution frames are
+    emitted as a ``dict[str, FramePacket]`` batch via ``batch_ready``; preview
+    downscaling happens later in the UI layer. While a recorder is attached the
+    same full-resolution frames are also queued for encoding.
+    """
+
+    ## Emitted with a ``dict[str, FramePacket]`` for every captured batch.
     batch_ready = Signal(object)
+    ## Lifecycle marker: ``"live_started"`` / ``"live_stopped"``.
     state_changed = Signal(str)
+    ## Emitted with a human-readable message on capture failures.
     error = Signal(str)
 
     def __init__(
@@ -28,6 +43,11 @@ class LiveCaptureWorker(QThread):
         requested_width: int = 0,
         requested_height: int = 0,
     ) -> None:
+        """@param sources           Camera sources to open (webcams and/or videos).
+        @param target_fps        Pace of the capture loop in frames per second.
+        @param requested_width   Capture width to request from webcams (0 = driver default).
+        @param requested_height  Capture height to request from webcams (0 = driver default).
+        """
         super().__init__()
         self._sources = sources
         self._target_fps = max(1.0, target_fps)
@@ -38,6 +58,8 @@ class LiveCaptureWorker(QThread):
         self._recorder: VideoRecorder | None = None
 
     def stop(self) -> None:
+        """Ask the capture loop to exit; the thread finishes its current
+        iteration and releases the captures."""
         self._stop_event.set()
 
     def attach_recorder(self, recorder: VideoRecorder) -> None:
@@ -53,6 +75,12 @@ class LiveCaptureWorker(QThread):
         return recorder
 
     def run(self) -> None:
+        """Open all sources, then capture batches until stop() is called.
+
+        Webcams that fail a ``grab()`` fall back to a direct ``read()``; video
+        files loop back to their first frame when they run out. Failures are
+        reported via the ``error`` signal without ending the loop.
+        """
         captures: dict[str, cv2.VideoCapture] = {}
         source_by_id: dict[str, CameraSourceConfig] = {source.source_id: source for source in self._sources}
         frame_indices: dict[str, int] = {source.source_id: 0 for source in self._sources}
@@ -166,6 +194,13 @@ class LiveCaptureWorker(QThread):
             LOGGER.info("Live capture stopped.")
 
     def _open_capture(self, uri: Any, kind: str):
+        """Open a ``cv2.VideoCapture`` for ``uri``, trying the preferred
+        Windows backends (DSHOW, then MSMF) for webcam indices.
+
+        @param uri   Device index or file path/URL.
+        @param kind  Source kind (``"webcam"`` or ``"video"``).
+        @return      The first capture that reports itself as opened.
+        """
         if kind != "webcam" or not isinstance(uri, int):
             return cv2.VideoCapture(uri)
 
@@ -185,6 +220,13 @@ class LiveCaptureWorker(QThread):
         return cv2.VideoCapture(uri)
 
     def _configure_capture(self, capture: cv2.VideoCapture, kind: str) -> None:
+        """Apply the requested resolution, MJPG pixel format and FPS to a
+        webcam capture (video files are left at their native settings), and
+        log when the camera silently falls back to another resolution.
+
+        @param capture  The opened capture to configure.
+        @param kind     Source kind (``"webcam"`` or ``"video"``).
+        """
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if kind != "webcam":
             # Video files must be decoded at their native resolution and frame

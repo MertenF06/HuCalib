@@ -1,3 +1,13 @@
+"""Application configuration: persistent folders, defaults and user settings.
+
+Settings are layered in order of increasing precedence: dataclass code
+defaults, the developer-maintained ``default_settings.json`` (shipped with the
+app and materialised next to it), and finally the user's ``app_settings.json``
+overrides. Directory paths are always derived from the install location and
+never read from a settings file, so settings can be copied between machines
+safely.
+"""
+
 from __future__ import annotations
 
 import json
@@ -133,6 +143,19 @@ _NON_PERSISTED_KEYS = {"advanced_settings"}
 
 @dataclass(slots=True)
 class AppConfig:
+    """Runtime application configuration.
+
+    Holds the basic user-facing settings (target frame rate, default camera
+    selection, UI/overlay scaling, camera labels) plus the nested
+    ``advanced_settings`` dict, and knows how to load and save itself from the
+    persistent settings files.
+
+    The directory fields (``app_root``, ``calibration_dir``, ``results_dir``,
+    ``logs_dir``, ``sessions_dir``) are always recomputed from the install
+    location — see _normalize_paths() — and are therefore never taken from a
+    settings file.
+    """
+
     app_name: str = "HuCalib"
     app_root: Path = field(default_factory=_app_root)
     target_fps: float = 30.0
@@ -150,6 +173,8 @@ class AppConfig:
     advanced_settings: dict[str, Any] = field(default_factory=dict)
 
     def ensure_directories(self) -> None:
+        """Create the persistent data directories (projects, results, logs,
+        sessions) when they do not exist yet."""
         self.calibration_dir.mkdir(parents=True, exist_ok=True)
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
@@ -184,6 +209,13 @@ class AppConfig:
 
     @classmethod
     def load(cls, path: Path | None = None) -> "AppConfig":
+        """Build a config by layering code defaults, developer defaults and
+        user overrides, in that order.
+
+        @param path  Optional explicit settings file; defaults to the per-user
+                     ``app_settings.json`` in the persistent app folder.
+        @return      The fully resolved configuration.
+        """
         settings_path = path or _user_settings_path()
         config = cls()
         # Layer: code defaults -> developer defaults -> user overrides.
@@ -199,6 +231,14 @@ class AppConfig:
         return config
 
     def save(self, path: Path | None = None) -> None:
+        """Write the user-facing settings to disk as JSON.
+
+        Derived directory paths are skipped (they are recomputed on load) and
+        the advanced settings are nested under the ``advanced`` key.
+
+        @param path  Optional explicit target; defaults to the per-user
+                     ``app_settings.json`` in the persistent app folder.
+        """
         settings_path = path or _user_settings_path()
         settings_path.parent.mkdir(parents=True, exist_ok=True)
         data: dict[str, Any] = {}

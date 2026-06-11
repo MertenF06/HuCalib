@@ -1,3 +1,13 @@
+"""Calibration core: pattern detection, sample management, solving and persistence.
+
+This module is the calibration engine of the application, independent of any
+Qt widgets. CalibrationManager detects chessboard/ChArUco boards, gates and
+stores calibration samples (including synchronized multi-camera capture sets),
+solves intrinsics and chained pairwise extrinsics with optional bundle
+adjustment, and renders the detection/coverage overlays for the preview.
+CalibrationRepository persists the resulting CalibrationBundle as JSON.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -93,6 +103,10 @@ class CalibrationCaptureFeedback:
 
 @dataclass(slots=True)
 class _BundleAdjustmentView:
+    """One synchronized capture set prepared for bundle adjustment: the usable
+    samples per camera plus the initial board pose (Rodrigues rotation and
+    translation in the reference/world frame)."""
+
     capture_group_id: str
     samples_by_source: dict[str, CalibrationSample]
     board_rvec: NDArray[np.float64]
@@ -128,12 +142,19 @@ class CalibrationRepository:
         }
 
     def save(self, bundle: CalibrationBundle, path: Path) -> None:
+        """Write the bundle to ``path`` as indented JSON (parents are created)."""
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = self.to_payload(bundle)
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         LOGGER.info("Calibration saved: %s", path)
 
     def load(self, path: Path) -> CalibrationBundle | None:
+        """Read a calibration bundle from ``path``.
+
+        Supports the current schema (version 2) and the legacy MVP format.
+
+        @return The loaded bundle, or ``None`` when the file does not exist.
+        """
         if not path.exists():
             return None
 
@@ -204,6 +225,31 @@ class CalibrationManager:
         spatial_grid_shape: tuple[int, int] = DEFAULT_SPATIAL_GRID_SHAPE,
         min_spatial_grid_coverage_ratio: float = DEFAULT_MIN_SPATIAL_GRID_COVERAGE_RATIO,
     ) -> None:
+        """Configure board geometry and sample-acceptance thresholds.
+
+        @param board_shape          Chessboard inner corners as (cols, rows).
+        @param square_size_m        Chessboard square edge in metres.
+        @param min_samples_per_camera  Sample count below which the intrinsics
+                                    solve warns about instability.
+        @param min_quality_score    Minimum detection quality (0..1) for
+                                    intrinsics samples.
+        @param min_coverage_ratio   Minimum board-area/image-area ratio for
+                                    intrinsics samples.
+        @param sync_min_quality_score   Quality threshold for sync_extrinsics mode.
+        @param sync_min_coverage_ratio  Coverage threshold for sync_extrinsics mode.
+        @param default_pattern      Board used when a caller passes no pattern.
+        @param charuco_squares_x    ChArUco squares along X.
+        @param charuco_squares_y    ChArUco squares along Y.
+        @param charuco_square_size_m  ChArUco square edge in metres.
+        @param charuco_marker_size_m  ChArUco marker edge in metres (clamped
+                                    below the square size).
+        @param min_charuco_corners  Minimum interpolated ChArUco corners per sample.
+        @param min_sample_novelty_px  Minimum board-centroid movement (pixels)
+                                    against recent samples; rejects near-duplicates.
+        @param spatial_grid_shape   Coverage grid as (cols, rows).
+        @param min_spatial_grid_coverage_ratio  Required fraction of visited
+                                    grid cells before coverage warnings stop.
+        """
         self._board_shape = board_shape
         self._square_size_m = square_size_m
         self._min_samples_per_camera = min_samples_per_camera
@@ -257,13 +303,16 @@ class CalibrationManager:
 
     @property
     def board_shape(self) -> tuple[int, int]:
+        """Chessboard inner corners as (cols, rows)."""
         return self._board_shape
 
     @property
     def square_size_m(self) -> float:
+        """Chessboard square edge in metres."""
         return self._square_size_m
 
     def board_settings(self) -> CalibrationBoardSettings:
+        """Snapshot of the active board geometry as a settings object."""
         return CalibrationBoardSettings(
             chessboard_cols=self._board_shape[0],
             chessboard_rows=self._board_shape[1],
@@ -275,6 +324,13 @@ class CalibrationManager:
         )
 
     def apply_board_settings(self, settings: CalibrationBoardSettings) -> bool:
+        """Apply new board geometry; on a change this rebuilds the detectors
+        and discards all samples and the last solution (they were captured
+        against the old board).
+
+        @return ``True`` when something changed, ``False`` when the settings
+                were already active.
+        """
         current = self.board_settings()
         if current == settings:
             return False
@@ -302,37 +358,46 @@ class CalibrationManager:
 
     @property
     def min_samples_per_camera(self) -> int:
+        """Recommended minimum intrinsics samples per camera."""
         return self._min_samples_per_camera
 
     @property
     def min_quality_score(self) -> float:
+        """Quality threshold (0..1) for intrinsics sample acceptance."""
         return self._min_quality_score
 
     @property
     def min_coverage_ratio(self) -> float:
+        """Coverage threshold (board area / image area) for intrinsics samples."""
         return self._min_coverage_ratio
 
     @property
     def spatial_grid_shape(self) -> tuple[int, int]:
+        """Spatial coverage grid as (cols, rows)."""
         return self._spatial_grid_shape
 
     @property
     def min_spatial_grid_coverage_ratio(self) -> float:
+        """Required fraction of visited coverage-grid cells (0..1)."""
         return self._min_spatial_grid_coverage_ratio
 
     @property
     def sync_min_quality_score(self) -> float:
+        """Quality threshold for synchronized (extrinsics) capture."""
         return self._sync_min_quality_score
 
     @property
     def sync_min_coverage_ratio(self) -> float:
+        """Coverage threshold for synchronized (extrinsics) capture."""
         return self._sync_min_coverage_ratio
 
     @property
     def default_pattern(self) -> Literal["chessboard", "charuco"]:
+        """Board pattern used when callers do not specify one."""
         return self._default_pattern
 
     def available_patterns(self) -> list[str]:
+        """Patterns usable on this OpenCV build (ChArUco needs cv2.aruco)."""
         patterns = ["chessboard"]
         if self._charuco_available and self._charuco_board is not None:
             patterns.append("charuco")
@@ -343,6 +408,7 @@ class CalibrationManager:
         min_quality_score: float,
         min_coverage_ratio: float,
     ) -> None:
+        """Set the (clamped to 0..1) acceptance thresholds for synchronized capture."""
         self._sync_min_quality_score = float(np.clip(min_quality_score, 0.0, 1.0))
         self._sync_min_coverage_ratio = float(np.clip(min_coverage_ratio, 0.0, 1.0))
 
@@ -351,6 +417,7 @@ class CalibrationManager:
         min_quality_score: float,
         min_coverage_ratio: float,
     ) -> None:
+        """Set the (clamped to 0..1) acceptance thresholds for intrinsics samples."""
         self._min_quality_score = float(np.clip(min_quality_score, 0.0, 1.0))
         self._min_coverage_ratio = float(np.clip(min_coverage_ratio, 0.0, 1.0))
 
@@ -360,6 +427,8 @@ class CalibrationManager:
         rows: int,
         min_grid_coverage_ratio: float | None = None,
     ) -> None:
+        """Change the coverage-grid shape (and optionally its target ratio),
+        invalidating the cached coverage summaries."""
         self._spatial_grid_shape = (max(1, int(cols)), max(1, int(rows)))
         # The grid shape feeds the coverage computation, so any cached summaries
         # are stale once it changes.
@@ -382,21 +451,31 @@ class CalibrationManager:
         self._last_solution = None
 
     def sources(self) -> list[str]:
+        """Sorted ids of all cameras that have at least one stored sample."""
         return sorted(self._samples.keys())
 
     def observation_count(self, source_id: str, include_sync_only: bool = True) -> int:
+        """Number of stored samples for one camera.
+
+        @param source_id          Camera to count samples for.
+        @param include_sync_only  When ``False``, count only intrinsics-grade
+                                  samples (sync-only ones are excluded).
+        """
         samples = self._samples.get(source_id, [])
         if include_sync_only:
             return len(samples)
         return sum(1 for sample in samples if sample.accepted_for_intrinsics)
 
     def observations_summary(self, include_sync_only: bool = True) -> dict[str, int]:
+        """Sample count per camera id (see observation_count())."""
         return {
             source_id: self.observation_count(source_id, include_sync_only=include_sync_only)
             for source_id in self._samples
         }
 
     def observations_breakdown_summary(self) -> dict[str, dict[str, int]]:
+        """Per camera: ``{"total", "intrinsics", "synchronized", "sync_only"}``
+        sample counts, for the capture-progress UI."""
         summary: dict[str, dict[str, int]] = {}
         for source_id, samples in self._samples.items():
             total = len(samples)
@@ -416,9 +495,11 @@ class CalibrationManager:
         return summary
 
     def last_solution(self) -> CalibrationBundle | None:
+        """The most recently solved (or loaded) bundle, if any."""
         return self._last_solution
 
     def synchronized_capture_count(self) -> int:
+        """Number of stored synchronized multi-camera capture sets."""
         return len(self._capture_sets)
 
     def synchronized_pair_counts(self) -> dict[tuple[str, str], int]:
@@ -461,6 +542,7 @@ class CalibrationManager:
             nodes.add(reference_source_id)
 
         def shared(a: str, b: str) -> int:
+            """Synchronized-set count for an unordered camera pair."""
             return pair_counts.get((a, b) if a < b else (b, a), 0)
 
         adjacency: dict[str, set[str]] = {node: set() for node in nodes}
@@ -506,6 +588,12 @@ class CalibrationManager:
         return result
 
     def _init_charuco(self) -> None:
+        """Build the ChArUco dictionary, board and detector objects.
+
+        Handles both OpenCV >= 4.7 (detector classes) and older builds (legacy
+        free functions). On any failure ChArUco support is disabled instead of
+        raising, leaving chessboard detection available.
+        """
         if not self._charuco_available:
             return
         try:
@@ -558,6 +646,7 @@ class CalibrationManager:
             self._charuco_detector = None
 
     def _metadata_units(self) -> dict[str, str]:
+        """Unit descriptions embedded in saved bundles (metadata.units)."""
         return {
             "all_length_fields": "meters",
             "calibration_board.square_size_m": "meters",
@@ -584,6 +673,7 @@ class CalibrationManager:
         }
 
     def _metadata_validation_guidance(self) -> list[str]:
+        """Human-readable sanity checks embedded in saved bundles."""
         return [
             "Measure the printed calibration board with a ruler or caliper. ChArUco square_size_m is one full square edge in meters; marker_size_m is the black marker edge in meters.",
             "Measure camera lens-center to lens-center distance and compare it with metadata.extrinsics.<camera>.baseline_m. A large scale mismatch usually means the board square/marker size was entered incorrectly.",
@@ -594,11 +684,14 @@ class CalibrationManager:
         ]
 
     def _attach_metadata_help(self, metadata: dict[str, Any]) -> dict[str, Any]:
+        """Add the units and validation-guidance blocks to ``metadata`` in place."""
         metadata["units"] = self._metadata_units()
         metadata["validation_guidance"] = self._metadata_validation_guidance()
         return metadata
 
     def sample_collection_metadata(self) -> dict[str, Any]:
+        """Collection statistics for the bundle metadata: overall and per-camera
+        sample counts, first/last capture timestamps and durations."""
         samples_by_source = self._samples
         all_samples = [
             sample
@@ -651,6 +744,8 @@ class CalibrationManager:
         }
 
     def synchronized_timing_metadata(self) -> dict[str, Any]:
+        """Software-sync timing statistics (max/mean timestamp skew) aggregated
+        over the synchronized capture sets that carried timing metadata."""
         timing_sets = [
             capture_set.sync_metadata
             for capture_set in self._capture_sets
@@ -680,6 +775,13 @@ class CalibrationManager:
         frame_bgr: U8Array,
         pattern: Literal["chessboard", "charuco"] | str,
     ) -> ChessboardDetectionResult:
+        """Dispatch detection to detect_chessboard() or detect_charuco().
+
+        @param source_id  Camera the frame belongs to (echoed in the result).
+        @param frame_bgr  Full-resolution BGR frame to analyse.
+        @param pattern    Board pattern name; anything but ``"charuco"`` falls
+                          back to chessboard detection.
+        """
         normalized = str(pattern).lower().strip()
         if normalized == "charuco":
             return self.detect_charuco(source_id=source_id, frame_bgr=frame_bgr)
@@ -810,6 +912,12 @@ class CalibrationManager:
         return marker_ids, charuco_corners, charuco_ids
 
     def detect_charuco(self, source_id: str, frame_bgr: U8Array) -> ChessboardDetectionResult:
+        """Run ChArUco detection and quality analysis for preview/capture gating.
+
+        Returns a not-found result with an explanatory diagnostic when the
+        OpenCV build lacks aruco support, too few markers are visible or the
+        corner interpolation fails.
+        """
         height, width = frame_bgr.shape[:2]
         image_size = (width, height)
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
@@ -901,6 +1009,14 @@ class CalibrationManager:
         corners: FloatArray,
         expected_corner_count: int,
     ) -> tuple[float, float, float]:
+        """Score a detection for capture gating.
+
+        @return ``(quality_score, coverage_ratio, sharpness_score)`` where
+                coverage is the board hull area over the image area, sharpness
+                is the normalised Laplacian variance of the board region, and
+                quality combines coverage, sharpness and the fraction of
+                detected corners into one 0..1 score.
+        """
         points = corners.reshape(-1, 2)
         width = gray.shape[1]
         height = gray.shape[0]
@@ -936,6 +1052,8 @@ class CalibrationManager:
         self,
         corners: FloatArray,
     ) -> tuple[tuple[float, float, float, float] | None, tuple[float, float] | None]:
+        """Axis-aligned bounding box ``(x, y, w, h)`` and centre of the detected
+        corners, or ``(None, None)`` when there are no corners."""
         points = np.array(corners, dtype=np.float32).reshape(-1, 2)
         if points.size == 0:
             return None, None
@@ -955,7 +1073,22 @@ class CalibrationManager:
         workflow_mode: Literal["hybrid", "intrinsics", "sync_extrinsics"] = "hybrid",
         sync_metadata: dict[str, Any] | None = None,
     ) -> dict[str, CalibrationCaptureFeedback]:
-        """Store single-camera samples and synchronized capture sets from precomputed detections."""
+        """Store single-camera samples and synchronized capture sets from precomputed detections.
+
+        Acceptance depends on ``workflow_mode``: ``"intrinsics"`` stores only
+        intrinsics-grade samples; ``"sync_extrinsics"`` stores sync-only samples
+        (relaxed thresholds allowed) once at least two cameras qualify in the
+        same round; ``"hybrid"`` does both, grouping simultaneous acceptances
+        into a synchronized capture set.
+
+        @param detections_by_source  Detection result per camera for one batch.
+        @param pattern            Board pattern; ``None`` uses the default.
+        @param allow_relaxed_sync When ``True``, cameras that fail intrinsics
+                                  thresholds may still join a synchronized set.
+        @param workflow_mode      ``"hybrid"``, ``"intrinsics"`` or ``"sync_extrinsics"``.
+        @param sync_metadata      Timing info stored with the capture set.
+        @return                   Per-camera feedback (accepted, message, counts).
+        """
         selected_pattern = self._normalize_pattern_name(pattern)
         mode = str(workflow_mode).lower().strip()
         if mode not in {"hybrid", "intrinsics", "sync_extrinsics"}:
@@ -1175,6 +1308,8 @@ class CalibrationManager:
         )
 
     def spatial_coverage_metadata(self) -> dict[str, Any]:
+        """Spatial-coverage block for the bundle metadata: grid shape, overall
+        ratio and the per-camera summaries (intrinsics samples only)."""
         per_camera = {
             source_id: self.spatial_coverage_summary(source_id, include_sync_only=False)
             for source_id in self.sources()
@@ -1204,6 +1339,24 @@ class CalibrationManager:
         include_sample_summaries: bool = True,
         target_samples_per_cell: int | None = None,
     ) -> dict[str, Any]:
+        """How well one camera's samples cover the image plane.
+
+        The image is divided into the configured coverage grid; every sample
+        marks the cells its corners/bbox/centre fall in. Three viewpoints are
+        reported: raw footprint hits, "credited" hits (each sample credits
+        exactly one cell, preferring under-filled edge cells — this drives the
+        live coverage overlay) and board-centre hits.
+
+        @param source_id        Camera to summarise.
+        @param include_sync_only  Include sync-only samples too (default
+                                intrinsics-grade only).
+        @param samples          Explicit sample list to analyse instead of the
+                                stored ones (bypasses the cache).
+        @param include_sample_summaries  Add a per-sample breakdown.
+        @param target_samples_per_cell   Cell target used by credited counting.
+        @return                 Dict with grid shape, hit counts, coverage
+                                ratios, centre spread and edge/corner scores.
+        """
         # Only the internal-sample path is cacheable; an explicit ``samples`` list is
         # caller-specific and may differ from the stored samples.
         use_cache = samples is None
@@ -1365,6 +1518,8 @@ class CalibrationManager:
         self,
         sample: CalibrationSample,
     ) -> tuple[set[tuple[int, int]], tuple[float, float] | None]:
+        """Grid cells touched by a stored sample (corners, bbox corners and
+        centre) plus the board centre, computing it from the corners if needed."""
         cells: set[tuple[int, int]] = set()
         points = self._sample_corner_points(sample)
         for point in points:
@@ -1392,6 +1547,9 @@ class CalibrationManager:
         detection: ChessboardDetectionResult,
         image_size: tuple[int, int] | None = None,
     ) -> tuple[set[tuple[int, int]], tuple[float, float] | None]:
+        """Grid cells touched by a live detection (same rules as
+        _spatial_cells_for_sample()), used to highlight the current cells in
+        the preview overlay."""
         cells: set[tuple[int, int]] = set()
         target_image_size = image_size or detection.image_size
         points = (
@@ -1428,6 +1586,15 @@ class CalibrationManager:
         hit_counts: NDArray[np.int32],
         target_samples_per_cell: int | None = None,
     ) -> tuple[int, int] | None:
+        """Pick the single grid cell this sample gets credited to.
+
+        Among the cells the sample touches, prefer (in order): cells still
+        under the per-cell target, least-hit cells, edge cells, cells far from
+        the grid centre, and finally cells close to the board centre. This
+        spreads credit outward so the user is steered towards the image edges.
+
+        @return The chosen ``(row, col)``, or ``None`` when no cells were hit.
+        """
         if not cells:
             return None
 
@@ -1462,6 +1629,7 @@ class CalibrationManager:
         mid_col = (cols - 1) * 0.5
 
         def sort_key(cell: tuple[int, int]) -> tuple[float, int, int, int]:
+            """Order candidates: far from grid centre first, then near board centre."""
             row, col = cell
             distance_from_grid_center = (float(row) - mid_row) ** 2 + (float(col) - mid_col) ** 2
             center_distance = (
@@ -1474,6 +1642,8 @@ class CalibrationManager:
         return min(candidates, key=sort_key)
 
     def _sample_corner_points(self, sample: CalibrationSample) -> NDArray[np.float32]:
+        """The sample's detected corners as an (N, 2) pixel array, preferring
+        the stored display copy over the raw image points."""
         if sample.corner_points_px:
             return np.array(sample.corner_points_px, dtype=np.float32).reshape(-1, 2)
         return np.array(sample.image_points, dtype=np.float32).reshape(-1, 2)
@@ -1484,6 +1654,8 @@ class CalibrationManager:
         y_px: float,
         image_size: tuple[int, int],
     ) -> tuple[int, int]:
+        """Map a pixel position to its (row, col) coverage-grid cell, clamped
+        to the grid bounds."""
         width, height = image_size
         cols, rows = self._spatial_grid_shape
         safe_width = max(float(width), 1.0)
@@ -1493,6 +1665,7 @@ class CalibrationManager:
         return row, col
 
     def _edge_grid_cells(self, cols: int, rows: int) -> set[tuple[int, int]]:
+        """All (row, col) cells on the outer border of a cols x rows grid."""
         edge_cells: set[tuple[int, int]] = set()
         for col in range(cols):
             edge_cells.add((0, col))
@@ -1506,11 +1679,15 @@ class CalibrationManager:
         self,
         values: tuple[float, ...] | list[float] | None,
     ) -> list[float] | None:
+        """Round a float sequence to 3 decimals for compact JSON metadata."""
         if values is None:
             return None
         return [round(float(value), 3) for value in values]
 
     def _spatial_coverage_diagnostics(self, summary: dict[str, Any]) -> list[str]:
+        """Render a coverage summary as diagnostic lines for the solve report,
+        including the "insufficient spatial coverage" warning when the credited
+        ratio is below the configured minimum."""
         if int(summary.get("sample_count", 0)) <= 0:
             return []
 
@@ -1573,6 +1750,12 @@ class CalibrationManager:
         sample_count: int,
         spatial_summary: dict[str, Any],
     ) -> dict[str, float]:
+        """Combine reprojection error, mean sample quality, sample count and
+        spatial coverage into one 0..1 calibration quality score.
+
+        @return The component scores plus the final ``"score"`` (the base score
+                scaled by spatial coverage, so poor coverage caps the total).
+        """
         raw_grid_ratio = float(spatial_summary.get("grid_coverage_ratio", 0.0))
         grid_ratio = float(spatial_summary.get("credited_grid_coverage_ratio", raw_grid_ratio))
         raw_edge_score = float(spatial_summary.get("edge_coverage_score", 0.0))
@@ -1626,6 +1809,8 @@ class CalibrationManager:
         }
 
     def _normalize_pattern_name(self, pattern: Literal["chessboard", "charuco"] | str | None) -> str:
+        """Normalise a pattern argument to ``"chessboard"`` or ``"charuco"``
+        (``None`` uses the default; unknown names fall back to chessboard)."""
         selected_pattern = str(pattern or self._default_pattern).lower().strip()
         if selected_pattern not in {"chessboard", "charuco"}:
             return "chessboard"
@@ -1638,6 +1823,20 @@ class CalibrationManager:
         selected_pattern: str,
         acceptance_mode: Literal["intrinsics", "synchronized_relaxed"],
     ) -> tuple[CalibrationSample | None, str, list[str]]:
+        """Validate one detection and turn it into a storable sample.
+
+        Checks, in order: board found, no pattern/image-size mix with earlier
+        samples, the mode's quality/coverage/corner thresholds, ChArUco ids
+        present, and novelty against recent samples.
+
+        @param source_id        Camera the detection belongs to.
+        @param detection        The detection to validate.
+        @param selected_pattern  Active board pattern (chessboard/charuco).
+        @param acceptance_mode  ``"intrinsics"`` (strict, counts for intrinsics)
+                                or ``"synchronized_relaxed"`` (sync-only sample).
+        @return ``(sample, message, rejection_reasons)``; ``sample`` is ``None``
+                and the reasons are non-empty when the detection was rejected.
+        """
         current_count = self.observation_count(source_id, include_sync_only=True)
         if not detection.found or detection.corners is None:
             rejection = [f"{selected_pattern} not detected."]
@@ -1713,12 +1912,15 @@ class CalibrationManager:
         )
 
     def _append_sample(self, source_id: str, sample: CalibrationSample) -> int:
+        """Store a sample, bump the source's cache version and return the new count."""
         samples = self._samples.setdefault(source_id, [])
         samples.append(sample)
         self._samples_version[source_id] = self._samples_version.get(source_id, 0) + 1
         return len(samples)
 
     def _is_sample_novel(self, samples: list[CalibrationSample], detection: ChessboardDetectionResult) -> bool:
+        """Whether the detection differs enough from the last 10 samples
+        (board centroid moved or coverage changed) to be worth storing."""
         if not samples or detection.corners is None:
             return True
         current_points = detection.corners.reshape(-1, 2)
@@ -1739,6 +1941,8 @@ class CalibrationManager:
         selected_pattern: str,
         acceptance_mode: Literal["intrinsics", "synchronized_relaxed"],
     ) -> list[str]:
+        """Threshold violations (quality, coverage, ChArUco corner count) for
+        the given acceptance mode; empty when the detection passes."""
         reasons: list[str] = []
         if acceptance_mode == "intrinsics":
             min_quality = self._min_quality_score
@@ -1772,12 +1976,15 @@ class CalibrationManager:
         detection: ChessboardDetectionResult,
         reasons: list[str],
     ) -> None:
+        """Append the reasons to the detection's diagnostics, skipping duplicates."""
         for reason in reasons:
             normalized = reason.strip()
             if normalized and normalized not in detection.diagnostics:
                 detection.diagnostics.append(normalized)
 
     def _charuco_object_points_for_ids(self, ids: NDArray[np.int32]) -> FloatArray:
+        """3D board coordinates (metres) for the given ChArUco corner ids,
+        skipping ids outside the board."""
         board_corners = self._charuco_board_corners()
         if board_corners.size == 0:
             return np.zeros((0, 3), np.float32)
@@ -1791,6 +1998,8 @@ class CalibrationManager:
         return np.array(points, dtype=np.float32)
 
     def _charuco_board_corners(self) -> FloatArray:
+        """All chessboard-corner positions of the ChArUco board as an (N, 3)
+        array, across old and new OpenCV APIs; empty when unavailable."""
         if self._charuco_board is None:
             return np.zeros((0, 3), np.float32)
         if hasattr(self._charuco_board, "getChessboardCorners"):
@@ -2283,6 +2492,12 @@ class CalibrationManager:
         stereo_cache: dict[tuple[str, str], object] = {}
 
         def _solve_pair(neighbor_id: str, target_id: str) -> object:
+            """stereoCalibrate ``target`` against ``neighbor`` (cached).
+
+            @return ``(rotation, translation, rms, set_count, notes)`` on
+                    success, ``None`` without usable shared sets, or
+                    ``{"error": str}`` when stereoCalibrate raised.
+            """
             cached = stereo_cache.get((neighbor_id, target_id), "missing")
             if cached != "missing":
                 return cached
@@ -2509,6 +2724,13 @@ class CalibrationManager:
         reference_source_id: str,
         target_source_id: str,
     ) -> tuple[list[FloatArray], list[FloatArray], list[FloatArray], tuple[int, int], list[str]] | None:
+        """Gather matched stereo observations for one camera pair from all
+        synchronized capture sets that contain both cameras.
+
+        @return ``(object_points, image_points_ref, image_points_target,
+                image_size, notes)`` per usable set, or ``None`` when no set
+                yields a usable correspondence.
+        """
         object_points: list[FloatArray] = []
         image_points_ref: list[FloatArray] = []
         image_points_target: list[FloatArray] = []
@@ -2552,6 +2774,13 @@ class CalibrationManager:
         reference_sample: CalibrationSample,
         target_sample: CalibrationSample,
     ) -> tuple[FloatArray, FloatArray, FloatArray] | None:
+        """Build one matched (object, reference, target) point set from two
+        samples of the same capture set.
+
+        Chessboard samples must have identical corner counts (corner order is
+        normalised at detection time); ChArUco pairs are matched by corner id.
+        @return ``None`` when the samples cannot be paired.
+        """
         if reference_sample.pattern_type != target_sample.pattern_type:
             return None
 
@@ -2574,6 +2803,11 @@ class CalibrationManager:
         reference_sample: CalibrationSample,
         target_sample: CalibrationSample,
     ) -> tuple[FloatArray, FloatArray, FloatArray] | None:
+        """Match two ChArUco samples on their shared corner ids (>= 4 needed).
+
+        @return ``(object_points, reference_points, target_points)`` for the
+                shared corners, or ``None`` when too few ids overlap.
+        """
         if reference_sample.charuco_ids is None or target_sample.charuco_ids is None:
             return None
 
@@ -2679,6 +2913,7 @@ class CalibrationManager:
             }
 
         def residuals(params: NDArray[np.float64]) -> NDArray[np.float64]:
+            """Reprojection residuals for the optimizer's parameter vector."""
             return self._bundle_adjustment_residuals(
                 params=params,
                 reference_id=reference_id,
@@ -2822,6 +3057,9 @@ class CalibrationManager:
         cameras: dict[str, CameraCalibration],
         initial_camera_poses: dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]],
     ) -> list[_BundleAdjustmentView]:
+        """Turn the synchronized capture sets into bundle-adjustment views:
+        keep sets seen by >= 2 solved cameras with enough points, and seed each
+        with an initial board pose in the world frame."""
         views: list[_BundleAdjustmentView] = []
         camera_set = set(camera_ids)
         for capture_set in self._capture_sets:
@@ -2856,6 +3094,12 @@ class CalibrationManager:
         cameras: dict[str, CameraCalibration],
         initial_camera_poses: dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]],
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]] | None:
+        """Initial board pose for one view: solvePnP on the first camera that
+        succeeds, transformed from that camera's frame into the world frame.
+
+        @return ``(rvec, tvec)`` as 3-vectors, or ``None`` when no camera in
+                the view yields a usable pose.
+        """
         for source_id, sample in samples_by_source.items():
             camera = cameras[source_id]
             object_points = self._sample_object_points(sample)
@@ -2893,6 +3137,12 @@ class CalibrationManager:
         initial_camera_poses: dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]],
         views: list[_BundleAdjustmentView],
     ) -> tuple[NDArray[np.float64], dict[str, slice], dict[int, slice]]:
+        """Pack the optimizer parameter vector: 6 values (Rodrigues + t) per
+        non-reference camera, then 6 per view board pose.
+
+        @return ``(params, camera_slices, view_slices)`` where the slices map
+                each camera id / view index to its parameter range.
+        """
         values: list[float] = []
         camera_slices: dict[str, slice] = {}
         for source_id in camera_param_ids:
@@ -2922,6 +3172,9 @@ class CalibrationManager:
         views: list[_BundleAdjustmentView],
         cameras: dict[str, CameraCalibration],
     ) -> NDArray[np.float64]:
+        """Concatenated reprojection residuals (x and y per point) over every
+        view/camera observation, projecting each view's board through the
+        camera poses encoded in ``params`` (intrinsics stay fixed)."""
         camera_poses = self._bundle_adjustment_camera_poses(
             params=params,
             reference_id=reference_id,
@@ -2960,6 +3213,8 @@ class CalibrationManager:
         camera_param_ids: list[str],
         camera_slices: dict[str, slice],
     ) -> dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]]:
+        """Decode the camera poses (3x3 rotation, 3x1 translation) from the
+        parameter vector; the reference camera is fixed at identity."""
         poses: dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]] = {
             reference_id: (np.eye(3, dtype=np.float64), np.zeros((3, 1), dtype=np.float64))
         }
@@ -2971,6 +3226,8 @@ class CalibrationManager:
         return poses
 
     def _camera_rotation_matrix(self, camera: CameraCalibration) -> NDArray[np.float64] | None:
+        """The camera's stored rotation as a 3x3 matrix, accepting both the
+        9-element matrix and 3-element Rodrigues storage formats."""
         if camera.rotation is None:
             return None
         rotation = np.asarray(camera.rotation, dtype=np.float64).reshape(-1)
@@ -2982,6 +3239,8 @@ class CalibrationManager:
         return None
 
     def _camera_translation_vector(self, camera: CameraCalibration) -> NDArray[np.float64] | None:
+        """The camera's stored translation as a 3x1 column vector, or ``None``
+        when missing or malformed."""
         if camera.translation is None:
             return None
         translation = np.asarray(camera.translation, dtype=np.float64).reshape(-1)
@@ -2990,18 +3249,22 @@ class CalibrationManager:
         return translation.reshape(3, 1)
 
     def _sample_object_points(self, sample: CalibrationSample) -> NDArray[np.float64]:
+        """The sample's 3D board points as an (N, 3) float64 array."""
         return np.asarray(sample.object_points, dtype=np.float64).reshape(-1, 3)
 
     def _sample_image_points(self, sample: CalibrationSample) -> NDArray[np.float64]:
+        """The sample's 2D image points as an (N, 2) float64 array."""
         return np.asarray(sample.image_points, dtype=np.float64).reshape(-1, 2)
 
     def _sample_point_count(self, sample: CalibrationSample) -> int:
+        """Usable point count of a sample (0 when the arrays are malformed)."""
         try:
             return min(self._sample_object_points(sample).shape[0], self._sample_image_points(sample).shape[0])
         except ValueError:
             return 0
 
     def _bundle_adjustment_point_count(self, views: list[_BundleAdjustmentView]) -> int:
+        """Total point observations across all views (controls the BA gate)."""
         total = 0
         for view in views:
             for sample in view.samples_by_source.values():
@@ -3052,12 +3315,16 @@ class CalibrationManager:
         return sparsity
 
     def _rms_from_reprojection_residuals(self, residuals: NDArray[np.float64]) -> float:
+        """RMS reprojection error in pixels from interleaved x/y residuals
+        (infinite when there are no residuals)."""
         if residuals.size == 0:
             return float("inf")
         point_count = max(float(residuals.size) / 2.0, 1.0)
         return float(np.sqrt(float(np.sum(np.square(residuals))) / point_count))
 
     def _status_with_extrinsics(self, current_status: str, has_warning: bool) -> str:
+        """Upgrade a solved intrinsics status to its extrinsics variant,
+        preserving (or adding) the warning marker."""
         if not current_status.startswith("solved"):
             return current_status
         if has_warning or "warning" in current_status:
@@ -3065,6 +3332,8 @@ class CalibrationManager:
         return "solved_extrinsics"
 
     def _strip_extrinsics_placeholder_notes(self, notes: list[str]) -> list[str]:
+        """Drop stale extrinsics/next-step notes from a bundle before an
+        extrinsics solve rewrites them."""
         drop_prefixes = (
             "TODO: Add synchronized multi-camera extrinsics",
             "Next step: solve synchronized multi-camera extrinsics",
@@ -3079,6 +3348,7 @@ class CalibrationManager:
         return [note for note in notes if not note.startswith(drop_prefixes)]
 
     def _dedupe_strings(self, items: list[str]) -> list[str]:
+        """Strip, drop empties and remove duplicates while keeping order."""
         output: list[str] = []
         seen: set[str] = set()
         for item in items:
@@ -3274,6 +3544,10 @@ class CalibrationManager:
         target_samples_per_cell: int | None = None,
         overlay_scale: float = 1.0,
     ) -> None:
+        """Draw the coverage grid in place: per-cell tint and counters from the
+        credited hit counts, plus a highlight on the cells the current
+        detection touches and a coverage label. ``mirror_x`` flips the counts
+        horizontally so they match a mirrored preview."""
         height, width = rendered.shape[:2]
         cols, rows = self._spatial_grid_shape
         if width <= 0 or height <= 0 or cols <= 0 or rows <= 0:
@@ -3379,6 +3653,7 @@ class CalibrationManager:
         )
 
     def _spatial_cell_tint(self, hit_count: int, target: int) -> tuple[int, int, int]:
+        """BGR tint for a grid cell: greener as the hit count nears the target."""
         if hit_count >= target:
             return (60, 185, 80)
         if hit_count >= max(1, int(np.ceil(target * 2.0 / 3.0))):
@@ -3397,6 +3672,8 @@ class CalibrationManager:
         scale: float = 1.0,
         overlay_scale: float = 1.0,
     ) -> None:
+        """Draw the ``hits/target`` counter with a dark backdrop in the top-left
+        corner of one grid cell."""
         text = f"{hit_count}/{target}"
         font_scale = float(np.clip(min(cell_width, cell_height) / 160.0, 0.50, 0.72)) * float(overlay_scale)
         thickness = max(1, int(round(2 * scale)))
@@ -3438,6 +3715,7 @@ class CalibrationManager:
         )
 
     def _build_object_points(self) -> FloatArray:
+        """3D chessboard corner grid in metres (z = 0 board plane)."""
         cols, rows = self._board_shape
         grid = np.zeros((cols * rows, 3), np.float32)
         grid[:, :2] = np.mgrid[0:cols, 0:rows].T.reshape(-1, 2)

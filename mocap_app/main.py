@@ -1,3 +1,5 @@
+"""Qt application bootstrap: configuration, logging, main window and updater."""
+
 from __future__ import annotations
 
 import sys
@@ -27,6 +29,13 @@ def _set_windows_app_id() -> None:
 
 
 def run() -> int:
+    """Start the HuCalib application and run the Qt event loop.
+
+    Loads the persisted configuration, configures logging, shows the main
+    window maximised and schedules the silent update check.
+
+    @return The Qt event-loop exit code (pass to ``SystemExit``).
+    """
     config = AppConfig.load()
     config.ensure_directories()
     configure_logging(config.logs_dir)

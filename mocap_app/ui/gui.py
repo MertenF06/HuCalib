@@ -19,16 +19,26 @@ from pathlib import Path
 from PySide6 import QtCore, QtGui, QtWidgets
 
 
+## Folder with the bundled UI images (logo, window icon).
 IMAGES_DIR = Path(__file__).resolve().parent / "imagesGUI"
 
 
 def _load_pixmap(name: str) -> QtGui.QPixmap:
+    """Load a pixmap from the bundled UI images folder (null pixmap when missing)."""
     pixmap = QtGui.QPixmap(str(IMAGES_DIR / name))
     return pixmap
 
 
 class Ui_MainWindow(object):
+    """Builds the static widget tree of the main window (Qt Designer style).
+
+    Holds no behaviour: DesignedMainWindow connects the signals and fills the
+    page containers. All widgets are exposed as attributes named after their
+    object names.
+    """
+
     def setupUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
+        """Create all widgets, layouts, menus and actions on ``MainWindow``."""
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1280, 800)
         MainWindow.setMinimumSize(QtCore.QSize(960, 600))
@@ -214,6 +224,7 @@ class Ui_MainWindow(object):
     # ------------------------------------------------------------------ pages
 
     def _build_page_home(self) -> None:
+        """Home page: title, subtitle and the new/open project buttons."""
         self.page_home = QtWidgets.QWidget()
         self.page_home.setObjectName("page_home")
 
@@ -263,6 +274,8 @@ class Ui_MainWindow(object):
         self.stackedWidget.addWidget(self.page_home)
 
     def _build_page_cameras(self) -> None:
+        """Cameras page: capture settings card (FPS, pattern, intrinsics/
+        extrinsics controls, reset) above the camera-tile grid container."""
         self.page_cameras = QtWidgets.QWidget()
         self.page_cameras.setObjectName("page_cameras")
 
@@ -391,6 +404,8 @@ class Ui_MainWindow(object):
         self.stackedWidget.addWidget(self.page_cameras)
 
     def _build_page_results(self) -> None:
+        """Results page: export bar and result text panes, with a nested
+        stacked widget that flips to the TOML preview."""
         self.page_results = QtWidgets.QWidget()
         self.page_results.setObjectName("page_results")
 
@@ -585,6 +600,8 @@ class Ui_MainWindow(object):
         self.stackedWidget.addWidget(self.page_results)
 
     def _build_page_directory(self) -> None:
+        """Files page: an empty card that DesignedMainWindow fills with the
+        project file browser."""
         self.page_directory = QtWidgets.QWidget()
         self.page_directory.setObjectName("page_directory")
         layout = QtWidgets.QVBoxLayout(self.page_directory)
@@ -600,6 +617,8 @@ class Ui_MainWindow(object):
         self.stackedWidget.addWidget(self.page_directory)
 
     def _build_page_diagnostics(self) -> None:
+        """Diagnostics page: a label + read-only text field per metric
+        (dropped frames, FPS, cameras in use, solve timings)."""
         self.page_diagnostics = QtWidgets.QWidget()
         self.page_diagnostics.setObjectName("page_diagnostics")
 
@@ -650,6 +669,7 @@ class Ui_MainWindow(object):
         self.stackedWidget.addWidget(self.page_diagnostics)
 
     def _build_page_advanced_settings(self) -> None:
+        """Advanced-settings page (container only; see the inline comment)."""
         # This page is only a container: DesignedMainWindow clears its layout
         # on startup and fills it with the advanced-settings forms. The one
         # control built here is ``doubleSpinBox`` (chessboard square size),
@@ -672,6 +692,7 @@ class Ui_MainWindow(object):
         self.stackedWidget.addWidget(self.page_advanced_settings)
 
     def retranslateUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
+        """Set the translatable texts (window title, menus, actions)."""
         _t = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_t("MainWindow", "HuCalib"))
         self.menuFile.setTitle(_t("MainWindow", "&Bestand"))

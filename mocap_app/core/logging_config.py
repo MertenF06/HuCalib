@@ -1,3 +1,5 @@
+"""Root logger setup for the application."""
+
 from __future__ import annotations
 
 import logging
@@ -6,6 +8,15 @@ from pathlib import Path
 
 
 def configure_logging(log_dir: Path) -> None:
+    """Configure the root logger with a file handler and, when available, a
+    console handler.
+
+    All records of level INFO and up are written to ``mocap_app.log`` inside
+    ``log_dir`` (created when missing). Any previously attached handlers are
+    replaced, so calling this twice does not duplicate output.
+
+    @param log_dir  Directory that receives the log file.
+    """
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "mocap_app.log"
 

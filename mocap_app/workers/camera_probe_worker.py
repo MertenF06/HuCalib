@@ -1,3 +1,5 @@
+"""Background scan for connected webcams."""
+
 from __future__ import annotations
 
 import logging
@@ -16,19 +18,26 @@ LOGGER = logging.getLogger(__name__)
 class CameraProbeWorker(QThread):
     """Scans webcam indices in a background thread."""
 
+    ## Emitted with a ``list[CameraProbeResult]`` of openable webcam indices.
     result_ready = Signal(object)
+    ## Emitted with a human-readable message when the probe fails.
     error = Signal(str)
+    ## Lifecycle marker: ``camera_probe_started/finished/stopped/failed``.
     state_changed = Signal(str)
 
     def __init__(self, max_index: int = 10) -> None:
+        """@param max_index  Highest webcam index to try (inclusive)."""
         super().__init__()
         self._max_index = max(0, int(max_index))
         self._stop_event = threading.Event()
 
     def stop(self) -> None:
+        """Ask the scan to exit early; no results are emitted in that case."""
         self._stop_event.set()
 
     def run(self) -> None:
+        """Try indices 0..max_index, recording resolution and backend for
+        every camera that opens, and emit the collected results."""
         try:
             self.state_changed.emit("camera_probe_started")
             results: list[CameraProbeResult] = []
@@ -80,6 +89,8 @@ class CameraProbeWorker(QThread):
             self.state_changed.emit("camera_probe_failed")
 
     def _open_capture(self, index: int):
+        """Open webcam ``index``, trying the preferred Windows backends (MSMF,
+        then DSHOW) first; returns ``None`` when nothing opens."""
         backends: list[int | None] = []
         if os.name == "nt":
             if hasattr(cv2, "CAP_MSMF"):

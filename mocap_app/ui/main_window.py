@@ -1,3 +1,12 @@
+"""Application logic of the calibration window, decoupled from the visual shell.
+
+MainWindow owns the calibration state and all background workers (capture,
+detection, preview rendering, solving, recording) and talks to an abstract
+"calibration panel" for everything visual. DesignedMainWindow embeds a
+headless instance of this class and provides that panel implementation, so
+the logic here stays testable and UI-toolkit-light.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -68,13 +77,17 @@ CURRENT_CALIBRATION_FILENAME = "current_calibration.json"
 class MainWindow(QMainWindow):
     """Calibration-only application shell."""
 
-    # Emitted from the UI thread to hand a detection job to the background
-    # detection worker (connected with a queued connection across threads).
+    ## Emitted from the UI thread to hand a detection job to the background
+    ## detection worker (connected with a queued connection across threads).
     request_detection = Signal(object)
-    # Emitted to hand a display-frame prep job to the preview-render worker.
+    ## Emitted to hand a display-frame prep job to the preview-render worker.
     request_preview_render = Signal(object)
 
     def __init__(self, config: AppConfig) -> None:
+        """Build the window: calibration state, panel, workers and timers.
+
+        @param config  The resolved application configuration.
+        """
         super().__init__()
         self._config = config
 
@@ -184,16 +197,20 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(250, self._start_initial_camera_probe)
 
     def _setup_ui(self) -> None:
+        """Install the calibration panel as central widget (overridable)."""
         self.setCentralWidget(self._calibration_panel)
         self.statusBar().showMessage("Idle")
 
     def _create_calibration_panel(self, default_camera_csv: str, default_fps: float):
+        """Build the panel implementing the UI contract; subclasses must override."""
         raise NotImplementedError("Subclasses must provide a calibration panel implementation.")
 
     def _apply_initial_window_geometry(self) -> None:
+        """Set the initial window size (overridable)."""
         self.resize(1500, 920)
 
     def _apply_window_style(self) -> None:
+        """Apply this window's base stylesheet (overridable)."""
         self.setStyleSheet(
             """
             QMainWindow {
@@ -207,6 +224,8 @@ class MainWindow(QMainWindow):
         )
 
     def _connect_signals(self) -> None:
+        """Wire all calibration-panel signals to their handlers (optional
+        signals are connected only when the panel provides them)."""
         self._calibration_panel.start_live_requested.connect(self._on_start_live)
         self._calibration_panel.stop_live_requested.connect(self._on_stop_live)
         self._calibration_panel.runtime_tuning_changed.connect(self._on_runtime_tuning_changed)
@@ -244,6 +263,7 @@ class MainWindow(QMainWindow):
             self._calibration_panel.preview_options_changed.connect(lambda: self._update_calibration_preview(force=True))
 
     def _set_display_timer_hz(self, hz: float) -> None:
+        """Run the preview display timer at ``hz`` (started when needed)."""
         safe_hz = max(1.0, hz)
         interval_ms = max(8, int(1000.0 / safe_hz))
         self._display_timer.setInterval(interval_ms)
@@ -266,6 +286,7 @@ class MainWindow(QMainWindow):
         self._detection_thread.start()
 
     def _shutdown_detection_worker(self) -> None:
+        """Stop the detection thread and clear its in-flight gate (on close)."""
         thread = self._detection_thread
         if thread is None:
             return
@@ -291,6 +312,7 @@ class MainWindow(QMainWindow):
         self._render_thread.start()
 
     def _shutdown_preview_render_worker(self) -> None:
+        """Stop the preview-render thread and clear its in-flight gate (on close)."""
         thread = self._render_thread
         if thread is None:
             return
@@ -301,34 +323,45 @@ class MainWindow(QMainWindow):
         self._render_request_in_flight = False
 
     def _default_calibration_path(self) -> Path:
+        """Where the active calibration lives when no project is open."""
         return self._config.calibration_dir / CURRENT_CALIBRATION_FILENAME
 
     def _project_files_dir(self) -> Path:
+        """The active project's files subfolder (saved profiles, current
+        calibration), or the global results dir when no project is open."""
         if self._active_project_dir is None:
             return self._config.results_dir
         return self._active_project_dir / PROJECT_FILES_DIRNAME
 
     def _project_results_dir(self) -> Path:
+        """The active project's results subfolder (exports), or the global
+        results dir when no project is open."""
         if self._active_project_dir is None:
             return self._config.results_dir
         return self._active_project_dir / PROJECT_RESULTS_DIRNAME
 
     def _project_videos_dir(self) -> Path:
+        """The active project's videos subfolder (recordings), or the global
+        recordings folder when no project is open."""
         if self._active_project_dir is None:
             return self._config.app_root / "recordings"
         return self._active_project_dir / PROJECT_VIDEOS_DIRNAME
 
     def _active_calibration_path(self) -> Path:
+        """Path of the current-calibration file for the active project (or the
+        default location when no project is open)."""
         if self._active_project_dir is None:
             return self._default_calibration_path()
         return self._project_files_dir() / CURRENT_CALIBRATION_FILENAME
 
     @staticmethod
     def _ensure_project_directories(project_dir: Path) -> None:
+        """Create the files/results/videos subfolders of a project folder."""
         for name in (PROJECT_FILES_DIRNAME, PROJECT_RESULTS_DIRNAME, PROJECT_VIDEOS_DIRNAME):
             (project_dir / name).mkdir(parents=True, exist_ok=True)
 
     def _reset_project_calibration_state(self) -> None:
+        """Clear all in-memory calibration state when switching projects."""
         self._calibration_manager.reset_all()
         self._latest_calibration_detections.clear()
         self._last_rendered_frame_indices.clear()
@@ -337,6 +370,18 @@ class MainWindow(QMainWindow):
         self._last_calibration_detection_at = 0.0
 
     def _activate_project(self, project_dir: Path, *, load_existing: bool) -> None:
+        """Make ``project_dir`` the active project.
+
+        Creates the project subfolders, repoints the calibration path and the
+        recording/new-project defaults at it, resets the calibration state and
+        anchors the file browser there. When ``load_existing`` is set, loads the
+        project's saved calibration (migrating a legacy file from the project
+        root into the files subfolder when found) and adopts its board/grid
+        settings.
+
+        @param project_dir    Folder to activate.
+        @param load_existing  Whether to load a saved calibration from it.
+        """
         project_dir = project_dir.resolve()
         self._ensure_project_directories(project_dir)
         calibration_path = project_dir / PROJECT_FILES_DIRNAME / CURRENT_CALIBRATION_FILENAME
@@ -375,6 +420,7 @@ class MainWindow(QMainWindow):
         self._update_calibration_preview(force=True)
 
     def _on_runtime_tuning_changed(self, tuning_obj: object) -> None:
+        """Adopt new runtime tuning: preview timer rate and detection interval."""
         if not isinstance(tuning_obj, RuntimeTuning):
             return
         self._runtime_tuning = tuning_obj
@@ -383,6 +429,7 @@ class MainWindow(QMainWindow):
         self._update_calibration_preview(force=True)
 
     def _start_initial_camera_probe(self) -> None:
+        """Kick off the startup webcam scan (shortly after the window shows)."""
         if self._camera_probe_worker is not None:
             return
         probe_max = 10
@@ -395,6 +442,7 @@ class MainWindow(QMainWindow):
         self._on_probe_cameras(probe_max)
 
     def _stop_camera_probe_worker(self) -> None:
+        """Stop a running camera probe (terminating it as a last resort)."""
         if self._camera_probe_worker is None:
             return
         self._camera_probe_worker.stop()
@@ -406,6 +454,7 @@ class MainWindow(QMainWindow):
         self._calibration_panel.set_camera_probe_running(False)
 
     def _on_probe_cameras(self, max_index: int) -> None:
+        """Scan webcam indices 0..max_index on a background worker."""
         self._stop_camera_probe_worker()
         worker = CameraProbeWorker(max_index=max_index)
         worker.result_ready.connect(self._on_camera_probe_result)
@@ -418,6 +467,8 @@ class MainWindow(QMainWindow):
         self._set_status(f"Camera's zoeken 0..{max_index} ...")
 
     def _on_camera_probe_result(self, payload: object) -> None:
+        """Adopt the probe results and, when cameras were found, open them all
+        and start the live view."""
         self._calibration_panel.set_camera_probe_running(False)
         cameras = payload if isinstance(payload, list) else []
         results: list[CameraProbeResult] = []
@@ -449,10 +500,13 @@ class MainWindow(QMainWindow):
         self._on_start_live(sources, self._calibration_panel.target_fps())
 
     def _on_camera_probe_finished(self) -> None:
+        """Release the probe worker reference when its thread ends."""
         self._calibration_panel.set_camera_probe_running(False)
         self._camera_probe_worker = None
 
     def _seed_startup_source_slots(self) -> None:
+        """Populate the source list at startup: the panel's configured sources,
+        or the first detected webcam as a fallback."""
         try:
             sources = self._calibration_panel.current_sources()
         except ValueError:
@@ -470,6 +524,8 @@ class MainWindow(QMainWindow):
         self._refresh_calibration_panel(force=True)
 
     def _load_existing_calibration(self) -> None:
+        """Load the saved current-calibration file (if any) at startup and
+        adopt its board/grid settings."""
         bundle = self._calibration_repo.load(self._calibration_path)
         if bundle is not None:
             self._apply_board_settings_from_bundle_metadata(bundle)
@@ -479,11 +535,15 @@ class MainWindow(QMainWindow):
             self._set_status(f"Kalibratie geladen: {self._calibration_path.name}")
 
     def _set_current_calibration_bundle(self, bundle: CalibrationBundle | None) -> None:
+        """Make ``bundle`` the active calibration and refresh the panel."""
         self._current_calibration_bundle = bundle
         self._calibration_loaded = bundle is not None
         self._refresh_calibration_panel(force=True)
 
     def _board_settings_from_metadata(self, metadata: dict[str, Any]) -> CalibrationBoardSettings | None:
+        """Reconstruct board settings from bundle metadata (current
+        ``calibration_board`` block or the legacy flat keys); ``None`` when the
+        metadata is unusable."""
         try:
             board = metadata.get("calibration_board")
             if isinstance(board, dict):
@@ -540,6 +600,7 @@ class MainWindow(QMainWindow):
             return None
 
     def _apply_board_settings_from_bundle_metadata(self, bundle: CalibrationBundle) -> None:
+        """Adopt the board settings a loaded bundle was calibrated with."""
         settings = self._board_settings_from_metadata(bundle.metadata)
         if settings is None:
             return
@@ -551,6 +612,7 @@ class MainWindow(QMainWindow):
         )
 
     def _apply_spatial_grid_from_bundle_metadata(self, bundle: CalibrationBundle) -> None:
+        """Adopt the coverage-grid shape a loaded bundle was captured with."""
         try:
             spatial = bundle.metadata.get("spatial_coverage")
             if not isinstance(spatial, dict):
@@ -566,12 +628,15 @@ class MainWindow(QMainWindow):
         self._calibration_panel.set_spatial_grid_values(cols, rows)
 
     def _set_status(self, message: str) -> None:
+        """Show ``message`` in the status bar."""
         self.statusBar().showMessage(message)
 
     def _show_warning(self, message: str) -> None:
+        """Show a modal warning box."""
         QMessageBox.warning(self, "Camera Calibration", message)
 
     def _show_error(self, message: str) -> None:
+        """Log, show a modal error box and put the message in the status bar."""
         LOGGER.error(message)
         QMessageBox.critical(self, "Camera Calibration", message)
         self._set_status(message)
@@ -583,6 +648,8 @@ class MainWindow(QMainWindow):
             navigator(destination)
 
     def _refresh_live_status(self, force: bool = False) -> None:
+        """Push the live state and camera count to the panel (throttled to
+        twice per second unless ``force``)."""
         now = time.perf_counter()
         if not force and now - self._last_live_status_refresh_at < 0.5:
             return
@@ -594,6 +661,7 @@ class MainWindow(QMainWindow):
         self._last_live_status_refresh_at = now
 
     def _active_source_ids(self) -> list[str]:
+        """Ids of the cameras in play, in stable configured order."""
         # Always prefer the configured source order so tiles keep a stable grid
         # position; falling back to sorted frame keys would reorder tiles.
         if self._active_sources:
@@ -609,6 +677,8 @@ class MainWindow(QMainWindow):
         return []
 
     def _on_panel_sources_changed(self, sources_obj: object) -> None:
+        """React to camera add/remove/rename: restart live with the new set
+        when running, otherwise prune state for removed sources."""
         sources = [source for source in sources_obj if isinstance(source, CameraSourceConfig)] if isinstance(sources_obj, list) else []
         live_active = self._live_worker is not None and self._live_worker.isRunning()
         if live_active:
@@ -645,6 +715,8 @@ class MainWindow(QMainWindow):
         self._refresh_calibration_panel(force=True)
 
     def _refresh_calibration_panel(self, force: bool = False) -> None:
+        """Push sources, sample counts, status table, warnings and the
+        auto-capture status to the panel (throttled unless ``force``)."""
         now = time.perf_counter()
         if not force and now - self._last_calibration_panel_refresh_at < self._calibration_panel_refresh_interval_sec:
             return
@@ -714,6 +786,7 @@ class MainWindow(QMainWindow):
         self._last_calibration_panel_refresh_at = now
 
     def _calibration_workflow_mode(self) -> str:
+        """The panel's active capture mode: ``"intrinsics"`` or ``"sync_extrinsics"``."""
         return self._calibration_panel.current_workflow_mode()
 
     def _load_threshold_controls(self) -> None:
@@ -727,6 +800,8 @@ class MainWindow(QMainWindow):
         )
 
     def _auto_capture_idle_text(self) -> str:
+        """Status line shown while auto-capture is armed: mode-specific
+        instructions plus per-camera progress and connectivity hints."""
         limit = self._calibration_panel.auto_capture_max_samples()
         limit_text = f" Max {limit}." if limit > 0 else ""
         collection = self._calibration_manager.sample_collection_metadata()
@@ -774,6 +849,7 @@ class MainWindow(QMainWindow):
         )
 
     def _format_duration_sec(self, duration_sec: float) -> str:
+        """Format seconds as ``m:ss`` (or ``h:mm:ss`` from an hour up)."""
         total_sec = max(0, int(round(duration_sec)))
         minutes, seconds = divmod(total_sec, 60)
         hours, minutes = divmod(minutes, 60)
@@ -823,6 +899,12 @@ class MainWindow(QMainWindow):
         return self._calibration_manager.observations_summary(include_sync_only=False)
 
     def _auto_capture_stop_message_if_limit_reached(self) -> str | None:
+        """Completion message when the auto-capture goal is met, else ``None``.
+
+        Intrinsics mode completes when every camera's coverage grid is full;
+        sync mode when every camera reached the per-camera set quota *and* is
+        connected to the reference camera.
+        """
         limit = self._calibration_panel.auto_capture_max_samples()
         if limit <= 0:
             return None
@@ -867,6 +949,11 @@ class MainWindow(QMainWindow):
         return None
 
     def _stop_auto_capture_if_limit_reached(self) -> bool:
+        """Disarm auto-capture when its goal is met and, in the automatic
+        chain, advance to the next stage (solve and/or extrinsics capture).
+
+        @return ``True`` when auto-capture was stopped.
+        """
         message = self._auto_capture_stop_message_if_limit_reached()
         if message is None:
             return False
@@ -963,6 +1050,8 @@ class MainWindow(QMainWindow):
             self._set_status("Intrinsics compleet — automatisch overgeschakeld naar Extrinsics.")
 
     def _auto_capture_intrinsics_candidates(self, source_ids: list[str]) -> list[str]:
+        """The sources whose coverage grid is not yet complete (auto-capture
+        skips cameras that are already done)."""
         limit = self._calibration_panel.auto_capture_max_samples()
         if limit <= 0 or self._calibration_workflow_mode() != "intrinsics":
             return list(source_ids)
@@ -973,6 +1062,8 @@ class MainWindow(QMainWindow):
         ]
 
     def _source_spatial_grid_complete(self, source_id: str) -> bool:
+        """Whether every coverage-grid cell of this camera reached the
+        per-cell sample target (always ``False`` with an unlimited budget)."""
         if self._calibration_panel.auto_capture_max_samples() <= 0:
             return False
         target = self._spatial_target_samples_per_cell()
@@ -994,6 +1085,14 @@ class MainWindow(QMainWindow):
         return True
 
     def _update_calibration_preview(self, force: bool = False) -> None:
+        """Central preview pump: refresh the camera tiles and schedule detection.
+
+        Called on every frame batch and display tick. Submits a detection job
+        when one is due, then routes display preparation along one of three
+        paths: inline on the UI thread (few cameras, Qt overlay), via the
+        preview-render worker (many cameras), or the legacy path that bakes the
+        overlay into the frame with OpenCV.
+        """
         if not self._latest_frames:
             return
         now = time.perf_counter()
@@ -1165,6 +1264,7 @@ class MainWindow(QMainWindow):
         )
 
     def _uses_qt_preview_overlay(self) -> bool:
+        """Whether the panel draws the overlay itself in Qt (vs. cv2-baked)."""
         flag = getattr(self._calibration_panel, "uses_qt_preview_overlay", None)
         return bool(flag()) if callable(flag) else False
 
@@ -1175,6 +1275,8 @@ class MainWindow(QMainWindow):
         sample_counts: dict[str, int],
         overlay_states: dict[str, dict[str, Any]] | None = None,
     ) -> None:
+        """Hand display frames, detections and overlay state to the panel,
+        mapping detections to display space first."""
         detections = self._display_detections(detections)
         if overlay_states is not None and self._uses_qt_preview_overlay():
             self._calibration_panel.update_previews(preview_frames, detections, sample_counts, overlay_states)
@@ -1201,6 +1303,9 @@ class MainWindow(QMainWindow):
         source_id: str,
         detection: ChessboardDetectionResult,
     ) -> ChessboardDetectionResult:
+        """Move a raw-space detection's corners/bbox/centre to their
+        undistorted positions when this source displays undistorted; returns
+        the detection unchanged otherwise."""
         if detection is None or detection.corners is None or not detection.found:
             return detection
         if not self._calibration_panel.undistort_enabled_for(source_id):
@@ -1253,6 +1358,8 @@ class MainWindow(QMainWindow):
         sample_counts: dict[str, int],
         accepted_by_source: dict[str, bool | None] | None = None,
     ) -> dict[str, dict[str, Any]]:
+        """Per-tile overlay state for the Qt overlay, cached across frames
+        (see the inline comment for the caching rationale)."""
         # The overlay state only depends on the detection found-flag, sample
         # counts, grid/target and per-tile flags - not on the (per-frame changing)
         # corner positions, which reach the canvas via the detection object. So it
@@ -1275,6 +1382,7 @@ class MainWindow(QMainWindow):
         detections: dict[str, ChessboardDetectionResult],
         sample_counts: dict[str, int],
     ) -> tuple[Any, ...]:
+        """Cache key for the overlay states: everything they depend on."""
         # Per-tile connectivity tint depends on the reference (first active source)
         # and the synchronized-set graph, neither of which is fully captured by the
         # raw counts above (e.g. the reference can change without a count change), so
@@ -1310,6 +1418,8 @@ class MainWindow(QMainWindow):
         sample_counts: dict[str, int],
         accepted_by_source: dict[str, bool | None] | None = None,
     ) -> dict[str, dict[str, Any]]:
+        """Build the per-tile overlay state dicts: coverage-grid counts, flags,
+        sample counts and (in extrinsics mode) reference connectivity."""
         accepted_by_source = accepted_by_source or {}
         target = self._spatial_target_samples_per_cell()
         extrinsics_mode = self._calibration_workflow_mode() == "sync_extrinsics"
@@ -1355,6 +1465,7 @@ class MainWindow(QMainWindow):
         return states
 
     def _prepare_calibration_preview_frame(self, source_id: str, frame_bgr: Any) -> Any:
+        """Apply display undistortion when enabled for this source."""
         if not self._calibration_panel.undistort_enabled_for(source_id):
             return frame_bgr
         return self._calibration_manager.undistort_frame(
@@ -1364,11 +1475,13 @@ class MainWindow(QMainWindow):
         )
 
     def _display_calibration_preview_frame(self, source_id: str, frame_bgr: Any) -> Any:
+        """Apply the horizontal display mirror when enabled for this source."""
         if not self._calibration_panel.mirror_preview_enabled_for(source_id):
             return frame_bgr
         return cv2.flip(frame_bgr, 1)
 
     def _overlay_scale(self) -> float:
+        """The configured overlay scale factor (>= 0.1, default 1.0)."""
         try:
             return max(0.1, float(getattr(self._config, "overlay_scale", 1.0)))
         except (TypeError, ValueError):
@@ -1393,6 +1506,8 @@ class MainWindow(QMainWindow):
         detections: dict[str, ChessboardDetectionResult],
         overlay_baked: bool,
     ) -> dict[str, Any]:
+        """Mirror/downscale frames for display, leaving overlay-baked frames
+        untouched (they were already prepared in display space)."""
         finalized: dict[str, Any] = {}
         for source_id, frame_bgr in frames_by_source.items():
             if overlay_baked and self._calibration_panel.overlay_enabled_for(source_id) and source_id in detections:
@@ -1410,6 +1525,7 @@ class MainWindow(QMainWindow):
         sample_count: int | None = None,
         accepted: bool | None = None,
     ) -> Any:
+        """Legacy path: bake the detection overlay onto a display-ready frame."""
         mirror_preview = self._calibration_panel.mirror_preview_enabled_for(source_id)
         display_frame = self._downscale_for_display(
             self._display_calibration_preview_frame(source_id, frame_bgr)
@@ -1438,6 +1554,8 @@ class MainWindow(QMainWindow):
         accepted: bool | None = None,
         mirror_preview: bool = False,
     ) -> Any:
+        """Blend the overlay layer onto the frame, rebuilding the (expensive)
+        layer only when its cache key changed."""
         key = self._calibration_overlay_cache_key(
             display_frame_bgr=display_frame_bgr,
             detection=detection,
@@ -1468,6 +1586,8 @@ class MainWindow(QMainWindow):
         accepted: bool | None,
         mirror_preview: bool,
     ) -> tuple[Any, ...]:
+        """Cache key for the baked overlay layer (frame size, detection
+        signature, counts, flags and overlay settings)."""
         height, width = display_frame_bgr.shape[:2]
         corners_sig: tuple[float, ...] = ()
         if detection.corners is not None:
@@ -1505,6 +1625,11 @@ class MainWindow(QMainWindow):
         accepted: bool | None,
         mirror_preview: bool,
     ) -> tuple[Any, Any]:
+        """Draw the overlay on a black canvas and derive its alpha mask.
+
+        @return ``(overlay_bgr, alpha)`` where the overlay may be taller than
+                the frame (header band) and alpha is 0..1 per pixel.
+        """
         blank = np.zeros_like(display_frame_bgr)
         overlay_bgr = self._calibration_manager.draw_detection_overlay(
             blank,
@@ -1527,6 +1652,8 @@ class MainWindow(QMainWindow):
         return overlay_bgr, np.clip(alpha, 0.0, 1.0)
 
     def _blend_calibration_overlay(self, display_frame_bgr: Any, overlay_bgr: Any, alpha: Any) -> Any:
+        """Alpha-blend the cached overlay layer over the frame, leaving room
+        for the overlay's header band above the image."""
         height, width = display_frame_bgr.shape[:2]
         band_height = max(0, int(overlay_bgr.shape[0] - height))
         if overlay_bgr.shape[1] != width or overlay_bgr.shape[0] < height:
@@ -1545,6 +1672,8 @@ class MainWindow(QMainWindow):
         display_frame_bgr: Any,
         mirror_preview: bool,
     ) -> ChessboardDetectionResult:
+        """Map a raw-space detection to display space: undistort (when shown
+        undistorted), mirror, then scale to the display frame size."""
         # Detection corners live in raw pixel space; move them to the undistorted
         # preview positions first when that source displays undistorted.
         detection = self._undistort_detection_for_display(detection.source_id, detection)
@@ -1567,6 +1696,7 @@ class MainWindow(QMainWindow):
         detection: ChessboardDetectionResult,
         target_size: tuple[int, int],
     ) -> ChessboardDetectionResult:
+        """Scale a detection's corners/bbox/centre to ``target_size`` pixels."""
         source_width, source_height = detection.image_size
         target_width, target_height = target_size
         if source_width <= 0 or source_height <= 0 or target_width <= 0 or target_height <= 0:
@@ -1616,6 +1746,8 @@ class MainWindow(QMainWindow):
         )
 
     def _spatial_target_samples_per_cell(self) -> int:
+        """Sample target per coverage cell: the max-samples budget spread over
+        the grid (rounded up), or 3 when the budget is unlimited."""
         max_samples = self._calibration_panel.auto_capture_max_samples()
         cols, rows = self._calibration_manager.spatial_grid_shape
         total_cells = max(1, int(cols) * int(rows))
@@ -1628,6 +1760,8 @@ class MainWindow(QMainWindow):
         source_id: str,
         detection: ChessboardDetectionResult,
     ) -> bool:
+        """Whether this detection would credit at least one grid cell that is
+        still under target (used to skip redundant auto-captures)."""
         if self._calibration_panel.auto_capture_max_samples() <= 0:
             return True
         if not detection.found or detection.corners is None:
@@ -1651,6 +1785,7 @@ class MainWindow(QMainWindow):
             return True
 
     def _detection_spatial_cells(self, detection: ChessboardDetectionResult) -> set[tuple[int, int]]:
+        """Grid cells a detection touches (corners, bbox corners and centre)."""
         cells: set[tuple[int, int]] = set()
         if detection.corners is None:
             return cells
@@ -1705,6 +1840,7 @@ class MainWindow(QMainWindow):
         y_px: float,
         image_size: tuple[int, int],
     ) -> tuple[int, int]:
+        """Map a pixel position to its (row, col) coverage-grid cell."""
         width, height = image_size
         cols, rows = self._calibration_manager.spatial_grid_shape
         safe_width = max(float(width), 1.0)
@@ -1718,6 +1854,8 @@ class MainWindow(QMainWindow):
         detection: ChessboardDetectionResult,
         frame_bgr: Any,
     ) -> ChessboardDetectionResult:
+        """Flip a detection's corners/bbox/centre horizontally to match a
+        mirrored preview frame."""
         try:
             width = int(frame_bgr.shape[1])
         except (AttributeError, IndexError, TypeError):
@@ -1765,6 +1903,13 @@ class MainWindow(QMainWindow):
         sources: list[CameraSourceConfig],
         target_fps: float,
     ) -> None:
+        """(Re)start live capture for ``sources``: stop the previous session,
+        reset per-session state and launch a new capture worker.
+
+        @param sources     Cameras/videos to open.
+        @param target_fps  Fallback FPS when the runtime tuning has none.
+        """
+        # Restarting must not cancel a running automatic calibration chain.
         self._on_stop_live(cancel_calibration=False)
         self._stop_camera_probe_worker()
         self._on_runtime_tuning_changed(self._calibration_panel.runtime_tuning())
@@ -1804,6 +1949,7 @@ class MainWindow(QMainWindow):
         )
 
     def _preview_resolution_status_text(self) -> str:
+        """Human-readable preview box size for the status bar (e.g. ``640x480``)."""
         width = int(getattr(self._runtime_tuning, "preview_max_width", 0) or 0)
         height = int(getattr(self._runtime_tuning, "preview_max_height", 0) or 0)
         if width <= 0 and height <= 0:
@@ -1815,6 +1961,7 @@ class MainWindow(QMainWindow):
         return f"{width}x{height}"
 
     def _on_live_state_changed(self, state: str) -> None:
+        """Translate capture-worker lifecycle markers into status-bar text."""
         self._refresh_live_status(force=True)
         if state == "live_started":
             self._set_status("Live weergave gestart")
@@ -1824,6 +1971,8 @@ class MainWindow(QMainWindow):
             self._set_status(state)
 
     def _on_live_finished(self, worker: "LiveCaptureWorker | None" = None) -> None:
+        """Clean up when a capture worker's thread ends (stale signals from a
+        replaced worker are ignored; see the inline comment)."""
         # A restart launches a new worker before the old one's finished signal is
         # delivered (it is queued onto the UI thread). If a different worker is now
         # the active one, this is that stale signal and must not tear down the fresh
@@ -1843,6 +1992,13 @@ class MainWindow(QMainWindow):
             self._finish_auto_calibration_chain()
 
     def _on_stop_live(self, cancel_calibration: bool = True) -> None:
+        """Stop live capture: finalize any recording, stop the worker and clear
+        the per-session preview/detection state.
+
+        @param cancel_calibration  When ``True`` (default), also end a running
+                                   automatic calibration chain; a live restart
+                                   passes ``False`` to keep the chain going.
+        """
         self._finalize_recording()
         if self._live_worker is None:
             self._refresh_live_status(force=True)
@@ -1872,9 +2028,12 @@ class MainWindow(QMainWindow):
         self._set_status("Live weergave gestopt")
 
     def _default_recordings_base_dir(self) -> Path:
+        """Default recording folder, scoped to the active project when present."""
         return self._project_videos_dir()
 
     def _choose_recording_base_dir(self) -> Path | None:
+        """Ask the user where to store the recording (defaulting to the last
+        chosen folder or the project videos dir); ``None`` when cancelled."""
         default = self._last_recording_dir or self._default_recordings_base_dir()
         try:
             default.mkdir(parents=True, exist_ok=True)
@@ -1895,6 +2054,8 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _next_recording_output_dir(base_dir: Path, timestamp: str) -> Path:
+        """A non-existing ``rec_<timestamp>`` folder under ``base_dir``,
+        appending a numeric suffix when the timestamped name is taken."""
         candidate = base_dir / f"rec_{timestamp}"
         suffix = 2
         while candidate.exists():
@@ -1903,6 +2064,8 @@ class MainWindow(QMainWindow):
         return candidate
 
     def _on_record_toggled(self, enabled: bool) -> None:
+        """Start or stop recording the live capture to per-camera clips in a
+        timestamped folder under the recordings directory."""
         if not enabled:
             self._finalize_recording()
             return
@@ -1937,6 +2100,9 @@ class MainWindow(QMainWindow):
         self._set_status(f"Opname gestart: {output_dir}")
 
     def _finalize_recording(self) -> None:
+        """Stop and close the active recording; when the measured frame rate
+        drifted, re-encode the clips on a background worker before showing the
+        keep/rename/delete dialog."""
         recorder = self._video_recorder
         self._video_recorder = None
         if recorder is None:
@@ -1982,12 +2148,14 @@ class MainWindow(QMainWindow):
     def _on_recording_finalized(
         self, output_dir: Path, written: dict[str, Path], total_frames: int
     ) -> None:
+        """Show the recording-result dialog once the re-encode finished."""
         self._recording_finalize_worker = None
         self._handle_recording_result(output_dir, written, total_frames)
 
     def _on_recording_finalize_error(
         self, message: str, output_dir: Path, written: dict[str, Path], total_frames: int
     ) -> None:
+        """Still offer the (uncorrected) clips when the re-encode failed."""
         self._recording_finalize_worker = None
         LOGGER.error("Recording frame-rate correction failed: %s", message)
         # The (uncorrected) clips still exist, so let the user keep/rename/delete
@@ -1995,6 +2163,7 @@ class MainWindow(QMainWindow):
         self._handle_recording_result(output_dir, written, total_frames)
 
     def _handle_recording_result(self, output_dir: Path, written: dict[str, Path], total_frames: int) -> None:
+        """Offer keep/rename/delete for a finished recording and report the outcome."""
         files_text = ", ".join(path.name for path in written.values())
         box = QMessageBox(self)
         box.setWindowTitle("Opname voltooid")
@@ -2021,6 +2190,10 @@ class MainWindow(QMainWindow):
         self._prompt_open_recording_folder(output_dir)
 
     def _rename_recording(self, output_dir: Path) -> Path | None:
+        """Let the user rename the recording folder.
+
+        @return The new path, or ``None`` when cancelled/invalid/failed.
+        """
         new_name, accepted = QInputDialog.getText(
             self,
             "Naam aanpassen",
@@ -2044,6 +2217,7 @@ class MainWindow(QMainWindow):
         return renamed
 
     def _delete_recording(self, output_dir: Path) -> None:
+        """Delete the recording folder after an explicit confirmation."""
         confirm = QMessageBox.question(
             self,
             "Opname verwijderen",
@@ -2064,6 +2238,7 @@ class MainWindow(QMainWindow):
         self._set_status("Opname verwijderd.")
 
     def _prompt_open_recording_folder(self, folder: Path) -> None:
+        """Offer to open the recording folder in the system file browser."""
         reply = QMessageBox.question(
             self,
             "Video opgeslagen",
@@ -2075,6 +2250,8 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def _on_frame_batch(self, batch_obj: object) -> None:
+        """Adopt a new frame batch from the capture worker (out-of-order
+        batches are dropped) and refresh the preview immediately."""
         frames = dict(batch_obj)  # type: ignore[arg-type]
         if not frames:
             return
@@ -2120,6 +2297,8 @@ class MainWindow(QMainWindow):
         self._show_resolution_mismatch_dialog(sizes)
 
     def _show_resolution_mismatch_dialog(self, sizes: dict[str, tuple[int, int]]) -> None:
+        """Explain the mixed resolutions and offer to set every camera to the
+        smallest delivered size (restarts live when accepted)."""
         target_w, target_h = min(sizes.values(), key=lambda size: size[0] * size[1])
         detail = ", ".join(
             f"{source_id}={width}x{height}" for source_id, (width, height) in sorted(sizes.items())
@@ -2146,6 +2325,8 @@ class MainWindow(QMainWindow):
             self._apply_uniform_capture_resolution(target_w, target_h)
 
     def _apply_uniform_capture_resolution(self, width: int, height: int) -> None:
+        """Force the capture resolution on the panel and restart live so it
+        takes effect on every camera."""
         setter = getattr(self._calibration_panel, "force_capture_resolution", None)
         if not callable(setter):
             return
@@ -2186,6 +2367,7 @@ class MainWindow(QMainWindow):
                 setter(self._fps_meter_value)
 
     def _reset_measured_fps(self) -> None:
+        """Clear the FPS meter (on live start/stop) and blank the diagnostics value."""
         self._fps_meter_last_ts = 0.0
         self._fps_meter_value = 0.0
         self._fps_meter_last_push = 0.0
@@ -2194,6 +2376,7 @@ class MainWindow(QMainWindow):
             setter(None)
 
     def _set_dropped_frames(self, count: int) -> None:
+        """Show the number of dropped capture frames on the diagnostics page."""
         setter = getattr(self._calibration_panel, "set_dropped_frames", None)
         if callable(setter):
             setter(count)
@@ -2205,6 +2388,8 @@ class MainWindow(QMainWindow):
         detection: ChessboardDetectionResult,
         accepted: bool | None = None,
     ) -> Any:
+        """Build one display-ready preview frame (undistort/mirror/downscale),
+        baking the overlay in on the legacy path."""
         preview = self._prepare_calibration_preview_frame(source_id, frame_bgr)
         if not self._calibration_panel.overlay_enabled_for(source_id) or self._uses_qt_preview_overlay():
             return self._downscale_for_display(self._display_calibration_preview_frame(source_id, preview))
@@ -2221,6 +2406,8 @@ class MainWindow(QMainWindow):
         self,
         frames: dict[str, FramePacket],
     ) -> dict[str, Any]:
+        """Timing metadata for a synchronized capture: per-camera timestamps,
+        the measured skew between cameras and the allowed limits."""
         source_timestamps: dict[str, float] = {}
         capture_started: dict[str, float] = {}
         capture_completed: dict[str, float] = {}
@@ -2261,6 +2448,11 @@ class MainWindow(QMainWindow):
         frames: dict[str, FramePacket],
         auto_trigger: bool,
     ) -> tuple[bool, dict[str, Any]]:
+        """Gate a synchronized capture on timing: reject mixed batches and
+        excessive timestamp skew, warn (throttled) on moderate skew.
+
+        @return ``(ok, metadata)`` — the metadata is stored with the set.
+        """
         metadata = self._sync_capture_timing_metadata(frames)
         skew_ms = float(metadata.get("timestamp_skew_ms") or 0.0)
         batch_ids = metadata.get("batch_ids", [])
@@ -2313,6 +2505,11 @@ class MainWindow(QMainWindow):
         sync_metadata: dict[str, Any] | None = None,
         frames: dict[str, FramePacket] | None = None,
     ) -> bool:
+        """Show the outcome of a capture attempt: update previews/status and
+        report accepted samples (manual capture also flashes the frames).
+
+        @return ``True`` when at least one sample was accepted.
+        """
         active_frames = frames if frames is not None else self._latest_frames
         feedback_messages: list[str] = []
         accepted_total = 0
@@ -2404,6 +2601,17 @@ class MainWindow(QMainWindow):
         detections: dict[str, ChessboardDetectionResult] | None = None,
         frames: dict[str, FramePacket] | None = None,
     ) -> bool:
+        """Try to store calibration samples from the current (or given) frames.
+
+        Validates mode-specific preconditions (camera count, sync timing),
+        filters auto-capture candidates on coverage, then hands the detections
+        (or raw frames) to the calibration manager and reports the feedback.
+
+        @param auto_trigger  ``True`` for the continuous auto-capture path.
+        @param detections    Precomputed detections from the worker, if any.
+        @param frames        The frame snapshot the detections belong to.
+        @return              ``True`` when at least one sample was stored.
+        """
         # When detection runs on the background worker, ``frames`` is the exact
         # snapshot the detection was computed on so the stored corners and the
         # capture frames belong to the same instant. Manual capture falls back
@@ -2503,6 +2711,11 @@ class MainWindow(QMainWindow):
         detections: dict[str, ChessboardDetectionResult],
         frames: dict[str, FramePacket] | None = None,
     ) -> bool:
+        """Auto-capture tick, driven by each detection result: store samples
+        when armed, respecting solve locks, the cooldown and the sample goal.
+
+        @return ``True`` when samples were captured this tick.
+        """
         # The extrinsics solve reads the capture sets, so never capture while it runs.
         if self._extrinsics_solve_worker is not None:
             return False
@@ -2526,6 +2739,7 @@ class MainWindow(QMainWindow):
         return captured
 
     def _on_capture_calibration(self) -> None:
+        """Manual capture button: store samples from the latest frames."""
         # Sync/extrinsics capture is allowed during the intrinsics solve (they are
         # independent); only intrinsics capture waits for the solve to finish.
         if self._intrinsics_solve_worker is not None and self._calibration_workflow_mode() != "sync_extrinsics":
@@ -2538,6 +2752,8 @@ class MainWindow(QMainWindow):
         self._capture_calibration_samples(auto_trigger=False, detections=detections)
 
     def _on_start_auto_capture_from_preview(self) -> None:
+        """Arm auto-capture (preview button), unless a blocking solve runs,
+        no frames exist or the goal is already met."""
         if self._intrinsics_solve_worker is not None and self._calibration_workflow_mode() != "sync_extrinsics":
             self._calibration_panel.show_feedback(
                 "Wait for the intrinsics solve to finish before starting intrinsics auto capture.",
@@ -2561,6 +2777,7 @@ class MainWindow(QMainWindow):
         self._update_calibration_preview(force=True)
 
     def _on_solve_calibration(self) -> None:
+        """Start the intrinsics solve on a background worker (one at a time)."""
         if self._intrinsics_solve_worker is not None:
             self._calibration_panel.show_feedback("Intrinsics berekenen is al bezig.", success=False)
             return
@@ -2584,6 +2801,8 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _on_intrinsics_solve_result(self, bundle_obj: object) -> None:
+        """Adopt and save the solved intrinsics bundle and report the outcome
+        (single-camera rigs jump straight to the results page)."""
         if not isinstance(bundle_obj, CalibrationBundle):
             self._on_intrinsics_solve_error("Intrinsics solve returned an unexpected result.")
             return
@@ -2615,15 +2834,19 @@ class MainWindow(QMainWindow):
             self._auto_navigate("results")
 
     def _on_intrinsics_solve_error(self, message: str) -> None:
+        """Report a failed intrinsics solve and mark the result as unusable."""
         LOGGER.error("Intrinsics solve error: %s", message)
         self._calibration_panel.show_feedback(f"Intrinsics berekenen mislukt: {message}", success=False)
         self._set_status(f"Intrinsics berekenen mislukt: {message}")
         self._last_intrinsics_solve_ok = False
 
     def _on_intrinsics_solve_progress(self, done: int, total: int) -> None:
+        """Forward intrinsics solve progress to the panel."""
         self._calibration_panel.set_solve_progress("intrinsics", done, total)
 
     def _on_intrinsics_solve_finished(self) -> None:
+        """Tear down the intrinsics worker, record the solve duration and
+        advance the automatic chain when it is active."""
         worker = self._intrinsics_solve_worker
         self._intrinsics_solve_worker = None
         if self._intrinsics_solve_started_at is not None:
@@ -2640,6 +2863,9 @@ class MainWindow(QMainWindow):
             self._advance_auto_chain_after_intrinsics()
 
     def _advance_auto_chain_after_intrinsics(self) -> None:
+        """Continue the automatic chain after the intrinsics solve: stop on
+        failure, finish for single-camera rigs, run a deferred extrinsics
+        solve, or let the parallel extrinsics capture continue."""
         # The chain already switched to extrinsics capture in parallel while this
         # solve ran, so here we only react to its outcome.
         if not self._last_intrinsics_solve_ok:
@@ -2746,6 +2972,8 @@ class MainWindow(QMainWindow):
         return True
 
     def _on_extrinsics_solve_result(self, bundle_obj: object) -> None:
+        """Adopt and save the solved extrinsics bundle, report the outcome and
+        jump to the results page on success."""
         if not isinstance(bundle_obj, CalibrationBundle):
             self._on_extrinsics_solve_error("Extrinsics solve returned an unexpected result.")
             return
@@ -2778,14 +3006,18 @@ class MainWindow(QMainWindow):
             self._auto_navigate("results")
 
     def _on_extrinsics_solve_error(self, message: str) -> None:
+        """Report a failed extrinsics solve."""
         LOGGER.error("Extrinsics solve error: %s", message)
         self._calibration_panel.show_feedback(f"Extrinsics berekenen mislukt: {message}", success=False)
         self._set_status(f"Extrinsics berekenen mislukt: {message}")
 
     def _on_extrinsics_solve_progress(self, done: int, total: int) -> None:
+        """Forward extrinsics solve progress to the panel."""
         self._calibration_panel.set_solve_progress("extrinsics", done, total)
 
     def _on_extrinsics_solve_finished(self) -> None:
+        """Tear down the extrinsics worker, record the solve duration and
+        close the automatic chain (extrinsics is its final step)."""
         worker = self._extrinsics_solve_worker
         self._extrinsics_solve_worker = None
         if self._extrinsics_solve_started_at is not None:
@@ -2803,6 +3035,7 @@ class MainWindow(QMainWindow):
             self._finish_auto_calibration_chain()
 
     def _on_reset_calibration_samples(self) -> None:
+        """Clear all captured samples and stop the running calibration."""
         self._calibration_manager.reset()
         self._latest_calibration_detections.clear()
         # Reset also stops the running calibration: tear down the auto chain and
@@ -2840,6 +3073,7 @@ class MainWindow(QMainWindow):
         return text, None, True
 
     def _on_export_preview(self, fmt: str) -> None:
+        """Show the JSON/TOML export text in the panel's preview pane."""
         fmt = (fmt or "toml").lower().strip()
         text, message, _usable = self._build_export_text(fmt)
         if text is None:
@@ -2853,6 +3087,7 @@ class MainWindow(QMainWindow):
         self._set_status(f"Calibration preview ({fmt.upper()})")
 
     def _on_export_calibration(self, fmt: str) -> None:
+        """Export the calibration as JSON or TOML via a save-file dialog."""
         fmt = (fmt or "toml").lower().strip()
         text, message, usable = self._build_export_text(fmt)
         if text is None:
@@ -2892,9 +3127,14 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _sanitize_project_name(name: str) -> str:
+        """Strip characters Windows does not allow in folder names."""
         return "".join(char for char in name if char not in '<>:"/\\|?*').strip().rstrip(". ")
 
     def _prompt_new_project(self) -> tuple[str, Path] | None:
+        """New-project dialog: name plus parent location, with a live path preview.
+
+        @return ``(sanitized name, parent location)`` or ``None`` when cancelled.
+        """
         # Single popup where the user can both name the project and change its
         # location before starting. The project lands in <location>/<name>.
         # Returns (sanitized name, parent location) or None when cancelled.
@@ -2931,6 +3171,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(path_preview)
 
         def update_preview() -> None:
+            """Refresh the target-path preview and the Start button state."""
             cleaned = self._sanitize_project_name(name_edit.text())
             target = state["location"] / (cleaned or "Nieuw Project")
             if not cleaned:
@@ -2950,6 +3191,7 @@ class MainWindow(QMainWindow):
             start_button.setEnabled(True)
 
         def choose_location() -> None:
+            """Let the user pick a different parent folder for the project."""
             chosen = QFileDialog.getExistingDirectory(
                 dialog, "Kies een locatie voor het nieuwe project", str(state["location"])
             )
@@ -2981,6 +3223,8 @@ class MainWindow(QMainWindow):
         return cleaned, state["location"]
 
     def _on_new_project(self) -> None:
+        """Start a fresh project: create its folder, clear samples and the
+        active calibration, and anchor the file browser there."""
         if self._video_recorder is not None:
             self._show_warning("Stop eerst de actieve opname voordat je een nieuw project maakt.")
             return
@@ -3018,6 +3262,8 @@ class MainWindow(QMainWindow):
         self._auto_navigate("cameras")
 
     def _on_open_project(self, directory_obj: object) -> None:
+        """Open an existing project folder and load its saved calibration
+        (refused while a recording is active)."""
         if self._video_recorder is not None:
             self._show_warning("Stop eerst de actieve opname voordat je een ander project opent.")
             return
@@ -3039,6 +3285,7 @@ class MainWindow(QMainWindow):
         self._set_status(message)
 
     def _on_save_calibration_profile(self) -> None:
+        """Save the active calibration as a JSON profile via a file dialog."""
         bundle = self._current_calibration_bundle or self._calibration_manager.last_solution()
         if bundle is None:
             self._show_warning("No solved calibration profile available to save.")
@@ -3063,6 +3310,7 @@ class MainWindow(QMainWindow):
         self._set_status(f"Calibration profile saved: {path.name}")
 
     def _on_load_calibration_profile(self) -> None:
+        """Load a calibration profile from disk and make it active."""
         files_dir = self._project_files_dir()
         selected, _ = QFileDialog.getOpenFileName(
             self,
@@ -3090,6 +3338,8 @@ class MainWindow(QMainWindow):
         self._set_status(f"Calibration profile loaded: {path.name}")
 
     def _on_undistort_toggle_changed(self, source_id: str, enabled: bool) -> None:
+        """Refresh the preview after an undistort toggle (warns when no
+        calibration is loaded)."""
         if enabled and not self._calibration_loaded:
             self._calibration_panel.show_feedback(
                 f"{source_id}: undistort enabled but no calibration profile is loaded.",
@@ -3098,6 +3348,7 @@ class MainWindow(QMainWindow):
         self._update_calibration_preview(force=True)
 
     def _on_calibration_pattern_changed(self, pattern: str) -> None:
+        """Switch the active board pattern (chessboard/charuco)."""
         normalized = pattern.lower().strip()
         if normalized not in {"chessboard", "charuco"}:
             normalized = "chessboard"
@@ -3106,6 +3357,8 @@ class MainWindow(QMainWindow):
         self._update_calibration_preview(force=True)
 
     def _on_board_settings_applied(self, settings_obj: object) -> None:
+        """Apply new board geometry after validation and a confirmation
+        (changing it clears samples and unloads the active calibration)."""
         if not isinstance(settings_obj, CalibrationBoardSettings):
             return
         if self._intrinsics_solve_worker is not None:
@@ -3173,6 +3426,7 @@ class MainWindow(QMainWindow):
         self._update_calibration_preview(force=True)
 
     def _on_calibration_workflow_mode_changed(self, mode: str) -> None:
+        """React to an intrinsics/sync_extrinsics mode switch in the panel."""
         normalized = mode.lower().strip()
         if normalized not in {"intrinsics", "sync_extrinsics"}:
             normalized = "intrinsics"
@@ -3196,6 +3450,7 @@ class MainWindow(QMainWindow):
         extrinsics_quality: float,
         extrinsics_coverage_ratio: float,
     ) -> None:
+        """Push the four edited acceptance thresholds into the manager."""
         self._calibration_manager.set_intrinsics_acceptance_thresholds(
             min_quality_score=intrinsics_quality,
             min_coverage_ratio=intrinsics_coverage_ratio,
@@ -3215,6 +3470,7 @@ class MainWindow(QMainWindow):
         self._update_calibration_preview(force=True)
 
     def _on_spatial_grid_changed(self, cols: int, rows: int) -> None:
+        """Apply a new coverage-grid shape and report the resulting per-cell target."""
         self._calibration_manager.set_spatial_coverage_grid(cols=cols, rows=rows)
         max_samples = self._calibration_panel.auto_capture_max_samples()
         target = self._spatial_target_samples_per_cell()
@@ -3231,10 +3487,12 @@ class MainWindow(QMainWindow):
         self._update_calibration_preview(force=True)
 
     def _on_worker_error(self, message: str) -> None:
+        """Log a background-worker error and surface it in the status bar."""
         LOGGER.error("Worker error: %s", message)
         self._set_status(f"Worker error: {message}")
 
     def _on_display_tick(self) -> None:
+        """Display-timer tick: refresh the preview."""
         self._update_calibration_preview()
 
     def _apply_saved_advanced_settings(self) -> None:
@@ -3263,6 +3521,8 @@ class MainWindow(QMainWindow):
         self._load_threshold_controls()
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        """Refuse to close while a solve runs; otherwise stop all workers,
+        wait for a pending re-encode and persist the advanced settings."""
         if self._intrinsics_solve_worker is not None and self._intrinsics_solve_worker.isRunning():
             QMessageBox.information(
                 self,

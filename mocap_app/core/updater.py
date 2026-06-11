@@ -62,11 +62,15 @@ def _make_manager():
 class _CheckWorker(QThread):
     """Polls the release feed for a newer version (blocking call, off-thread)."""
 
-    update_found = Signal(object)  # emits a velopack UpdateInfo
+    ## Emitted with the velopack ``UpdateInfo`` when a newer version exists.
+    update_found = Signal(object)
+    ## Emitted when the feed was reachable but no newer version exists.
     no_update = Signal()
+    ## Emitted with an error message when the check could not complete.
     failed = Signal(str)
 
     def run(self) -> None:  # noqa: D401 - QThread entry point
+        """Query the release feed once and emit exactly one of the signals."""
         try:
             info = _make_manager().check_for_updates()
         except Exception as exc:  # network down, rate limited, no feed yet, ...
@@ -82,15 +86,20 @@ class _CheckWorker(QThread):
 class _DownloadWorker(QThread):
     """Downloads the pending update, reporting 0-100% progress."""
 
+    ## Download progress in whole percents (0-100).
     progress = Signal(int)
-    finished_ok = Signal(object)  # emits the UpdateInfo to apply
+    ## Emitted with the ``UpdateInfo`` to apply once the download completed.
+    finished_ok = Signal(object)
+    ## Emitted with an error message when the download failed.
     failed = Signal(str)
 
     def __init__(self, update_info: object) -> None:
+        """@param update_info  The velopack ``UpdateInfo`` to download."""
         super().__init__()
         self._update_info = update_info
 
     def run(self) -> None:  # noqa: D401 - QThread entry point
+        """Download the update, forwarding progress, then emit the outcome."""
         try:
             manager = _make_manager()
             manager.download_updates(
@@ -113,6 +122,7 @@ class UpdateController(QObject):
     """
 
     def __init__(self, window: QWidget) -> None:
+        """@param window  Main window used as dialog parent and QObject parent."""
         super().__init__(window)
         self._window = window
         self._check_worker: _CheckWorker | None = None
@@ -148,6 +158,8 @@ class UpdateController(QObject):
     # -- internals ----------------------------------------------------------
 
     def _begin_check(self) -> None:
+        """Start a check worker unless updates are unsupported or one is
+        already in flight."""
         if not updates_supported():
             if self._notify_when_current:
                 QMessageBox.information(
@@ -167,9 +179,13 @@ class UpdateController(QObject):
         worker.start()
 
     def _schedule_silent_check(self, delay_ms: int) -> None:
+        """(Re)arm the single-shot timer for the next silent check, replacing
+        any previously scheduled one."""
         self._next_check_timer.start(delay_ms)
 
     def _on_no_update(self) -> None:
+        """Handle "already up to date": keep the periodic chain alive and only
+        notify the user after a manual check."""
         self._retry_index = 0
         # Always keep the periodic chain alive, also after a manual check (the
         # pending timer may have fired into the early-return of _begin_check
@@ -181,6 +197,11 @@ class UpdateController(QObject):
             )
 
     def _on_check_failed(self, message: str) -> None:
+        """Handle a failed check: warn after a manual check, otherwise retry
+        the silent check on the escalating delays before going periodic.
+
+        @param message  Human-readable failure reason from the worker.
+        """
         if self._notify_when_current:
             self._schedule_silent_check(_PERIODIC_INTERVAL_MS)
             QMessageBox.warning(
@@ -204,6 +225,11 @@ class UpdateController(QObject):
         self._schedule_silent_check(delay_ms)
 
     def _on_update_found(self, update_info: object) -> None:
+        """Offer the found version to the user and start the download when
+        accepted; remember a declined version so silent re-checks stay quiet.
+
+        @param update_info  The velopack ``UpdateInfo`` describing the release.
+        """
         self._retry_index = 0
         version = str(update_info.TargetFullRelease.Version)
         if not self._notify_when_current and version == self._declined_version:
@@ -243,6 +269,11 @@ class UpdateController(QObject):
         worker.start()
 
     def _on_download_failed(self, message: str) -> None:
+        """Close the progress dialog and warn; the periodic re-check will
+        offer the same version again later.
+
+        @param message  Human-readable failure reason from the worker.
+        """
         if self._progress is not None:
             self._progress.close()
             self._progress = None
@@ -257,6 +288,10 @@ class UpdateController(QObject):
         )
 
     def _on_download_finished(self, update_info: object) -> None:
+        """Apply the downloaded update and restart the application.
+
+        @param update_info  The velopack ``UpdateInfo`` that was downloaded.
+        """
         if self._progress is not None:
             self._progress.close()
             self._progress = None

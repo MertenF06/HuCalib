@@ -1,0 +1,67 @@
+# Doxygen configuration for HuCalib.
+#
+# Only settings that differ from the Doxygen defaults are listed here; run
+# `doxygen -x Doxyfile` to see this file merged with the defaults, or
+# `doxygen -u Doxyfile` to upgrade it after a Doxygen version bump.
+#
+# Generate the documentation from the project root with:
+#   doxygen Doxyfile
+# The HTML output lands in docs/doxygen/html/index.html.
+
+#---------------------------------------------------------------------------
+# Project
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "HuCalib"
+# Keep in sync with __version__ in mocap_app/__init__.py.
+PROJECT_NUMBER         = 1.0.10
+PROJECT_BRIEF          = "Multi-camera calibration desktop application"
+OUTPUT_DIRECTORY       = docs/doxygen
+STRIP_FROM_PATH        = .
+
+#---------------------------------------------------------------------------
+# Input
+#---------------------------------------------------------------------------
+INPUT                  = README.md \
+                         UPDATING.md \
+                         run.py \
+                         mocap_app
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */__pycache__/*
+USE_MDFILE_AS_MAINPAGE = README.md
+# Generate GitHub-style heading anchors so the README's table-of-contents
+# links (e.g. [Overview](#overview)) resolve instead of warning.
+MARKDOWN_ID_STYLE      = GITHUB
+
+#---------------------------------------------------------------------------
+# Python-specific behaviour
+#---------------------------------------------------------------------------
+# Parse docstrings as regular Doxygen comments so commands like @param and
+# @return work inside ordinary """...""" docstrings (instead of rendering
+# every docstring verbatim).
+PYTHON_DOCSTRING       = NO
+# Use Java/Python-style scoping and terminology in the generated output.
+OPTIMIZE_OUTPUT_JAVA   = YES
+# The first sentence of a docstring automatically becomes the brief
+# description, so docstrings don't need an explicit @brief.
+JAVADOC_AUTOBRIEF      = YES
+
+#---------------------------------------------------------------------------
+# Extraction
+#---------------------------------------------------------------------------
+# Document everything, including module-private helpers (this is an internal
+# application, not a library with a public API surface).
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+# Keep members in source order rather than sorting alphabetically; classes
+# read best in the order they were written.
+SORT_MEMBER_DOCS       = NO
+
+#---------------------------------------------------------------------------
+# Output
+#---------------------------------------------------------------------------
+GENERATE_LATEX         = NO
+GENERATE_TREEVIEW      = YES
+SOURCE_BROWSER         = YES
+# Suppress the per-file progress chatter; warnings are still printed.
+QUIET                  = YES
