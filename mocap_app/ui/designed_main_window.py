@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import sys
 import time
 import webbrowser
@@ -55,6 +56,8 @@ from mocap_app.ui.main_window import MainWindow as FunctionalMainWindow
 from mocap_app.ui.gui import Ui_MainWindow
 from mocap_app.ui.guiStyle import apply_styles
 
+
+LOGGER = logging.getLogger(__name__)
 
 # Maximum number of cameras that can be added to the preview grid at once.
 _MAX_CAMERAS = 12
@@ -2090,7 +2093,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
             "preview_res": list(preview_res),
             "detect_hz": self._detect_hz_spin.value(),
             "probe_max": self._probe_max_spin.value(),
-            "pattern": self.window.combo_cap_pattern.currentIndex(),
+            "pattern": self.window.combo_cap_pattern.currentData(),
             "overlay": self._overlay_checkbox.checkState() == Qt.CheckState.Checked,
             "mirror": self._mirror_checkbox.checkState() == Qt.CheckState.Checked,
             "auto_capture": self._auto_capture_checkbox.isChecked(),
@@ -2138,7 +2141,19 @@ class DesignedCalibrationPanel(QtCore.QObject):
         if "probe_max" in aux:
             self._probe_max_spin.setValue(aux["probe_max"])
         if "pattern" in aux:
-            self.window.combo_cap_pattern.setCurrentIndex(int(aux["pattern"]))
+            value = aux["pattern"]
+            index = -1
+            if isinstance(value, str):
+                index = self.window.combo_cap_pattern.findData(value.strip().lower())
+            if index < 0:
+                try:
+                    index = int(value)
+                except (TypeError, ValueError):
+                    index = -1
+            if 0 <= index < self.window.combo_cap_pattern.count():
+                self.window.combo_cap_pattern.setCurrentIndex(index)
+            else:
+                LOGGER.warning("Ignoring invalid saved calibration pattern: %r", value)
         if "overlay" in aux:
             self._overlay_checkbox.setCheckState(
                 Qt.CheckState.Checked if aux["overlay"] else Qt.CheckState.Unchecked
