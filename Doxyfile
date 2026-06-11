@@ -13,7 +13,7 @@
 #---------------------------------------------------------------------------
 PROJECT_NAME           = "HuCalib"
 # Keep in sync with __version__ in mocap_app/__init__.py.
-PROJECT_NUMBER         = 1.0.10
+PROJECT_NUMBER         = 1.0.11
 PROJECT_BRIEF          = "Multi-camera calibration desktop application"
 OUTPUT_DIRECTORY       = docs/doxygen
 STRIP_FROM_PATH        = .
