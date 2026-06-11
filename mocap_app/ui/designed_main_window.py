@@ -1083,6 +1083,7 @@ class DesignedPreviewTile(QFrame):
 
 class DesignedCalibrationPanel(QtCore.QObject):
     new_project_requested = Signal()
+    project_open_requested = Signal(object)
     start_live_requested = Signal(object, float)
     stop_live_requested = Signal()
     runtime_tuning_changed = Signal(object)
@@ -3737,9 +3738,8 @@ class DesignedCalibrationPanel(QtCore.QObject):
         selected = QFileDialog.getExistingDirectory(self.window, "Selecteer een project map", str(self._project_home))
         if not selected:
             return
-        # Opening a folder makes it the new project home, so the home/up buttons
-        # anchor to it from now on.
-        self.set_project_home(Path(selected))
+        selected_path = Path(selected)
+        self.project_open_requested.emit(selected_path)
         self.switch_page(3)
         self._log(f"Project folder loaded: {selected}")
 
@@ -3773,7 +3773,9 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self.btn_camera_record = QPushButton("Opnemen", self.frame)
         self.btn_camera_record.setObjectName("btn_camera_record")
         self.btn_camera_record.setCheckable(True)
-        self.btn_camera_record.setToolTip("Neem de live beelden op en sla ze op als videobestand")
+        self.btn_camera_record.setToolTip(
+            "Neem de live beelden op; bij het starten kies je de opslaglocatie"
+        )
         self.btn_camera_load_video = QPushButton("Video laden", self.frame)
         self.btn_camera_load_video.setObjectName("btn_camera_load_video")
         self.btn_camera_load_video.setToolTip(

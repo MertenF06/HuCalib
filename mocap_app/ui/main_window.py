@@ -59,6 +59,10 @@ SYNC_WARNING_THROTTLE_SEC = 3.0
 # With this many cameras or fewer, prepare the display frame inline on the UI
 # thread (lowest latency). Above it, offload to the preview-render worker.
 INLINE_PREVIEW_MAX_CAMERAS = 2
+PROJECT_FILES_DIRNAME = "Bestanden"
+PROJECT_RESULTS_DIRNAME = "Resultaten"
+PROJECT_VIDEOS_DIRNAME = "Videos"
+CURRENT_CALIBRATION_FILENAME = "current_calibration.json"
 
 
 class MainWindow(QMainWindow):
@@ -76,6 +80,7 @@ class MainWindow(QMainWindow):
 
         self._calibration_repo = CalibrationRepository()
         self._calibration_manager = CalibrationManager()
+        self._active_project_dir: Path | None = None
         self._calibration_path = self._default_calibration_path()
         # Parent location where the next "Nieuw Project" lands (as <location>/<name>).
         # Defaults to the "Projecten" folder; the user can change it from the
@@ -116,6 +121,7 @@ class MainWindow(QMainWindow):
         self._render_request_in_flight = False
         self._video_recorder: VideoRecorder | None = None
         self._recording_finalize_worker: RecordingFinalizeWorker | None = None
+        self._last_recording_dir: Path | None = None
         # True while the single "Start kalibratie" button drives the fully
         # automatic intrinsics -> solve -> extrinsics -> solve -> results chain.
         self._auto_calibration_active = False
@@ -211,6 +217,8 @@ class MainWindow(QMainWindow):
         self._calibration_panel.solve_extrinsics_requested.connect(self._on_solve_extrinsics)
         self._calibration_panel.reset_requested.connect(self._on_reset_calibration_samples)
         self._calibration_panel.new_project_requested.connect(self._on_new_project)
+        if hasattr(self._calibration_panel, "project_open_requested"):
+            self._calibration_panel.project_open_requested.connect(self._on_open_project)
         self._calibration_panel.save_profile_requested.connect(self._on_save_calibration_profile)
         self._calibration_panel.load_profile_requested.connect(self._on_load_calibration_profile)
         self._calibration_panel.undistort_toggled.connect(self._on_undistort_toggle_changed)
@@ -293,7 +301,78 @@ class MainWindow(QMainWindow):
         self._render_request_in_flight = False
 
     def _default_calibration_path(self) -> Path:
-        return self._config.calibration_dir / "current_calibration.json"
+        return self._config.calibration_dir / CURRENT_CALIBRATION_FILENAME
+
+    def _project_files_dir(self) -> Path:
+        if self._active_project_dir is None:
+            return self._config.results_dir
+        return self._active_project_dir / PROJECT_FILES_DIRNAME
+
+    def _project_results_dir(self) -> Path:
+        if self._active_project_dir is None:
+            return self._config.results_dir
+        return self._active_project_dir / PROJECT_RESULTS_DIRNAME
+
+    def _project_videos_dir(self) -> Path:
+        if self._active_project_dir is None:
+            return self._config.app_root / "recordings"
+        return self._active_project_dir / PROJECT_VIDEOS_DIRNAME
+
+    def _active_calibration_path(self) -> Path:
+        if self._active_project_dir is None:
+            return self._default_calibration_path()
+        return self._project_files_dir() / CURRENT_CALIBRATION_FILENAME
+
+    @staticmethod
+    def _ensure_project_directories(project_dir: Path) -> None:
+        for name in (PROJECT_FILES_DIRNAME, PROJECT_RESULTS_DIRNAME, PROJECT_VIDEOS_DIRNAME):
+            (project_dir / name).mkdir(parents=True, exist_ok=True)
+
+    def _reset_project_calibration_state(self) -> None:
+        self._calibration_manager.reset_all()
+        self._latest_calibration_detections.clear()
+        self._last_rendered_frame_indices.clear()
+        self._current_calibration_bundle = None
+        self._calibration_loaded = False
+        self._last_calibration_detection_at = 0.0
+
+    def _activate_project(self, project_dir: Path, *, load_existing: bool) -> None:
+        project_dir = project_dir.resolve()
+        self._ensure_project_directories(project_dir)
+        calibration_path = project_dir / PROJECT_FILES_DIRNAME / CURRENT_CALIBRATION_FILENAME
+
+        bundle: CalibrationBundle | None = None
+        if load_existing:
+            bundle = self._calibration_repo.load(calibration_path)
+            legacy_path = project_dir / CURRENT_CALIBRATION_FILENAME
+            if bundle is None and legacy_path.exists():
+                bundle = self._calibration_repo.load(legacy_path)
+                if bundle is not None:
+                    try:
+                        self._calibration_repo.save(bundle, calibration_path)
+                    except OSError as exc:
+                        LOGGER.warning(
+                            "Could not migrate calibration file from %s to %s: %s",
+                            legacy_path,
+                            calibration_path,
+                            exc,
+                        )
+
+        self._active_project_dir = project_dir
+        self._new_project_dir = project_dir.parent
+        self._last_recording_dir = self._project_videos_dir()
+        self._calibration_path = calibration_path
+        self._reset_project_calibration_state()
+        self._calibration_panel.set_project_home(project_dir)
+        self.setWindowTitle(f"{self._config.app_name} - {project_dir.name}")
+
+        if bundle is not None:
+            self._apply_board_settings_from_bundle_metadata(bundle)
+            self._apply_spatial_grid_from_bundle_metadata(bundle)
+
+        self._set_current_calibration_bundle(bundle)
+        self._refresh_calibration_panel(force=True)
+        self._update_calibration_preview(force=True)
 
     def _on_runtime_tuning_changed(self, tuning_obj: object) -> None:
         if not isinstance(tuning_obj, RuntimeTuning):
@@ -1793,9 +1872,35 @@ class MainWindow(QMainWindow):
         self._set_status("Live weergave gestopt")
 
     def _default_recordings_base_dir(self) -> Path:
-        # config paths are normalized to the project root, so this stays inside
-        # the project regardless of any absolute paths in app_settings.json.
-        return self._config.app_root / "recordings"
+        return self._project_videos_dir()
+
+    def _choose_recording_base_dir(self) -> Path | None:
+        default = self._last_recording_dir or self._default_recordings_base_dir()
+        try:
+            default.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            LOGGER.error("Could not create recordings folder %s: %s", default, exc)
+            self._show_error(f"Kon de standaard opnamemap niet aanmaken: {exc}")
+            return None
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Kies een map om de opname in op te slaan",
+            str(default),
+        )
+        if not selected:
+            return None
+        chosen = Path(selected)
+        self._last_recording_dir = chosen
+        return chosen
+
+    @staticmethod
+    def _next_recording_output_dir(base_dir: Path, timestamp: str) -> Path:
+        candidate = base_dir / f"rec_{timestamp}"
+        suffix = 2
+        while candidate.exists():
+            candidate = base_dir / f"rec_{timestamp}_{suffix}"
+            suffix += 1
+        return candidate
 
     def _on_record_toggled(self, enabled: bool) -> None:
         if not enabled:
@@ -1808,19 +1913,12 @@ class MainWindow(QMainWindow):
             self._show_warning("Start eerst de live weergave voordat je een opname maakt.")
             return
 
-        # No prompt at start: always record into the default "recordings" folder.
-        # The save location / rename / delete options are offered when the
-        # recording is stopped (see _handle_recording_result).
-        base_dir = self._default_recordings_base_dir()
-        try:
-            base_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            LOGGER.error("Could not create recordings folder: %s", exc)
+        base_dir = self._choose_recording_base_dir()
+        if base_dir is None:
             self._calibration_panel.set_recording_active(False)
-            self._show_error(f"Kon de opnamemap niet aanmaken: {exc}")
             return
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = base_dir / f"rec_{timestamp}"
+        output_dir = self._next_recording_output_dir(base_dir, timestamp)
         labels = {source.source_id: (source.label or source.source_id) for source in self._active_sources}
         fps = self._runtime_tuning.capture_fps if self._runtime_tuning.capture_fps > 0 else self._calibration_panel.target_fps()
         try:
@@ -2765,7 +2863,13 @@ class MainWindow(QMainWindow):
             return
         extension = "json" if fmt == "json" else "toml"
         file_filter = "JSON (*.json)" if fmt == "json" else "TOML (*.toml)"
-        default_path = self._config.results_dir / f"calibration.{extension}"
+        results_dir = self._project_results_dir()
+        try:
+            results_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self._show_error(f"Kon de resultatenmap niet aanmaken: {exc}")
+            return
+        default_path = results_dir / f"calibration.{extension}"
         selected, _ = QFileDialog.getSaveFileName(
             self,
             "Export calibration",
@@ -2788,7 +2892,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _sanitize_project_name(name: str) -> str:
-        return "".join(char for char in name if char not in '<>:"/\\|?*').strip()
+        return "".join(char for char in name if char not in '<>:"/\\|?*').strip().rstrip(". ")
 
     def _prompt_new_project(self) -> tuple[str, Path] | None:
         # Single popup where the user can both name the project and change its
@@ -2827,9 +2931,23 @@ class MainWindow(QMainWindow):
         layout.addWidget(path_preview)
 
         def update_preview() -> None:
-            cleaned = self._sanitize_project_name(name_edit.text()) or "Nieuw Project"
-            path_preview.setText(f"Wordt aangemaakt in:\n{state['location'] / cleaned}")
-            start_button.setEnabled(bool(self._sanitize_project_name(name_edit.text())))
+            cleaned = self._sanitize_project_name(name_edit.text())
+            target = state["location"] / (cleaned or "Nieuw Project")
+            if not cleaned:
+                path_preview.setText(f"Vul een geldige projectnaam in.\nDoelmap: {target}")
+                path_preview.setStyleSheet("color: #b42318;")
+                start_button.setEnabled(False)
+                return
+            if target.exists():
+                path_preview.setText(
+                    f"Deze projectnaam bestaat al:\n{target}\nKies een andere naam."
+                )
+                path_preview.setStyleSheet("color: #b42318;")
+                start_button.setEnabled(False)
+                return
+            path_preview.setText(f"Wordt aangemaakt in:\n{target}")
+            path_preview.setStyleSheet("color: palette(mid);")
+            start_button.setEnabled(True)
 
         def choose_location() -> None:
             chosen = QFileDialog.getExistingDirectory(
@@ -2857,76 +2975,84 @@ class MainWindow(QMainWindow):
 
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
-        cleaned = self._sanitize_project_name(name_edit.text()) or "Nieuw Project"
+        cleaned = self._sanitize_project_name(name_edit.text())
+        if not cleaned:
+            return None
         return cleaned, state["location"]
 
     def _on_new_project(self) -> None:
+        if self._video_recorder is not None:
+            self._show_warning("Stop eerst de actieve opname voordat je een nieuw project maakt.")
+            return
         result = self._prompt_new_project()
         if result is None:
             return
         name, location = result
         project_dir = location / name
 
-        if project_dir.exists() and any(project_dir.iterdir()):
-            reply = QMessageBox.question(
-                self,
-                "Map bestaat al",
-                f"Er bestaat al een niet-lege map:\n{project_dir}\n\nHierin verdergaan?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Cancel,
+        if project_dir.exists():
+            self._show_warning(
+                f"Er bestaat al een project of map met de naam '{name}'. Kies een andere projectnaam."
             )
-            if reply != QMessageBox.StandardButton.Yes:
-                return
+            return
 
-        self._new_project_dir = location
         try:
-            project_dir.mkdir(parents=True, exist_ok=True)
+            project_dir.mkdir(parents=True, exist_ok=False)
+            self._activate_project(project_dir, load_existing=False)
+        except FileExistsError:
+            self._show_warning(
+                f"Er bestaat al een project of map met de naam '{name}'. Kies een andere projectnaam."
+            )
+            return
         except OSError as exc:
             self._show_error(f"Could not create project folder {project_dir}: {exc}")
             return
 
-        self._calibration_manager.reset_all()
-        self._latest_calibration_detections.clear()
-        self._last_rendered_frame_indices.clear()
-        self._current_calibration_bundle = None
-        self._calibration_loaded = False
-        self._calibration_path = project_dir / "current_calibration.json"
-        self._last_calibration_detection_at = 0.0
-        # Anchor the directory browser to the new project folder.
-        self._calibration_panel.set_project_home(project_dir)
-
-        try:
-            if self._calibration_path.exists():
-                self._calibration_path.unlink()
-        except OSError as exc:
-            LOGGER.warning("Could not remove current calibration file %s: %s", self._calibration_path, exc)
-            self._calibration_panel.show_feedback(
-                "New project started, but the current calibration file could not be removed.",
-                success=False,
-            )
-            self._set_status("New project started; current calibration file still exists")
-            self._refresh_calibration_panel(force=True)
-            self._update_calibration_preview(force=True)
-            self._auto_navigate("cameras")
-            return
-
-        self._refresh_calibration_panel(force=True)
-        self._update_calibration_preview(force=True)
-        self._calibration_panel.show_feedback("New project started. Previous calibration is unloaded.", success=True)
-        self._set_status("New calibration project started")
+        self._calibration_panel.show_feedback(
+            f"Project '{name}' aangemaakt. Bestanden, resultaten en videos worden in de projectmap opgeslagen.",
+            success=True,
+        )
+        self._set_status(f"Project aangemaakt: {name}")
         # A fresh project starts at the camera/calibration step (honours the
         # auto-navigate toggle in advanced settings).
         self._auto_navigate("cameras")
+
+    def _on_open_project(self, directory_obj: object) -> None:
+        if self._video_recorder is not None:
+            self._show_warning("Stop eerst de actieve opname voordat je een ander project opent.")
+            return
+        project_dir = Path(directory_obj)
+        if not project_dir.exists() or not project_dir.is_dir():
+            self._show_warning(f"Projectmap bestaat niet: {project_dir}")
+            return
+        try:
+            self._activate_project(project_dir, load_existing=True)
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            self._show_error(f"Kon projectmap niet openen: {exc}")
+            return
+
+        if self._current_calibration_bundle is None:
+            message = f"Project '{project_dir.name}' geopend; nog geen opgeslagen kalibratie gevonden."
+        else:
+            message = f"Project '{project_dir.name}' geopend en kalibratie geladen."
+        self._calibration_panel.show_feedback(message, success=True)
+        self._set_status(message)
 
     def _on_save_calibration_profile(self) -> None:
         bundle = self._current_calibration_bundle or self._calibration_manager.last_solution()
         if bundle is None:
             self._show_warning("No solved calibration profile available to save.")
             return
+        files_dir = self._project_files_dir()
+        try:
+            files_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self._show_error(f"Kon de bestandenmap niet aanmaken: {exc}")
+            return
         selected, _ = QFileDialog.getSaveFileName(
             self,
             "Save Calibration Profile",
-            str(self._config.results_dir / "calibration_profile.json"),
+            str(files_dir / "calibration_profile.json"),
             "Calibration JSON (*.json)",
         )
         if not selected:
@@ -2937,10 +3063,11 @@ class MainWindow(QMainWindow):
         self._set_status(f"Calibration profile saved: {path.name}")
 
     def _on_load_calibration_profile(self) -> None:
+        files_dir = self._project_files_dir()
         selected, _ = QFileDialog.getOpenFileName(
             self,
             "Load Calibration Profile",
-            str(self._config.results_dir),
+            str(files_dir),
             "Calibration JSON (*.json)",
         )
         if not selected:
@@ -2951,7 +3078,13 @@ class MainWindow(QMainWindow):
             self._show_error(f"Could not load calibration profile: {path}")
             return
         self._apply_spatial_grid_from_bundle_metadata(bundle)
-        self._calibration_path = path
+        self._calibration_path = self._active_calibration_path() if self._active_project_dir else path
+        if self._active_project_dir is not None:
+            try:
+                self._calibration_repo.save(bundle, self._calibration_path)
+            except OSError as exc:
+                self._show_error(f"Kon het geladen profiel niet in het project opslaan: {exc}")
+                return
         self._set_current_calibration_bundle(bundle)
         self._calibration_panel.show_feedback(f"Loaded calibration profile {path.name}.", success=True)
         self._set_status(f"Calibration profile loaded: {path.name}")
@@ -3019,7 +3152,7 @@ class MainWindow(QMainWindow):
         self._calibration_loaded = False
         self._latest_calibration_detections.clear()
         self._last_rendered_frame_indices.clear()
-        self._calibration_path = self._default_calibration_path()
+        self._calibration_path = self._active_calibration_path()
         try:
             if self._calibration_path.exists():
                 self._calibration_path.unlink()
