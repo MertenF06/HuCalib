@@ -2,12 +2,12 @@
 
 HuCalib is een cameracalibratietool voor motion-capture-opstellingen in de
 fysiotherapie, gebouwd in Python. Het programma biedt een grafische interface
-om meerdere camera's te kalibreren ter voorbereiding op bewegingsopnames.
+om meerdere camera's te kalibreren en bewegingen op te nemen ter voorbereiding
+op bewegingsanalyse.
 
-> **Geplande functie:** een toekomstige versie ondersteunt het opnemen van
-> bewegingen. Die opnames worden niet door het programma zelf geanalyseerd, maar
-> kunnen geëxporteerd worden naar externe tools zoals
-> [Pose2Sim](https://github.com/perfanalytics/pose2sim) voor verdere verwerking.
+De opnames worden niet door het programma zelf geanalyseerd, maar kunnen
+geëxporteerd worden naar externe tools zoals
+[Pose2Sim](https://github.com/perfanalytics/pose2sim) voor verdere verwerking.
 
 ---
 
@@ -36,7 +36,7 @@ nauwkeurig genoeg zijn om door externe software verwerkt te worden.
 - Kalibratietool voor een nauwkeurige camera-opstelling
 - Grafische interface die eenvoudig te bedienen is
 - Projectbeheer: nieuwe projecten aanmaken of bestaande openen
-- Video-opname (gepland), exporteerbaar naar tools zoals Pose2Sim
+- Video-opname van de live camerabeelden, exporteerbaar naar tools zoals Pose2Sim
 
 ---
 
@@ -103,10 +103,18 @@ volgorde automatisch:
 Daarna schakelt de app over naar het tabblad **Resultaten / Export**, dat een
 kalibratieoordeel in gewone taal toont (geslaagd of niet).
 
-### 4. Exporteer
+### 4. Neem bewegingen op
+Klik op het tabblad **Camera's / Kalibratie** op **Opnemen** om de live
+camerabeelden vast te leggen en op **Stop opname** om te stoppen. Elke camera
+wordt als een apart videobestand opgeslagen in een tijdgestempelde map binnen het
+project. Opnemen werkt alleen met live camera's, niet met ingeladen
+videobestanden.
+
+### 5. Exporteer
 Kies op het tabblad **Resultaten / Export** een formaat (**TOML** of **JSON**)
 en klik op **Export** om de cameraparameters op te slaan voor gebruik in externe
-tools zoals [Pose2Sim](https://github.com/perfanalytics/pose2sim).
+tools zoals [Pose2Sim](https://github.com/perfanalytics/pose2sim). Combineer de
+geëxporteerde parameters met je opnames voor verdere verwerking.
 
 ---
 
