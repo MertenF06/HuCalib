@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from mocap_app import __version__
 from mocap_app.io.calibration_io import ChessboardDetectionResult
 from mocap_app.models.types import (
     CalibrationBoardSettings,
@@ -61,6 +62,25 @@ LOGGER = logging.getLogger(__name__)
 
 # Maximum number of cameras that can be added to the preview grid at once.
 _MAX_CAMERAS = 12
+
+_CONTRIBUTORS = (
+    "Merten Flantua",
+    "Huibert Verploeg",
+    "Max Untersalmberge",
+    "Melle Poeckling",
+    "Daniël Wit Ariza",
+    "Jan Piccardt Brouwer",
+)
+
+
+def _application_info_text() -> str:
+    """Build the text shown by Help > Info."""
+    contributors = "\n".join(_CONTRIBUTORS)
+    return (
+        f"HuCalib\nVersie {__version__}\n\n"
+        f"Bijdragers:\n{contributors}\n\n"
+        "In opdracht van Hogeschool Utrecht - Quest project 2026."
+    )
 
 
 # Diagnostics that are purely informational (board pattern, quality scores,
@@ -1717,6 +1737,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
         self.window.actionOpen_project.triggered.connect(self._browse_directory)
         self.window.actionQuit.triggered.connect(self.window.close)
         self.window.actionOpen_documentation.triggered.connect(self._open_documentation)
+        self.window.actionInfo.triggered.connect(self._show_info)
 
         self.window.btn_cap_intrinsics_start.clicked.connect(self._toggle_intrinsics_start)
         self.window.btn_cap_extrinsics_start.clicked.connect(self._toggle_extrinsics_start)
@@ -2342,6 +2363,9 @@ class DesignedCalibrationPanel(QtCore.QObject):
     def _open_documentation(self) -> None:
         webbrowser.open("https://github.com/MertenF06/HuCalib")
         self._log("Documentation opened in web browser.")
+
+    def _show_info(self) -> None:
+        QMessageBox.information(self.window, "Info over HuCalib", _application_info_text())
 
     def _warn_capture_restart_needed(self) -> None:
         """Capture FPS/resolution are applied to the camera only when live capture
