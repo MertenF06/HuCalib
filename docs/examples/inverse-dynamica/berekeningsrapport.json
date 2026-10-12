@@ -1,0 +1,1328 @@
+{
+  "method": "OpenSim InverseDynamicsSolver, full prescribed coordinates and analytical spline derivatives; reduced forces J.T*tau",
+  "application_modified": false,
+  "versions": {
+    "python": "3.12.14",
+    "opensim": "version 4.6-2026-06-22-85aaf64, build date 18:14:53 Jun 22 2026",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "matplotlib": "3.10.3"
+  },
+  "input_sha256": {
+    "motion.mot": "d6257cbd5d838d6f014f0009cf5f6116393e4c57be0a727a3b3fa05575db54c2",
+    "ground_reaction_forces.mot": "9a05bc496dbfed7501328013de15d6c5fe2baa542ae78f390b60d700c12f19df",
+    "model.osim": "7fa12645ba99a67aa7d5de46076c27c20f4448045725c29b83f1309ed0db8141",
+    "model-numerical.osim": "27c65d04092ea10049b165a25912585347df63d866ef83edc711f20a7141aa96"
+  },
+  "mass_kg": 70.00000000000001,
+  "result_status": "diagnostic_only_non_gait_activity_force_prediction_not_validated",
+  "gravity_m_per_s2": [
+    0.0,
+    -9.80665,
+    0.0
+  ],
+  "body_mass_positive_and_inertia_positive_definite": true,
+  "inertia_triangle_inequality_violations": [
+    "toes_r",
+    "toes_l"
+  ],
+  "original_and_numerical_inertial_parameters_identical": true,
+  "bodies": [
+    {
+      "body": "pelvis",
+      "mass_kg": 9.81671433776861,
+      "center_of_mass_m": [
+        -0.07837620568775973,
+        0.0,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.10873923451291481,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.10873923451291481,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.05931160604415386
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "femur_r",
+      "mass_kg": 7.753178801165063,
+      "center_of_mass_m": [
+        0.0,
+        -0.17882780947934432,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.12350493917478633,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.03237508114290516,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.1302382181589233
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "patella_r",
+      "mass_kg": 0.07185198063306905,
+      "center_of_mass_m": [
+        0.0018934709238989397,
+        0.027770906883851115,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          2.6471932444483704e-06,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.2092231161922697e-05,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.2092231161922697e-05
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "tibia_r",
+      "mass_kg": 3.090385361915354,
+      "center_of_mass_m": [
+        0.0,
+        -0.20028009185130313,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.04834470813710492,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.004892024037683236,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.049016162416786926
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "talus_r",
+      "mass_kg": 0.08335496593163465,
+      "center_of_mass_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0007895039469237102,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0007895039469237102,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0007895039469237102
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "calcn_r",
+      "mass_kg": 1.041937074145433,
+      "center_of_mass_m": [
+        0.09732208702150424,
+        0.02919662610645127,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0011053055256931943,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0030790653930024693,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.003236966182387212
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "toes_r",
+      "mass_kg": 0.18054685620792063,
+      "center_of_mass_m": [
+        0.03367344210944047,
+        0.005839325221290255,
+        -0.017031365228763244
+      ],
+      "inertia_kg_m2": [
+        [
+          7.895039469237101e-05,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.00015790078938474202,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0007895039469237102
+        ]
+      ],
+      "inertia_triangle_inequality_valid": false
+    },
+    {
+      "body": "femur_l",
+      "mass_kg": 7.753178801165063,
+      "center_of_mass_m": [
+        0.0,
+        -0.17731630866310036,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.121425968445127,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.03183010823318863,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.1280459054850779
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "patella_l",
+      "mass_kg": 0.07185198063306905,
+      "center_of_mass_m": [
+        0.0018774667976092976,
+        0.0275361796982697,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          2.6026327814601533e-06,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.1888681451199514e-05,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.1888681451199514e-05
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "tibia_l",
+      "mass_kg": 3.090385361915354,
+      "center_of_mass_m": [
+        0.0,
+        -0.19709256167760075,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.046818106724569625,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.004737546513795736,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.047468358206855306
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "talus_l",
+      "mass_kg": 0.08335496593163465,
+      "center_of_mass_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0007895039469237102,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0007895039469237102,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0007895039469237102
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "calcn_l",
+      "mass_kg": 1.041937074145433,
+      "center_of_mass_m": [
+        0.09732208702150424,
+        0.02919662610645127,
+        0.0
+      ],
+      "inertia_kg_m2": [
+        [
+          0.0011053055256931943,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0030790653930024693,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.003236966182387212
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    },
+    {
+      "body": "toes_l",
+      "mass_kg": 0.18054685620792063,
+      "center_of_mass_m": [
+        0.03367344210944047,
+        0.005839325221290255,
+        0.017031365228763244
+      ],
+      "inertia_kg_m2": [
+        [
+          7.895039469237101e-05,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.00015790078938474202,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0007895039469237102
+        ]
+      ],
+      "inertia_triangle_inequality_valid": false
+    },
+    {
+      "body": "torso",
+      "mass_kg": 35.74077558223444,
+      "center_of_mass_m": [
+        0.016602907202496065,
+        0.15627840127038614,
+        4.710559310134358e-05
+      ],
+      "inertia_kg_m2": [
+        [
+          2.811365572540613,
+          0.004855563239809159,
+          -2.049110597699235e-05
+        ],
+        [
+          0.004855563239809159,
+          0.7607165994415377,
+          9.120564319281325e-05
+        ],
+        [
+          -2.049110597699235e-05,
+          9.120564319281325e-05,
+          2.6592698581165175
+        ]
+      ],
+      "inertia_triangle_inequality_valid": true
+    }
+  ],
+  "force_model_mass_basis_kg": 70,
+  "motion_rows": 96,
+  "force_rows": 159,
+  "motion_rate_hz": 59.99998800000242,
+  "analysis_rate_hz": 100,
+  "time_range_s": [
+    0.01666667,
+    1.59666667
+  ],
+  "timestamp_max_rounding_s": 3.3300000001901253e-06,
+  "filter": {
+    "type": "4th order Butterworth SOS, forward-backward zero phase, odd padding",
+    "main_cutoff_Hz": 6.0,
+    "sensitivity_cutoffs_Hz": [
+      4,
+      6,
+      8
+    ],
+    "kinematics": "filter unwrapped radians/metres on original 60 Hz grid; interpolate quintic spline; differentiate analytically",
+    "loads": "zero raw foot force below 20 N Fy; form global-origin moment CoP cross F; filter F and M together at 100 Hz",
+    "free_contact_torque": "unknown; zero-placeholder assumption, no recovered free moment"
+  },
+  "force_suppressed_samples_right_left": [
+    21,
+    33
+  ],
+  "edge_exclusion_s": 0.15,
+  "statistics_time_range_s": [
+    0.16666667,
+    1.44666667
+  ],
+  "foot_mapping": {
+    "force1": "calcn_r",
+    "force2": "calcn_l"
+  },
+  "coupler_projection": {
+    "knee_angle_r": "tau_knee_angle_r + tau_knee_angle_r_beta",
+    "knee_angle_l": "tau_knee_angle_l + tau_knee_angle_l_beta"
+  },
+  "signs": "required internal generalized actuator force/moment, positive model coordinate; no side mirroring",
+  "residual_wrench": "global XYZ; moment about instantaneous pelvis origin, obtained by virtual-power spatial transformation",
+  "validation": {
+    "4.0": {
+      "newton_euler_max_abs_error_N_or_Nm": 1.5702994460298214e-12,
+      "constraint_projection_power_max_abs_error_W": 1.1368683772161603e-13
+    },
+    "6.0": {
+      "newton_euler_max_abs_error_N_or_Nm": 1.9895196601282805e-12,
+      "constraint_projection_power_max_abs_error_W": 1.1368683772161603e-13
+    },
+    "8.0": {
+      "newton_euler_max_abs_error_N_or_Nm": 2.1884716261411086e-12,
+      "constraint_projection_power_max_abs_error_W": 1.1368683772161603e-13
+    }
+  },
+  "static_controls": {
+    "static_support_force_ground_N": [
+      0.0,
+      686.4654999999999,
+      0.0
+    ],
+    "static_support_minus_weight_max_error_N": 2.2737367544323206e-13,
+    "static_zero_gravity_max_effort_N_or_Nm": 0.0
+  },
+  "standard_tool_comparison": {
+    "4.0": {
+      "pelvis_tilt": {
+        "interior_rms_difference_N_or_Nm": 0.0001369929031218396,
+        "interior_max_abs_difference_N_or_Nm": 0.00043568573730112803,
+        "all_samples_max_abs_difference_N_or_Nm": 6.570385057939141
+      },
+      "pelvis_list": {
+        "interior_rms_difference_N_or_Nm": 0.00016142577722454257,
+        "interior_max_abs_difference_N_or_Nm": 0.0005191993423103725,
+        "all_samples_max_abs_difference_N_or_Nm": 7.215015100528679
+      },
+      "pelvis_rotation": {
+        "interior_rms_difference_N_or_Nm": 8.312736592770428e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00025986530762267535,
+        "all_samples_max_abs_difference_N_or_Nm": 0.37648516917291275
+      },
+      "pelvis_tx": {
+        "interior_rms_difference_N_or_Nm": 0.0006428680395602081,
+        "interior_max_abs_difference_N_or_Nm": 0.0018284084482900198,
+        "all_samples_max_abs_difference_N_or_Nm": 26.788423623709036
+      },
+      "pelvis_ty": {
+        "interior_rms_difference_N_or_Nm": 0.000397179651271923,
+        "interior_max_abs_difference_N_or_Nm": 0.0015619814948593103,
+        "all_samples_max_abs_difference_N_or_Nm": 21.570488422128804
+      },
+      "pelvis_tz": {
+        "interior_rms_difference_N_or_Nm": 0.0012710495827045764,
+        "interior_max_abs_difference_N_or_Nm": 0.004085124789668271,
+        "all_samples_max_abs_difference_N_or_Nm": 81.73737174286215
+      },
+      "hip_flexion_r": {
+        "interior_rms_difference_N_or_Nm": 5.3317441142484966e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00017136329340061707,
+        "all_samples_max_abs_difference_N_or_Nm": 3.2469584188824108
+      },
+      "hip_adduction_r": {
+        "interior_rms_difference_N_or_Nm": 6.693256012683428e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.0002208858314318718,
+        "all_samples_max_abs_difference_N_or_Nm": 1.6347209844438737
+      },
+      "hip_rotation_r": {
+        "interior_rms_difference_N_or_Nm": 1.1042777656475812e-05,
+        "interior_max_abs_difference_N_or_Nm": 4.211417788368976e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.2372437523523736
+      },
+      "hip_flexion_l": {
+        "interior_rms_difference_N_or_Nm": 9.135586237977661e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00035822499339843716,
+        "all_samples_max_abs_difference_N_or_Nm": 2.8554634957777374
+      },
+      "hip_adduction_l": {
+        "interior_rms_difference_N_or_Nm": 5.206284110292668e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.0002081201314965142,
+        "all_samples_max_abs_difference_N_or_Nm": 2.6555280253718454
+      },
+      "hip_rotation_l": {
+        "interior_rms_difference_N_or_Nm": 1.0604888913971032e-05,
+        "interior_max_abs_difference_N_or_Nm": 5.6198472985324877e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.28037733249948005
+      },
+      "lumbar_extension": {
+        "interior_rms_difference_N_or_Nm": 0.0001437603577929855,
+        "interior_max_abs_difference_N_or_Nm": 0.00038818901383952387,
+        "all_samples_max_abs_difference_N_or_Nm": 7.0413493036944335
+      },
+      "lumbar_bending": {
+        "interior_rms_difference_N_or_Nm": 4.8640346258894924e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00019541565346159473,
+        "all_samples_max_abs_difference_N_or_Nm": 9.330146677845299
+      },
+      "lumbar_rotation": {
+        "interior_rms_difference_N_or_Nm": 3.561959720550583e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00011800689511876072,
+        "all_samples_max_abs_difference_N_or_Nm": 0.5813658528282897
+      },
+      "knee_angle_r": {
+        "interior_rms_difference_N_or_Nm": 2.457723501785609e-05,
+        "interior_max_abs_difference_N_or_Nm": 8.063290844351201e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.5473973956493481
+      },
+      "knee_angle_r_beta": {
+        "interior_rms_difference_N_or_Nm": 3.7858904164291964e-08,
+        "interior_max_abs_difference_N_or_Nm": 1.3808871234671782e-07,
+        "all_samples_max_abs_difference_N_or_Nm": 0.0013811283599008684
+      },
+      "knee_angle_l": {
+        "interior_rms_difference_N_or_Nm": 1.9700973465245002e-05,
+        "interior_max_abs_difference_N_or_Nm": 9.37613605023202e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.8037580830880788
+      },
+      "knee_angle_l_beta": {
+        "interior_rms_difference_N_or_Nm": 4.494085945190014e-08,
+        "interior_max_abs_difference_N_or_Nm": 2.1250595001742756e-07,
+        "all_samples_max_abs_difference_N_or_Nm": 0.0015966246025902256
+      },
+      "ankle_angle_r": {
+        "interior_rms_difference_N_or_Nm": 2.0510263853295825e-06,
+        "interior_max_abs_difference_N_or_Nm": 6.292333174506837e-06,
+        "all_samples_max_abs_difference_N_or_Nm": 0.023006216030523774
+      },
+      "ankle_angle_l": {
+        "interior_rms_difference_N_or_Nm": 1.8235402738395243e-06,
+        "interior_max_abs_difference_N_or_Nm": 8.780410492459367e-06,
+        "all_samples_max_abs_difference_N_or_Nm": 0.07899743521276581
+      },
+      "subtalar_angle_r": {
+        "interior_rms_difference_N_or_Nm": 1.7565720415939657e-06,
+        "interior_max_abs_difference_N_or_Nm": 5.8791911143885045e-06,
+        "all_samples_max_abs_difference_N_or_Nm": 0.006382429089402564
+      },
+      "subtalar_angle_l": {
+        "interior_rms_difference_N_or_Nm": 1.1178302668881717e-06,
+        "interior_max_abs_difference_N_or_Nm": 5.3776866002497314e-06,
+        "all_samples_max_abs_difference_N_or_Nm": 0.04673382510047496
+      },
+      "mtp_angle_r": {
+        "interior_rms_difference_N_or_Nm": 1.2803376137179778e-07,
+        "interior_max_abs_difference_N_or_Nm": 3.306444512352069e-07,
+        "all_samples_max_abs_difference_N_or_Nm": 0.0007835620825640266
+      },
+      "mtp_angle_l": {
+        "interior_rms_difference_N_or_Nm": 6.601647726024514e-08,
+        "interior_max_abs_difference_N_or_Nm": 2.6073064200715645e-07,
+        "all_samples_max_abs_difference_N_or_Nm": 0.005656489649745702
+      }
+    },
+    "6.0": {
+      "pelvis_tilt": {
+        "interior_rms_difference_N_or_Nm": 0.0004075851728608147,
+        "interior_max_abs_difference_N_or_Nm": 0.0014381101964318077,
+        "all_samples_max_abs_difference_N_or_Nm": 16.329209964346425
+      },
+      "pelvis_list": {
+        "interior_rms_difference_N_or_Nm": 0.0007669590872277378,
+        "interior_max_abs_difference_N_or_Nm": 0.002076977424955828,
+        "all_samples_max_abs_difference_N_or_Nm": 9.049908026650051
+      },
+      "pelvis_rotation": {
+        "interior_rms_difference_N_or_Nm": 0.0004380922357607775,
+        "interior_max_abs_difference_N_or_Nm": 0.0013195847453522092,
+        "all_samples_max_abs_difference_N_or_Nm": 1.9911723392917464
+      },
+      "pelvis_tx": {
+        "interior_rms_difference_N_or_Nm": 0.0020213789350320265,
+        "interior_max_abs_difference_N_or_Nm": 0.005604536633057933,
+        "all_samples_max_abs_difference_N_or_Nm": 88.97734195414134
+      },
+      "pelvis_ty": {
+        "interior_rms_difference_N_or_Nm": 0.001733629769910283,
+        "interior_max_abs_difference_N_or_Nm": 0.0047315249418034,
+        "all_samples_max_abs_difference_N_or_Nm": 32.865698296132656
+      },
+      "pelvis_tz": {
+        "interior_rms_difference_N_or_Nm": 0.006618028020927711,
+        "interior_max_abs_difference_N_or_Nm": 0.02089217166010826,
+        "all_samples_max_abs_difference_N_or_Nm": 157.14924151906484
+      },
+      "hip_flexion_r": {
+        "interior_rms_difference_N_or_Nm": 0.00026416727504917126,
+        "interior_max_abs_difference_N_or_Nm": 0.000695404338507899,
+        "all_samples_max_abs_difference_N_or_Nm": 8.392427223165988
+      },
+      "hip_adduction_r": {
+        "interior_rms_difference_N_or_Nm": 0.00016560486203855363,
+        "interior_max_abs_difference_N_or_Nm": 0.0005092386369653923,
+        "all_samples_max_abs_difference_N_or_Nm": 4.9628344230452655
+      },
+      "hip_rotation_r": {
+        "interior_rms_difference_N_or_Nm": 3.700875114933651e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00010879925989470962,
+        "all_samples_max_abs_difference_N_or_Nm": 0.520189373109071
+      },
+      "hip_flexion_l": {
+        "interior_rms_difference_N_or_Nm": 0.00031524839534542996,
+        "interior_max_abs_difference_N_or_Nm": 0.001164315593072729,
+        "all_samples_max_abs_difference_N_or_Nm": 8.837064616125257
+      },
+      "hip_adduction_l": {
+        "interior_rms_difference_N_or_Nm": 0.00017648985465444942,
+        "interior_max_abs_difference_N_or_Nm": 0.0008397056205673437,
+        "all_samples_max_abs_difference_N_or_Nm": 6.2756222463970435
+      },
+      "hip_rotation_l": {
+        "interior_rms_difference_N_or_Nm": 4.667819433195118e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00027877480471927285,
+        "all_samples_max_abs_difference_N_or_Nm": 1.1292647939185012
+      },
+      "lumbar_extension": {
+        "interior_rms_difference_N_or_Nm": 0.0006761993889028027,
+        "interior_max_abs_difference_N_or_Nm": 0.0018124107223300712,
+        "all_samples_max_abs_difference_N_or_Nm": 14.514428145824212
+      },
+      "lumbar_bending": {
+        "interior_rms_difference_N_or_Nm": 0.00027118250741765365,
+        "interior_max_abs_difference_N_or_Nm": 0.0008059931199824177,
+        "all_samples_max_abs_difference_N_or_Nm": 17.72989184100644
+      },
+      "lumbar_rotation": {
+        "interior_rms_difference_N_or_Nm": 0.0002448979693036475,
+        "interior_max_abs_difference_N_or_Nm": 0.0008950287856848149,
+        "all_samples_max_abs_difference_N_or_Nm": 1.6446994907160004
+      },
+      "knee_angle_r": {
+        "interior_rms_difference_N_or_Nm": 9.245054248266037e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00030901994679410905,
+        "all_samples_max_abs_difference_N_or_Nm": 2.0279172430406405
+      },
+      "knee_angle_r_beta": {
+        "interior_rms_difference_N_or_Nm": 1.3306559294942836e-07,
+        "interior_max_abs_difference_N_or_Nm": 3.6280158514229166e-07,
+        "all_samples_max_abs_difference_N_or_Nm": 0.003168244995695211
+      },
+      "knee_angle_l": {
+        "interior_rms_difference_N_or_Nm": 8.3494154050196e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.00034986526003777385,
+        "all_samples_max_abs_difference_N_or_Nm": 2.0112794680459363
+      },
+      "knee_angle_l_beta": {
+        "interior_rms_difference_N_or_Nm": 1.5943805759593416e-07,
+        "interior_max_abs_difference_N_or_Nm": 5.315393063788643e-07,
+        "all_samples_max_abs_difference_N_or_Nm": 0.0039046222669864086
+      },
+      "ankle_angle_r": {
+        "interior_rms_difference_N_or_Nm": 9.207961246368673e-06,
+        "interior_max_abs_difference_N_or_Nm": 2.7399652383186535e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.01985315757909234
+      },
+      "ankle_angle_l": {
+        "interior_rms_difference_N_or_Nm": 4.4723693914443494e-06,
+        "interior_max_abs_difference_N_or_Nm": 1.3282963521987767e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.327821137703602
+      },
+      "subtalar_angle_r": {
+        "interior_rms_difference_N_or_Nm": 4.6272317637987254e-06,
+        "interior_max_abs_difference_N_or_Nm": 1.4393670682011361e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.0379148616136149
+      },
+      "subtalar_angle_l": {
+        "interior_rms_difference_N_or_Nm": 3.826000158183321e-06,
+        "interior_max_abs_difference_N_or_Nm": 2.0606070123663223e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.14899094025868376
+      },
+      "mtp_angle_r": {
+        "interior_rms_difference_N_or_Nm": 6.395375441593263e-07,
+        "interior_max_abs_difference_N_or_Nm": 1.8550621405238887e-06,
+        "all_samples_max_abs_difference_N_or_Nm": 0.0019508824948239537
+      },
+      "mtp_angle_l": {
+        "interior_rms_difference_N_or_Nm": 2.150543859278788e-07,
+        "interior_max_abs_difference_N_or_Nm": 6.736559189229885e-07,
+        "all_samples_max_abs_difference_N_or_Nm": 0.01656195702935343
+      }
+    },
+    "8.0": {
+      "pelvis_tilt": {
+        "interior_rms_difference_N_or_Nm": 0.0008604185018793571,
+        "interior_max_abs_difference_N_or_Nm": 0.002599656166506037,
+        "all_samples_max_abs_difference_N_or_Nm": 26.89515432341264
+      },
+      "pelvis_list": {
+        "interior_rms_difference_N_or_Nm": 0.0017654747641237993,
+        "interior_max_abs_difference_N_or_Nm": 0.005271181488652132,
+        "all_samples_max_abs_difference_N_or_Nm": 9.969491297194212
+      },
+      "pelvis_rotation": {
+        "interior_rms_difference_N_or_Nm": 0.0010189513289917743,
+        "interior_max_abs_difference_N_or_Nm": 0.003120620841887245,
+        "all_samples_max_abs_difference_N_or_Nm": 5.170697918004395
+      },
+      "pelvis_tx": {
+        "interior_rms_difference_N_or_Nm": 0.005272751532819515,
+        "interior_max_abs_difference_N_or_Nm": 0.015899104133580977,
+        "all_samples_max_abs_difference_N_or_Nm": 144.11893213978254
+      },
+      "pelvis_ty": {
+        "interior_rms_difference_N_or_Nm": 0.0036240236056025183,
+        "interior_max_abs_difference_N_or_Nm": 0.011088537644425855,
+        "all_samples_max_abs_difference_N_or_Nm": 27.915384748145915
+      },
+      "pelvis_tz": {
+        "interior_rms_difference_N_or_Nm": 0.0184731094736041,
+        "interior_max_abs_difference_N_or_Nm": 0.0700388308125639,
+        "all_samples_max_abs_difference_N_or_Nm": 178.02268366353675
+      },
+      "hip_flexion_r": {
+        "interior_rms_difference_N_or_Nm": 0.0006379892361401269,
+        "interior_max_abs_difference_N_or_Nm": 0.0016343516872741048,
+        "all_samples_max_abs_difference_N_or_Nm": 13.842571170211373
+      },
+      "hip_adduction_r": {
+        "interior_rms_difference_N_or_Nm": 0.000335545761228076,
+        "interior_max_abs_difference_N_or_Nm": 0.000986301215647245,
+        "all_samples_max_abs_difference_N_or_Nm": 3.6471271617562735
+      },
+      "hip_rotation_r": {
+        "interior_rms_difference_N_or_Nm": 9.957348671530728e-05,
+        "interior_max_abs_difference_N_or_Nm": 0.0003860598797285064,
+        "all_samples_max_abs_difference_N_or_Nm": 0.6351458668684282
+      },
+      "hip_flexion_l": {
+        "interior_rms_difference_N_or_Nm": 0.0008135534017637285,
+        "interior_max_abs_difference_N_or_Nm": 0.002915810283319331,
+        "all_samples_max_abs_difference_N_or_Nm": 11.202709492996647
+      },
+      "hip_adduction_l": {
+        "interior_rms_difference_N_or_Nm": 0.0005364530366513857,
+        "interior_max_abs_difference_N_or_Nm": 0.0022646291271808394,
+        "all_samples_max_abs_difference_N_or_Nm": 9.379770326032475
+      },
+      "hip_rotation_l": {
+        "interior_rms_difference_N_or_Nm": 0.00013905487471873362,
+        "interior_max_abs_difference_N_or_Nm": 0.0008164158940220378,
+        "all_samples_max_abs_difference_N_or_Nm": 1.5219759778617186
+      },
+      "lumbar_extension": {
+        "interior_rms_difference_N_or_Nm": 0.0017098070932764994,
+        "interior_max_abs_difference_N_or_Nm": 0.005951426292497786,
+        "all_samples_max_abs_difference_N_or_Nm": 19.520484122682078
+      },
+      "lumbar_bending": {
+        "interior_rms_difference_N_or_Nm": 0.0007024371452172196,
+        "interior_max_abs_difference_N_or_Nm": 0.0025328525200905005,
+        "all_samples_max_abs_difference_N_or_Nm": 34.6459984585924
+      },
+      "lumbar_rotation": {
+        "interior_rms_difference_N_or_Nm": 0.0005077316458750569,
+        "interior_max_abs_difference_N_or_Nm": 0.002211869605407202,
+        "all_samples_max_abs_difference_N_or_Nm": 4.754380974430938
+      },
+      "knee_angle_r": {
+        "interior_rms_difference_N_or_Nm": 0.0001923304994397983,
+        "interior_max_abs_difference_N_or_Nm": 0.000710375696934662,
+        "all_samples_max_abs_difference_N_or_Nm": 3.4585341503919196
+      },
+      "knee_angle_r_beta": {
+        "interior_rms_difference_N_or_Nm": 2.98873933568235e-07,
+        "interior_max_abs_difference_N_or_Nm": 9.29045626525335e-07,
+        "all_samples_max_abs_difference_N_or_Nm": 0.005165688442797037
+      },
+      "knee_angle_l": {
+        "interior_rms_difference_N_or_Nm": 0.00019747719783176008,
+        "interior_max_abs_difference_N_or_Nm": 0.0006057544714935803,
+        "all_samples_max_abs_difference_N_or_Nm": 2.868181089184632
+      },
+      "knee_angle_l_beta": {
+        "interior_rms_difference_N_or_Nm": 3.9230148942754246e-07,
+        "interior_max_abs_difference_N_or_Nm": 1.2284555776786998e-06,
+        "all_samples_max_abs_difference_N_or_Nm": 0.0054022306353000565
+      },
+      "ankle_angle_r": {
+        "interior_rms_difference_N_or_Nm": 1.8476217658830596e-05,
+        "interior_max_abs_difference_N_or_Nm": 5.327876925820263e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.0612227019222189
+      },
+      "ankle_angle_l": {
+        "interior_rms_difference_N_or_Nm": 1.2155819609226211e-05,
+        "interior_max_abs_difference_N_or_Nm": 3.422219432991369e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.4819686826622882
+      },
+      "subtalar_angle_r": {
+        "interior_rms_difference_N_or_Nm": 1.1784269853298227e-05,
+        "interior_max_abs_difference_N_or_Nm": 3.765214198203637e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.04093702834732582
+      },
+      "subtalar_angle_l": {
+        "interior_rms_difference_N_or_Nm": 1.1377083981089255e-05,
+        "interior_max_abs_difference_N_or_Nm": 5.925555233599056e-05,
+        "all_samples_max_abs_difference_N_or_Nm": 0.21582825258737898
+      },
+      "mtp_angle_r": {
+        "interior_rms_difference_N_or_Nm": 1.2549421103436867e-06,
+        "interior_max_abs_difference_N_or_Nm": 3.7738197509878946e-06,
+        "all_samples_max_abs_difference_N_or_Nm": 0.005663533054860902
+      },
+      "mtp_angle_l": {
+        "interior_rms_difference_N_or_Nm": 7.851829086155687e-07,
+        "interior_max_abs_difference_N_or_Nm": 3.510831520683877e-06,
+        "all_samples_max_abs_difference_N_or_Nm": 0.02590572911556882
+      }
+    }
+  },
+  "filter_changes_RMS_deg_or_m": {
+    "4.0": {
+      "pelvis_tilt": 0.3084674056219553,
+      "pelvis_list": 0.3051866654232538,
+      "pelvis_rotation": 0.6000868136798392,
+      "pelvis_tx": 0.001638750448453348,
+      "pelvis_ty": 0.0011652433839795858,
+      "pelvis_tz": 0.0037655507414304794,
+      "hip_flexion_r": 0.7205020543289545,
+      "hip_adduction_r": 0.3777626852289427,
+      "hip_rotation_r": 0.40851759832433654,
+      "knee_angle_r": 0.796902891301341,
+      "ankle_angle_r": 0.9210250884545123,
+      "subtalar_angle_r": 0.9796355145344088,
+      "mtp_angle_r": 0.0,
+      "hip_flexion_l": 0.8696303244586964,
+      "hip_adduction_l": 0.25591944889933216,
+      "hip_rotation_l": 0.563377265613777,
+      "knee_angle_l": 1.165227704172421,
+      "ankle_angle_l": 0.8618409817497551,
+      "subtalar_angle_l": 0.5320086025701025,
+      "mtp_angle_l": 0.0,
+      "lumbar_extension": 0.19331014912401598,
+      "lumbar_bending": 0.3966941541558457,
+      "lumbar_rotation": 0.6102783584029523
+    },
+    "6.0": {
+      "pelvis_tilt": 0.10230487980111076,
+      "pelvis_list": 0.12615055320608573,
+      "pelvis_rotation": 0.1904564438905083,
+      "pelvis_tx": 0.0004975499317625958,
+      "pelvis_ty": 0.00041313229358640863,
+      "pelvis_tz": 0.0015694499691960458,
+      "hip_flexion_r": 0.3392127216931349,
+      "hip_adduction_r": 0.11200576532890312,
+      "hip_rotation_r": 0.19035110880263026,
+      "knee_angle_r": 0.24589012467648183,
+      "ankle_angle_r": 0.3253577539683093,
+      "subtalar_angle_r": 0.4382406734364789,
+      "mtp_angle_r": 0.0,
+      "hip_flexion_l": 0.3745832536676073,
+      "hip_adduction_l": 0.09273626634246544,
+      "hip_rotation_l": 0.24541642330421826,
+      "knee_angle_l": 0.4186926581118941,
+      "ankle_angle_l": 0.31668621760230914,
+      "subtalar_angle_l": 0.3088403904514049,
+      "mtp_angle_l": 0.0,
+      "lumbar_extension": 0.08690406398229578,
+      "lumbar_bending": 0.16073789350449944,
+      "lumbar_rotation": 0.33499401150498004
+    },
+    "8.0": {
+      "pelvis_tilt": 0.0671876374148762,
+      "pelvis_list": 0.062081579645386076,
+      "pelvis_rotation": 0.0814180845223949,
+      "pelvis_tx": 0.00019152363162385207,
+      "pelvis_ty": 0.00017305147322431875,
+      "pelvis_tz": 0.000622891441312057,
+      "hip_flexion_r": 0.1280799310874589,
+      "hip_adduction_r": 0.06881311529070253,
+      "hip_rotation_r": 0.08918150799862715,
+      "knee_angle_r": 0.11607657673043352,
+      "ankle_angle_r": 0.19770228710940257,
+      "subtalar_angle_r": 0.24452897884754252,
+      "mtp_angle_r": 0.0,
+      "hip_flexion_l": 0.1421975269985539,
+      "hip_adduction_l": 0.057882666984456085,
+      "hip_rotation_l": 0.11040374640973143,
+      "knee_angle_l": 0.1192565245617172,
+      "ankle_angle_l": 0.15353388464581139,
+      "subtalar_angle_l": 0.1586005532805978,
+      "mtp_angle_l": 0.0,
+      "lumbar_extension": 0.050395429978089934,
+      "lumbar_bending": 0.11884671365279567,
+      "lumbar_rotation": 0.2673885647268247
+    }
+  },
+  "sensitivity_and_statistics": {
+    "4.0": {
+      "residual_force_norm_N": {
+        "rms": 143.9859872551924,
+        "max_abs": 324.562391526537,
+        "mean": 126.3997405671713
+      },
+      "residual_force_rms_percent_BW": 20.97497794939329,
+      "residual_moment_norm_Nm": {
+        "rms": 47.25576879177798,
+        "max_abs": 79.82446740739664,
+        "mean": 44.88520034930597
+      },
+      "moment_components": {
+        "hip_flexion_r": {
+          "rms": 20.04762234194562,
+          "max_abs": 54.648317884148305,
+          "mean": -3.258889551423921
+        },
+        "hip_adduction_r": {
+          "rms": 45.973782307637364,
+          "max_abs": 101.88865840469225,
+          "mean": -34.71953658555034
+        },
+        "hip_rotation_r": {
+          "rms": 13.304845303269483,
+          "max_abs": 24.53605309664925,
+          "mean": 11.90258883364827
+        },
+        "knee_angle_r": {
+          "rms": 20.210613752043788,
+          "max_abs": 59.840756936490116,
+          "mean": -9.90568198815586
+        },
+        "ankle_angle_r": {
+          "rms": 19.426182187864804,
+          "max_abs": 82.27948340253502,
+          "mean": -0.8368050597646214
+        },
+        "subtalar_angle_r": {
+          "rms": 20.117105448643763,
+          "max_abs": 35.61790404548294,
+          "mean": -17.088851372446392
+        },
+        "mtp_angle_r": {
+          "rms": 0.04133655100315214,
+          "max_abs": 0.06942903505145302,
+          "mean": -0.03893075063544257
+        },
+        "hip_flexion_l": {
+          "rms": 40.03436707877306,
+          "max_abs": 72.71758692460152,
+          "mean": -28.375039934148237
+        },
+        "hip_adduction_l": {
+          "rms": 31.567498293331642,
+          "max_abs": 59.121452906633735,
+          "mean": 11.063605732312814
+        },
+        "hip_rotation_l": {
+          "rms": 13.187445137150986,
+          "max_abs": 28.0440001505682,
+          "mean": -8.151275536546116
+        },
+        "knee_angle_l": {
+          "rms": 51.456336973179425,
+          "max_abs": 88.36567361829474,
+          "mean": -40.30288450941627
+        },
+        "ankle_angle_l": {
+          "rms": 65.3999239478645,
+          "max_abs": 87.42980898495466,
+          "mean": -60.10306877625823
+        },
+        "subtalar_angle_l": {
+          "rms": 37.427970888246506,
+          "max_abs": 52.24378947897796,
+          "mean": 34.13554548767896
+        },
+        "mtp_angle_l": {
+          "rms": 0.03402285060694826,
+          "max_abs": 0.06588870114413647,
+          "mean": -0.032414485126528884
+        },
+        "lumbar_extension": {
+          "rms": 21.279483490517595,
+          "max_abs": 54.81077506418719,
+          "mean": 6.324043853039928
+        },
+        "lumbar_bending": {
+          "rms": 46.65632944930985,
+          "max_abs": 71.03546484247197,
+          "mean": 39.15044291960175
+        },
+        "lumbar_rotation": {
+          "rms": 6.471311372428243,
+          "max_abs": 18.839629095599356,
+          "mean": -1.7976263115890974
+        }
+      },
+      "RMS_difference_from_main_N_or_Nm": {
+        "pelvis_tilt": 11.494526680212784,
+        "pelvis_list": 12.94996343413229,
+        "pelvis_rotation": 7.698085399327064,
+        "pelvis_tx": 55.78175216551533,
+        "pelvis_ty": 24.065881592937977,
+        "pelvis_tz": 126.6017189171495,
+        "hip_flexion_r": 7.334958343357728,
+        "hip_adduction_r": 4.903384793013332,
+        "hip_rotation_r": 1.5492451864839865,
+        "knee_angle_r": 6.449714666437404,
+        "ankle_angle_r": 3.9722560812793986,
+        "subtalar_angle_r": 2.6249736719142276,
+        "mtp_angle_r": 0.014100728671517302,
+        "hip_flexion_l": 5.920489718959494,
+        "hip_adduction_l": 5.105113758317797,
+        "hip_rotation_l": 1.1571193211897128,
+        "knee_angle_l": 2.487670543096353,
+        "ankle_angle_l": 2.645169317406265,
+        "subtalar_angle_l": 0.9225052166286309,
+        "mtp_angle_l": 0.0063407471277651655,
+        "lumbar_extension": 12.196900561556179,
+        "lumbar_bending": 6.829381627344677,
+        "lumbar_rotation": 4.566393586689408
+      }
+    },
+    "6.0": {
+      "residual_force_norm_N": {
+        "rms": 232.13147196755875,
+        "max_abs": 591.1764919169633,
+        "mean": 203.99131087809747
+      },
+      "residual_force_rms_percent_BW": 33.81546078682158,
+      "residual_moment_norm_Nm": {
+        "rms": 51.581079932572344,
+        "max_abs": 86.83437463636207,
+        "mean": 48.39179647363203
+      },
+      "moment_components": {
+        "hip_flexion_r": {
+          "rms": 22.631055622709844,
+          "max_abs": 69.17541303558811,
+          "mean": -3.5776067626701247
+        },
+        "hip_adduction_r": {
+          "rms": 46.633567377333485,
+          "max_abs": 106.50467617352788,
+          "mean": -34.71302770774982
+        },
+        "hip_rotation_r": {
+          "rms": 13.571044731578553,
+          "max_abs": 26.94404793725341,
+          "mean": 11.958572739787366
+        },
+        "knee_angle_r": {
+          "rms": 21.481132416880484,
+          "max_abs": 71.00937001180658,
+          "mean": -9.96325343987504
+        },
+        "ankle_angle_r": {
+          "rms": 18.816794798203077,
+          "max_abs": 77.59229555121618,
+          "mean": -0.5070871735424267
+        },
+        "subtalar_angle_r": {
+          "rms": 19.851649881111094,
+          "max_abs": 32.968969073422755,
+          "mean": -17.210148957634203
+        },
+        "mtp_angle_r": {
+          "rms": 0.04581616507612814,
+          "max_abs": 0.08977257292889783,
+          "mean": -0.038876220509086006
+        },
+        "hip_flexion_l": {
+          "rms": 41.091140417558705,
+          "max_abs": 69.16765831559307,
+          "mean": -28.264143313709358
+        },
+        "hip_adduction_l": {
+          "rms": 31.781444402083338,
+          "max_abs": 63.45834719361601,
+          "mean": 11.138600081121945
+        },
+        "hip_rotation_l": {
+          "rms": 13.257914691100218,
+          "max_abs": 28.24692976590203,
+          "mean": -8.123453524213938
+        },
+        "knee_angle_l": {
+          "rms": 51.534553319263395,
+          "max_abs": 92.8091659440501,
+          "mean": -40.307138286908035
+        },
+        "ankle_angle_l": {
+          "rms": 65.47419505073543,
+          "max_abs": 86.50428567793792,
+          "mean": -60.04883339028508
+        },
+        "subtalar_angle_l": {
+          "rms": 37.433059569861115,
+          "max_abs": 54.419046638323486,
+          "mean": 34.04291619622291
+        },
+        "mtp_angle_l": {
+          "rms": 0.035711484142663424,
+          "max_abs": 0.07969981270628115,
+          "mean": -0.03294593455121397
+        },
+        "lumbar_extension": {
+          "rms": 26.21040669034927,
+          "max_abs": 63.837423496180705,
+          "mean": 6.332512110651177
+        },
+        "lumbar_bending": {
+          "rms": 46.45701223023881,
+          "max_abs": 80.54004805881188,
+          "mean": 39.47586799657905
+        },
+        "lumbar_rotation": {
+          "rms": 8.909390716762024,
+          "max_abs": 23.074132306995633,
+          "mean": -2.0216244142028414
+        }
+      },
+      "RMS_difference_from_main_N_or_Nm": {
+        "pelvis_tilt": 0.0,
+        "pelvis_list": 0.0,
+        "pelvis_rotation": 0.0,
+        "pelvis_tx": 0.0,
+        "pelvis_ty": 0.0,
+        "pelvis_tz": 0.0,
+        "hip_flexion_r": 0.0,
+        "hip_adduction_r": 0.0,
+        "hip_rotation_r": 0.0,
+        "knee_angle_r": 0.0,
+        "ankle_angle_r": 0.0,
+        "subtalar_angle_r": 0.0,
+        "mtp_angle_r": 0.0,
+        "hip_flexion_l": 0.0,
+        "hip_adduction_l": 0.0,
+        "hip_rotation_l": 0.0,
+        "knee_angle_l": 0.0,
+        "ankle_angle_l": 0.0,
+        "subtalar_angle_l": 0.0,
+        "mtp_angle_l": 0.0,
+        "lumbar_extension": 0.0,
+        "lumbar_bending": 0.0,
+        "lumbar_rotation": 0.0
+      }
+    },
+    "8.0": {
+      "residual_force_norm_N": {
+        "rms": 287.70865540725623,
+        "max_abs": 655.3475446607627,
+        "mean": 249.05414081259005
+      },
+      "residual_force_rms_percent_BW": 41.91159721897986,
+      "residual_moment_norm_Nm": {
+        "rms": 55.789390666276944,
+        "max_abs": 98.45701433236827,
+        "mean": 52.54588782301597
+      },
+      "moment_components": {
+        "hip_flexion_r": {
+          "rms": 23.53444023947727,
+          "max_abs": 66.52421467385084,
+          "mean": -3.409899214089363
+        },
+        "hip_adduction_r": {
+          "rms": 46.82140469654812,
+          "max_abs": 104.45194558623054,
+          "mean": -34.74142382254496
+        },
+        "hip_rotation_r": {
+          "rms": 13.629976057159814,
+          "max_abs": 27.478650057090267,
+          "mean": 11.982615718251663
+        },
+        "knee_angle_r": {
+          "rms": 22.05375310087624,
+          "max_abs": 70.15188475096198,
+          "mean": -10.105636973611938
+        },
+        "ankle_angle_r": {
+          "rms": 18.441736449784393,
+          "max_abs": 77.45116463757151,
+          "mean": -0.36190557106365234
+        },
+        "subtalar_angle_r": {
+          "rms": 19.85460273676477,
+          "max_abs": 32.03885488510535,
+          "mean": -17.25705982867477
+        },
+        "mtp_angle_r": {
+          "rms": 0.048190460871195405,
+          "max_abs": 0.10014987044339305,
+          "mean": -0.03893108378649966
+        },
+        "hip_flexion_l": {
+          "rms": 41.256542510849734,
+          "max_abs": 78.95403373076243,
+          "mean": -28.293922824192215
+        },
+        "hip_adduction_l": {
+          "rms": 31.725448495875213,
+          "max_abs": 65.86446334946757,
+          "mean": 11.097687627599187
+        },
+        "hip_rotation_l": {
+          "rms": 13.284374120830183,
+          "max_abs": 29.00067090387829,
+          "mean": -8.117283403834374
+        },
+        "knee_angle_l": {
+          "rms": 51.570280468108926,
+          "max_abs": 93.7009804324967,
+          "mean": -40.26334921807466
+        },
+        "ankle_angle_l": {
+          "rms": 65.51025998387182,
+          "max_abs": 88.1799037502717,
+          "mean": -59.9936240708252
+        },
+        "subtalar_angle_l": {
+          "rms": 37.43271241778778,
+          "max_abs": 55.05143665706845,
+          "mean": 34.02383329836007
+        },
+        "mtp_angle_l": {
+          "rms": 0.035599959052854784,
+          "max_abs": 0.07167428086733858,
+          "mean": -0.03274541959839455
+        },
+        "lumbar_extension": {
+          "rms": 29.83948800962803,
+          "max_abs": 74.97411503290947,
+          "mean": 6.039524694158205
+        },
+        "lumbar_bending": {
+          "rms": 47.03873961749879,
+          "max_abs": 86.76011744602988,
+          "mean": 39.131644654651005
+        },
+        "lumbar_rotation": {
+          "rms": 10.593928447770653,
+          "max_abs": 26.560533360394594,
+          "mean": -2.1232705966449195
+        }
+      },
+      "RMS_difference_from_main_N_or_Nm": {
+        "pelvis_tilt": 6.369596774568546,
+        "pelvis_list": 10.530833578982788,
+        "pelvis_rotation": 5.4900320969616345,
+        "pelvis_tx": 31.661987389695028,
+        "pelvis_ty": 15.873491741781285,
+        "pelvis_tz": 103.23115034001901,
+        "hip_flexion_r": 3.494936570432777,
+        "hip_adduction_r": 2.254073429688499,
+        "hip_rotation_r": 0.7331043853368118,
+        "knee_angle_r": 1.6849592528899309,
+        "ankle_angle_r": 1.1518778178023865,
+        "subtalar_angle_r": 1.0137078575404208,
+        "mtp_angle_r": 0.006963229437082406,
+        "hip_flexion_l": 4.098470217264472,
+        "hip_adduction_l": 3.057505647910626,
+        "hip_rotation_l": 0.8900445715048653,
+        "knee_angle_l": 1.2257848322203553,
+        "ankle_angle_l": 0.999696629612793,
+        "subtalar_angle_l": 0.46495907987020885,
+        "mtp_angle_l": 0.004385428188352403,
+        "lumbar_extension": 9.679660010936994,
+        "lumbar_bending": 4.591331685482165,
+        "lumbar_rotation": 2.857988652421399
+      }
+    }
+  },
+  "limitations": [
+    "User identifies this motion as a single-leg balance exercise, not walking/running; GaitDynamics force accuracy is not established for this activity.",
+    "Predicted rather than measured GRFs and CoPs; no free contact moments.",
+    "Segment masses and inertia matrices are present and positive definite, but toes_r and toes_l violate the rigid-body inertia triangle inequality; original values retained. Participant-specific inertial accuracy is not established.",
+    "Upper-body segments, head and arms were merged into a rigid torso in the existing conversion; neutral-pose inertia does not preserve their independent dynamics.",
+    "No motion/force optimization, no residual reduction, no muscle force allocation.",
+    "Coordinate torques are not 3-axis joint reaction moments; knee adduction is not reported.",
+    "Short 1.58-second demo; endpoint derivatives and filter sensitivity limit interpretation.",
+    "Force assignment to calcn is a whole-foot wrench assumption; toe/subtalar load partition is unvalidated."
+  ],
+  "movement_context": {
+    "activity": "single_leg_balance_exercise",
+    "source": "user clarification",
+    "stance_foot": "not yet established",
+    "other_contacts": "not yet established",
+    "gaitdynamics_force_accuracy_validated_for_activity": false
+  }
+}

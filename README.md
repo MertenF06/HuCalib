@@ -5,9 +5,11 @@ fysiotherapie, gebouwd in Python. Het programma biedt een grafische interface
 om meerdere camera's te kalibreren en bewegingen op te nemen ter voorbereiding
 op bewegingsanalyse.
 
-De opnames worden niet door het programma zelf geanalyseerd, maar kunnen
-geëxporteerd worden naar externe tools zoals
-[Pose2Sim](https://github.com/perfanalytics/pose2sim) voor verdere verwerking.
+De opnames kunnen worden verwerkt met een afzonderlijke
+[Pose2Sim-analysemodule](docs/pose2sim_analysis.md). Deze controleert de
+sessiegegevens en voert Pose2Sim op CPU uit in een aparte Python-omgeving.
+De grafische interface biedt hiervoor Nederlandstalige analysebediening en
+een grafiekviewer. [Bekijk de interfacevoorbeelden](docs/analysis_interface.md).
 
 ---
 
@@ -25,9 +27,9 @@ geëxporteerd worden naar externe tools zoals
 ## Overzicht
 
 HuCalib is een studentenproject dat een gestroomlijnde werkwijze biedt voor het
-kalibreren van camerasystemen voor fysiotherapie-onderzoek. Het programma
-analyseert de beweging niet zelf; de kalibratie zorgt ervoor dat opnames
-nauwkeurig genoeg zijn om door externe software verwerkt te worden.
+kalibreren van camerasystemen voor fysiotherapie-onderzoek. Een afzonderlijke
+analysemodule koppelt de opnames en kalibratie aan Pose2Sim. De meetnauwkeurigheid
+van de volledige opstelling moet in de praktijk worden vastgesteld.
 
 ---
 
@@ -37,6 +39,11 @@ nauwkeurig genoeg zijn om door externe software verwerkt te worden.
 - Grafische interface die eenvoudig te bedienen is
 - Projectbeheer: nieuwe projecten aanmaken of bestaande openen
 - Video-opname van de live camerabeelden, exporteerbaar naar tools zoals Pose2Sim
+- Afzonderlijke Pose2Sim-analyse met invoercontroles, staplogs en 3D-/OpenSim-resultaten
+- Nederlandstalige analysebediening met voortgang en grafieken van alle berekende modelcoördinaten
+
+Voor een draagbare Windows-testversie met de officiële demo:
+[Windows-testbuild en testinstructies](docs/windows_testbuild.md).
 
 ---
 
@@ -109,6 +116,13 @@ camerabeelden vast te leggen en op **Stop opname** om te stoppen. Elke camera
 wordt als een apart videobestand opgeslagen in een tijdgestempelde map binnen het
 project. Opnemen werkt alleen met live camera's, niet met ingeladen
 videobestanden.
+
+Nieuwe opnames gebruiken vaste camerabestandsnamen (`cam01`, `cam02`, …).
+De gebruikerslabels en koppeling met de kalibratie staan in `session.json`;
+`frames.jsonl` registreert de timing en bekende ontbrekende frames. Een
+beschikbare kalibratie wordt bij het starten van de opname meegekopieerd.
+Zie [Opnames en framelogging](docs/recording_sessions.md) voor de gegevensindeling,
+beperkingen en tests met Pose2Sim-voorbeeldvideo's.
 
 ### 5. Exporteer
 Kies op het tabblad **Resultaten / Export** een formaat (**TOML** of **JSON**)

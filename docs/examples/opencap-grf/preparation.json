@@ -1,0 +1,64 @@
+{
+  "source_sha256": {
+    "motion.mot": "d6257cbd5d838d6f014f0009cf5f6116393e4c57be0a727a3b3fa05575db54c2",
+    "model.osim": "7fa12645ba99a67aa7d5de46076c27c20f4448045725c29b83f1309ed0db8141",
+    "ground_reaction_forces.mot": "9a05bc496dbfed7501328013de15d6c5fe2baa542ae78f390b60d700c12f19df"
+  },
+  "motion_rows": 96,
+  "grf_rows": 159,
+  "motion_time": [
+    0.01666667,
+    1.6
+  ],
+  "markers": 0,
+  "muscles": 0,
+  "forces": 0,
+  "marker_proxies_only": true,
+  "marker_coordinates_unit": "m",
+  "foot_proxy_length_m": {
+    "right": 0.174025951564197,
+    "left": 0.174025951564197
+  },
+  "original_grf_columns": [
+    "time",
+    "force1_vx",
+    "force1_vy",
+    "force1_vz",
+    "force1_px",
+    "force1_py",
+    "force1_pz",
+    "torque1_x",
+    "torque1_y",
+    "torque1_z",
+    "force2_vx",
+    "force2_vy",
+    "force2_vz",
+    "force2_px",
+    "force2_py",
+    "force2_pz",
+    "torque2_x",
+    "torque2_y",
+    "torque2_z"
+  ],
+  "renamed_grf_columns": [
+    "time",
+    "R_ground_force_vx",
+    "R_ground_force_vy",
+    "R_ground_force_vz",
+    "R_ground_force_px",
+    "R_ground_force_py",
+    "R_ground_force_pz",
+    "R_ground_torque_x",
+    "R_ground_torque_y",
+    "R_ground_torque_z",
+    "L_ground_force_vx",
+    "L_ground_force_vy",
+    "L_ground_force_vz",
+    "L_ground_force_px",
+    "L_ground_force_py",
+    "L_ground_force_pz",
+    "L_ground_torque_x",
+    "L_ground_torque_y",
+    "L_ground_torque_z"
+  ]
+}

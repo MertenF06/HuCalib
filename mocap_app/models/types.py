@@ -57,6 +57,10 @@ class FramePacket:
     batch_timestamp_sec: float | None = None
     capture_started_sec: float | None = None
     capture_completed_sec: float | None = None
+    # Host monotonic clock: safe for intervals even when the wall clock changes.
+    # These bracket the read operation, not the sensor's physical exposure.
+    capture_started_monotonic_ns: int | None = None
+    capture_completed_monotonic_ns: int | None = None
 
 
 @dataclass(slots=True)

@@ -1,0 +1,92 @@
+{
+  "status": "technical_probe_completed",
+  "scientific_accuracy_validated": false,
+  "source_match": "same_pinned_demo_regenerated_not_bit_identical",
+  "pose2sim_commit": "68304b47195dac80bc341cdfd9669140609358c4",
+  "candidate_commit": "6369b19d9b53fa357befe651401af25b8350622d",
+  "augmented_marker_file_sha256": "ff5783abda62052177a54a792fa96f3a9ab5b80c12349b2f2a1d8b08a8010dda",
+  "source_sha256": {
+    "ground_reaction_forces.mot": "9a05bc496dbfed7501328013de15d6c5fe2baa542ae78f390b60d700c12f19df",
+    "model.osim": "7fa12645ba99a67aa7d5de46076c27c20f4448045725c29b83f1309ed0db8141",
+    "motion.mot": "d6257cbd5d838d6f014f0009cf5f6116393e4c57be0a727a3b3fa05575db54c2"
+  },
+  "marker_mapping": {
+    "r_calc_study": "r_calc",
+    "r_toe_study": "r_toe",
+    "L_calc_study": "L_calc",
+    "L_toe_study": "L_toe"
+  },
+  "marker_units": "m",
+  "marker_rows": 96,
+  "marker_count": 65,
+  "force_rows": 159,
+  "marker_time_s": [
+    0.0166666666666666,
+    1.6
+  ],
+  "force_time_s": [
+    0.01667,
+    1.59667
+  ],
+  "extrapolation_used": false,
+  "heading_rotation_degrees": 92.1462759585986,
+  "rotation_matrix": [
+    [
+      -0.037450822074273166,
+      0.0,
+      0.9992984718921375
+    ],
+    [
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      -0.9992984718921375,
+      0.0,
+      -0.037450822074273166
+    ]
+  ],
+  "translation_origin_m": [
+    -0.05300610491163413,
+    0.0,
+    -0.9860886645084763
+  ],
+  "stance_threshold_N": 20,
+  "model_unit_correction_diagnostic_only": true,
+  "new_grf_prediction_blocked": "model download HTTP403 on media.githubusercontent.com and huggingface.co",
+  "stance_is_inferred_from_unvalidated_predicted_forces": true,
+  "sides": {
+    "Rechtervoet": {
+      "predicted_stance_samples": 138,
+      "cop_outside_marker_triangle_more_than_3cm_samples": 119,
+      "cop_distance_from_marker_triangle_median_m": 0.5849582913703226,
+      "cop_distance_from_marker_triangle_max_m": 1.1896131353608996,
+      "original_cop_distance_from_marker_triangle_median_m": 0.5067868471559496,
+      "cop_py_retained_from_existing_grf": true,
+      "cop_pz_retained_in_aligned_frame_from_existing_grf": true
+    },
+    "Linkervoet": {
+      "predicted_stance_samples": 126,
+      "cop_outside_marker_triangle_more_than_3cm_samples": 71,
+      "cop_distance_from_marker_triangle_median_m": 0.042802124589358365,
+      "cop_distance_from_marker_triangle_max_m": 0.18159891576170847,
+      "original_cop_distance_from_marker_triangle_median_m": 0.015141102848729653,
+      "cop_py_retained_from_existing_grf": true,
+      "cop_pz_retained_in_aligned_frame_from_existing_grf": true
+    }
+  },
+  "original_files_preserved": true,
+  "finite_output": true,
+  "non_px_columns_preserved": true,
+  "regenerated_motion_comparison": {
+    "same_sample_times": true,
+    "max_translation_difference_m": {
+      "pelvis_tx": 0.006695569999999998,
+      "pelvis_ty": 0.004806589999999944,
+      "pelvis_tz": 0.018608619999999965
+    },
+    "max_rotation_difference_deg": 4.316127430000002
+  },
+  "cop_checkpoint_sha256": "96569650b1149bdadedf92e298c67bd7dd46779be20b393c5112572fa1561f17"
+}

@@ -1,0 +1,72 @@
+name: Windows-testbuild
+
+on:
+  push:
+    branches: [feat/recording-session-metadata]
+    paths:
+      - '.github/workflows/windows-testbuild.yml'
+      - '**.ps1'
+      - 'HuCalib.spec'
+      - 'run.py'
+      - 'requirements*.txt'
+      - 'mocap_app/**'
+      - 'tests/**'
+      - 'tools/**'
+      - 'testdata/**'
+      - 'docs/gaitdynamics.md'
+      - 'docs/windows_testbuild.md'
+      - 'Installeer-GaitDynamics.cmd'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-testbuild-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Build, unit-tests, exe-startproef en demo
+        shell: pwsh
+        run: ./build_testbuild.ps1
+      - name: Draagbare testkit bewaren
+        uses: actions/upload-artifact@v4
+        with:
+          name: HuCalib-Windows-testbuild-${{ github.sha }}
+          path: dist-testbuild/HuCalib-testbuild/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Testresultaten in jobsamenvatting
+        if: always()
+        shell: pwsh
+        run: |
+          '## Windows-testresultaten' | Add-Content $env:GITHUB_STEP_SUMMARY
+          if (Test-Path '.build-testbuild/unit-tests.log') {
+            '```text' | Add-Content $env:GITHUB_STEP_SUMMARY
+            Get-Content '.build-testbuild/unit-tests.log' -Encoding utf8 -Tail 100 | Add-Content $env:GITHUB_STEP_SUMMARY
+            '```' | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+          if (Test-Path '.build-testbuild/frozen-gui-smoke.json') {
+            '```json' | Add-Content $env:GITHUB_STEP_SUMMARY
+            Get-Content '.build-testbuild/frozen-gui-smoke.json' | Add-Content $env:GITHUB_STEP_SUMMARY
+            '```' | Add-Content $env:GITHUB_STEP_SUMMARY
+          }
+      - name: Foutlogs bewaren
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-build-diagnostiek-${{ github.sha }}
+          path: |
+            .build-testbuild/unit-tests.log
+            .build-testbuild/frozen-gui-smoke.json
+            .build-testbuild/work/HuCalib/warn-HuCalib.txt
+          if-no-files-found: ignore

@@ -18,6 +18,9 @@ def _velopack_startup() -> None:
     """
     if not getattr(sys, "frozen", False):
         return
+    from mocap_app.core.testbuild import is_test_build
+    if is_test_build():
+        return
     try:
         import velopack
 
@@ -33,4 +36,8 @@ from mocap_app.main import run
 
 
 if __name__ == "__main__":
+    if '--test-build-smoke' in sys.argv:
+        from mocap_app.testbuild_smoke import run_smoke
+        index = sys.argv.index('--test-build-smoke')
+        raise SystemExit(run_smoke(sys.argv[index + 1]))
     raise SystemExit(run())

@@ -21,6 +21,8 @@ from __future__ import annotations
 import logging
 import sys
 
+from mocap_app.core.testbuild import is_test_build
+
 from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 from PySide6.QtWidgets import QMessageBox, QProgressDialog, QWidget
 
@@ -45,7 +47,7 @@ _PERIODIC_INTERVAL_MS = 4 * 60 * 60 * 1000  # 4 hours
 def updates_supported() -> bool:
     """Velopack only works from an installed/packaged build. Running from a
     source checkout has nothing to update, so we skip silently."""
-    return getattr(sys, "frozen", False)
+    return getattr(sys, "frozen", False) and not is_test_build()
 
 
 def _make_manager():

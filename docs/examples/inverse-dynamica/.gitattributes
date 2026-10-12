@@ -1,0 +1,8 @@
+# Preserve exact bytes and SHA256 hashes across Linux/Windows checkouts.
+* -text
+# CRLF is intentional in Excel-compatible CSV files and the uploaded motion.
+*.csv whitespace=cr-at-eol
+invoer/motion.mot whitespace=cr-at-eol
+# Immutable model uploads and upstream source snapshots retain their formatting.
+invoer/*.osim -whitespace
+bronnen/*.cpp -whitespace

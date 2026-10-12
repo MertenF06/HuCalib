@@ -47,8 +47,13 @@ def run() -> int:
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 
+    from mocap_app.core.testbuild import is_test_build
+    if is_test_build():
+        config.app_name += ' — Windows-testbuild'
     window = DesignedMainWindow(config=config)
     window.showMaximized()
+    if '--setup-gaitdynamics' in sys.argv:
+        QTimer.singleShot(0, window._open_gaitdynamics_setup)
 
     # Check GitHub for a newer release shortly after the window is up, so the
     # check never delays startup. The controller is parented to the window so it

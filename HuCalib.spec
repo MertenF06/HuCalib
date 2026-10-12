@@ -14,7 +14,17 @@ a = Analysis(
     # its module. default_settings.json ships as the template the app copies
     # into the persistent app folder (hand-editable, refreshed on each version
     # bump).
-    datas=[('mocap_app/ui/imagesGUI', 'mocap_app/ui/imagesGUI'), ('default_settings.json', '.')],
+    datas=[('mocap_app/ui/imagesGUI', 'mocap_app/ui/imagesGUI'), ('default_settings.json', '.'),
+           # The separately installed Pose2Sim interpreter needs ordinary .py
+           # files; it cannot import modules from the app's PyInstaller archive.
+           ('mocap_app/__init__.py', 'analysis_runtime/mocap_app'),
+           ('mocap_app/analysis', 'analysis_runtime/mocap_app/analysis'),
+           ('mocap_app/io/__init__.py', 'analysis_runtime/mocap_app/io'),
+           ('mocap_app/io/calibration_export.py', 'analysis_runtime/mocap_app/io'),
+           ('mocap_app/io/recording_session.py', 'analysis_runtime/mocap_app/io'),
+           ('mocap_app/models', 'analysis_runtime/mocap_app/models'),
+           ('requirements-gaitdynamics.txt', 'gaitdynamics_setup'),
+           ('tools/setup_gaitdynamics.py', 'gaitdynamics_setup/tools')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -22,6 +32,8 @@ a = Analysis(
     # The app only uses QtCore/QtGui/QtWidgets, so drop the heavy unused Qt
     # modules (and other libs PyInstaller pulls in by default) to shrink the exe.
     excludes=[
+        'Pose2Sim', 'opensim', 'rtmlib', 'onnxruntime', 'rtoml',
+        'nimblephysics', 'accelerate',
         'tkinter',
         'matplotlib',
         # Heavy scientific libs that get pulled in transitively but are unused

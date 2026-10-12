@@ -1,0 +1,213 @@
+{
+  "scientific_accuracy_validated": false,
+  "status": "refined_geometric_check_completed",
+  "source_match": "regenerated_markers_model_and_existing_forces_not_bit_identical_runs",
+  "mass_kg": 69.99999999999999,
+  "rows": 159,
+  "units": {
+    "length": "m",
+    "force": "N",
+    "time": "s"
+  },
+  "floor_y_m": 0,
+  "contact_sphere_count": 12,
+  "sphere_radii_m": [
+    0.032,
+    0.032,
+    0.032,
+    0.032,
+    0.032,
+    0.032,
+    0.032,
+    0.032,
+    0.032,
+    0.032,
+    0.032,
+    0.032
+  ],
+  "source_sha256": {
+    "/workspace/HuCalib/docs/examples/opencap-grf/cloud-connection/model-Pose2Sim.osim": "1d253bd0e79a881c226d79574eb813399ce4a7db6c7fab2df49120ea2034d570",
+    "/workspace/HuCalib/docs/examples/opencap-grf/cloud-connection/motion-Pose2Sim.mot": "b2418c7294d0563ec31a0939d44f30a9618a5f46fd1578b93b16f4cecc3ccb11",
+    "/workspace/HuCalib/docs/examples/inverse-dynamica/invoer/ground_reaction_forces.mot": "9a05bc496dbfed7501328013de15d6c5fe2baa542ae78f390b60d700c12f19df",
+    "/workspace/artifacts/cloud-connection-check/cop-aligned-experimental.mot": "36f5ccb3c37f340fde23102fb4e271a3bb1d8bed9a5a1b1c7c9b42f396c66949",
+    "/workspace/HuCalib/docs/examples/opencap-grf/cloud-connection/connection-report.json": "c94b4e266cde7ea2ccc5e38535c9046ed7092b1e5abb90cea96911bbce915ae4"
+  },
+  "no_extrapolation": true,
+  "ground_proximity_threshold_m": 0.02,
+  "force_threshold_N": 20,
+  "cop_distance_margin_m": 0.03,
+  "contact_envelope": "convex hull of full horizontally projected contact-sphere discs; conservative, not true pressure patch",
+  "total_cop_method": "sum of r cross F plus free torque about world origin; intersect resultant normal moment with y=0; feet with Fy<=20N excluded",
+  "com_method": "OpenSim mass-weighted centre of full model; horizontal projection",
+  "negative_Fy_samples": {
+    "right": 0,
+    "left": 13
+  },
+  "per_foot": {
+    "right": {
+      "predicted_loaded_samples": 138,
+      "lowest_sphere_gap_m": {
+        "min": -0.03431492447833578,
+        "max": 0.3151448408716978,
+        "median_when_loaded": 0.07793909125277432
+      },
+      "loaded_but_more_than_2cm_above_floor_samples": 79,
+      "loaded_but_more_than_5cm_above_floor_samples": 75,
+      "existing_cop_distance_m": {
+        "count": 138,
+        "median": 0.5177451891575549,
+        "max": 1.1542770162632965,
+        "outside_3cm_count": 86
+      },
+      "experimental_cop_distance_m": {
+        "count": 138,
+        "median": 0.5546913107444356,
+        "max": 1.129982599822751,
+        "outside_3cm_count": 82
+      },
+      "force_peak_N": 885.7203,
+      "floor_offset_sensitivity": {
+        "-0.02": 81,
+        "0": 79,
+        "0.02": 77
+      },
+      "COP_y_when_loaded_m": {
+        "min": -0.016248157,
+        "max": 0.282039
+      },
+      "force_threshold_sensitivity": {
+        "20": {
+          "loaded_count": 138,
+          "existing_COP_outside_3cm_count": 86,
+          "experimental_COP_outside_3cm_count": 82,
+          "foot_above_5cm_count": 75
+        },
+        "50": {
+          "loaded_count": 70,
+          "existing_COP_outside_3cm_count": 18,
+          "experimental_COP_outside_3cm_count": 14,
+          "foot_above_5cm_count": 8
+        },
+        "100": {
+          "loaded_count": 60,
+          "existing_COP_outside_3cm_count": 8,
+          "experimental_COP_outside_3cm_count": 4,
+          "foot_above_5cm_count": 0
+        },
+        "200": {
+          "loaded_count": 57,
+          "existing_COP_outside_3cm_count": 6,
+          "experimental_COP_outside_3cm_count": 3,
+          "foot_above_5cm_count": 0
+        }
+      },
+      "force_when_foot_above_5cm_N": {
+        "max": 56.049328,
+        "median": 35.95456
+      }
+    },
+    "left": {
+      "predicted_loaded_samples": 126,
+      "lowest_sphere_gap_m": {
+        "min": -0.021584475254311626,
+        "max": 0.06898634152517405,
+        "median_when_loaded": 0.009933236766778507
+      },
+      "loaded_but_more_than_2cm_above_floor_samples": 20,
+      "loaded_but_more_than_5cm_above_floor_samples": 1,
+      "existing_cop_distance_m": {
+        "count": 126,
+        "median": 0.0,
+        "max": 0.07788410806365201,
+        "outside_3cm_count": 4
+      },
+      "experimental_cop_distance_m": {
+        "count": 126,
+        "median": 0.0,
+        "max": 0.0961749579942422,
+        "outside_3cm_count": 14
+      },
+      "force_peak_N": 737.71075,
+      "floor_offset_sensitivity": {
+        "-0.02": 98,
+        "0": 20,
+        "0.02": 2
+      },
+      "COP_y_when_loaded_m": {
+        "min": 0.028855074,
+        "max": 0.12290876
+      },
+      "force_threshold_sensitivity": {
+        "20": {
+          "loaded_count": 126,
+          "existing_COP_outside_3cm_count": 4,
+          "experimental_COP_outside_3cm_count": 14,
+          "foot_above_5cm_count": 1
+        },
+        "50": {
+          "loaded_count": 122,
+          "existing_COP_outside_3cm_count": 1,
+          "experimental_COP_outside_3cm_count": 11,
+          "foot_above_5cm_count": 0
+        },
+        "100": {
+          "loaded_count": 119,
+          "existing_COP_outside_3cm_count": 0,
+          "experimental_COP_outside_3cm_count": 8,
+          "foot_above_5cm_count": 0
+        },
+        "200": {
+          "loaded_count": 114,
+          "existing_COP_outside_3cm_count": 0,
+          "experimental_COP_outside_3cm_count": 5,
+          "foot_above_5cm_count": 0
+        }
+      },
+      "force_when_foot_above_5cm_N": {
+        "max": 26.38536,
+        "median": 26.38536
+      }
+    }
+  },
+  "combined": {
+    "original_total_force_selected_envelope": {
+      "count": 159,
+      "median": 0.0,
+      "max": 0.0,
+      "outside_3cm_count": 0
+    },
+    "original_total_ground_proximal_envelope": {
+      "count": 146,
+      "median": 0.0,
+      "max": 0.34623534664003486,
+      "outside_3cm_count": 30
+    },
+    "experimental_total_force_selected_envelope": {
+      "count": 159,
+      "median": 0.0,
+      "max": 0.0,
+      "outside_3cm_count": 0
+    },
+    "experimental_total_ground_proximal_envelope": {
+      "count": 146,
+      "median": 0.003196196359614374,
+      "max": 0.2866762130424488,
+      "outside_3cm_count": 35
+    },
+    "com_projection_force_selected_envelope": {
+      "count": 159,
+      "median": 0.0,
+      "max": 0.08690947726026858,
+      "outside_3cm_count": 11
+    },
+    "com_projection_ground_proximal_envelope": {
+      "count": 146,
+      "median": 0.006690891245676116,
+      "max": 0.14333467511732595,
+      "outside_3cm_count": 42
+    }
+  },
+  "max_excluded_positive_Fy_fraction": 0.027089249654869328,
+  "weighted_vs_resultant_total_COP_max_horizontal_difference_m": 0.008870328221413693,
+  "original_files_preserved": true
+}

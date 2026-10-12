@@ -16,6 +16,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+from mocap_app.core.branding import APP_NAME
 
 LOGGER = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ class AppConfig:
     settings file.
     """
 
-    app_name: str = "HuCalib"
+    app_name: str = APP_NAME
     app_root: Path = field(default_factory=_app_root)
     target_fps: float = 30.0
     default_camera_csv: str = "0"
@@ -190,6 +191,9 @@ class AppConfig:
     def _apply_settings_dict(self, data: dict[str, Any]) -> None:
         """Overlay a settings dict (basic fields + nested ``advanced``)."""
         for key, value in data.items():
+            if key == 'app_name' and value in (
+                    'HuCalib', 'HuCalib — Windows-testbuild', APP_NAME + ' — Windows-testbuild'):
+                value = APP_NAME
             if key == "advanced" and isinstance(value, dict):
                 self.advanced_settings = _deep_merge(self.advanced_settings, value)
                 continue

@@ -1,0 +1,53 @@
+{
+  "source_coordinates": [
+    "pelvis_tilt",
+    "pelvis_list",
+    "pelvis_rotation",
+    "pelvis_tx",
+    "pelvis_ty",
+    "pelvis_tz",
+    "hip_flexion_r",
+    "hip_adduction_r",
+    "hip_rotation_r",
+    "knee_angle_r",
+    "knee_angle_r_beta",
+    "ankle_angle_r",
+    "subtalar_angle_r",
+    "mtp_angle_r",
+    "hip_flexion_l",
+    "hip_adduction_l",
+    "hip_rotation_l",
+    "knee_angle_l",
+    "knee_angle_l_beta",
+    "ankle_angle_l",
+    "subtalar_angle_l",
+    "mtp_angle_l",
+    "lumbar_extension",
+    "lumbar_bending",
+    "lumbar_rotation"
+  ],
+  "walking_tracking_coordinates_missing": [
+    "arm_add_l",
+    "arm_add_r",
+    "arm_flex_l",
+    "arm_flex_r",
+    "arm_rot_l",
+    "arm_rot_r",
+    "elbow_flex_l",
+    "elbow_flex_r",
+    "pro_sup_l",
+    "pro_sup_r"
+  ],
+  "simulation_executed": false,
+  "contact_function_test": "failed",
+  "runtime_modules_available": {
+    "casadi": false,
+    "seaborn": false,
+    "yaml": false,
+    "pandas": false,
+    "scipy": true,
+    "requests": false
+  },
+  "contact_error": "std::exception in 'OpenSim::Geometry const & OpenSim::Frame::get_attached_geometry(int) const': SimTK Exception thrown at Array.h:563:\n  Index out of range in ArrayViewConst_<T>::at(): expected 0 <= size_type(i) < 0 but size_type(i)=0.",
+  "contact_traceback": "Traceback (most recent call last):\n  File \"/workspace/artifacts/opencap-grf-probe/preflight.py\", line 36, in <module>\n    namespace['generate_model_with_contacts'](1e6,str(OUT/'contact-preparation'),'session',OpenSimModel='HU3D',contact_side='all')\n  File \"candidate_contact_function\", line 666, in generate_model_with_contacts\n  File \"/workspace/retarget-venv/lib/python3.12/site-packages/opensim/simulation.py\", line 1650, in get_attached_geometry\n    return _simulation.Frame_get_attached_geometry(self, i)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: std::exception in 'OpenSim::Geometry const & OpenSim::Frame::get_attached_geometry(int) const': SimTK Exception thrown at Array.h:563:\n  Index out of range in ArrayViewConst_<T>::at(): expected 0 <= size_type(i) < 0 but size_type(i)=0.\n"
+}

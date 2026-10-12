@@ -1,0 +1,80 @@
+{
+  "source": "Public GitHub Actions validation notice; complete files are in the workflow artifact",
+  "workflow_url": "https://github.com/jaapjansen1977/HuCalib/actions/runs/38135646869",
+  "tested_commit": "f87e1a41091cef361ecf5180fbe6802388b9c272",
+  "windows_conversion_tested_separately": true,
+  "windows_testbuild_url": "https://github.com/jaapjansen1977/HuCalib/actions/runs/38135537887",
+  "validation": {
+    "status": "completed",
+    "pose2sim_video_inputs_tested": true,
+    "pose2sim_input_cameras": 4,
+    "pose2sim_source_coordinates": 62,
+    "converted_coordinates": 23,
+    "frames": 96,
+    "conversion": {
+      "mass_kg": 70.0,
+      "target_mass_kg": 70.0,
+      "max_lower_body_position_error_m": 5.937621690392846e-16,
+      "max_orientation_error_rad": 6.414757726071855e-16,
+      "max_trunk_position_error_m": 0.01627378601532162,
+      "rms_trunk_position_error_m": 0.009495240887635521,
+      "checked_frames": 96,
+      "time_samples_preserved": true,
+      "ankles_reexpressed_as_pin_joints": true
+    },
+    "gait_kinematics": {
+      "checked_frames": 96,
+      "upstream_max_foot_position_error_m": 0.003935847981137782,
+      "upstream_max_body_orientation_error_degrees": 0.5298542288590863,
+      "upstream_limits": {
+        "position_m": 0.015,
+        "orientation_degrees": 5
+      },
+      "conversion_reference_checked": true,
+      "opensim_nimble_max_position_error_m": 7.607509108035063e-16,
+      "opensim_nimble_max_orientation_error_rad": 4.893093484904352e-16
+    },
+    "gait_result": {
+      "path": "ground_reaction_forces.mot",
+      "sha256": "748f255e79d662323febd15b84ef33045687d94a23bce19c3b78e5c7584988ff",
+      "rows": 159,
+      "sampling_rate_hz": 100,
+      "time_range_s": [
+        0.01667,
+        1.59667
+      ],
+      "force_unit": "N",
+      "cop_unit": "m",
+      "right_foot": "force1",
+      "left_foot": "force2"
+    },
+    "gait_time_interpolation": {
+      "method": "linear interpolation of continuous coordinates using actual source times",
+      "source_frames": 96,
+      "output_frames": 159,
+      "target_sampling_rate_hz": 100,
+      "source_time_range_s": [
+        0.01666667,
+        1.6
+      ],
+      "output_time_range_s": [
+        0.01666667,
+        1.59666667
+      ],
+      "source_sampling_rate_hz": 60.00000012631578,
+      "source_sha256": "dcd0efccb05f778412e7e725e4efc09735528300bb944ca5d888e566a2836b23",
+      "inference_sha256": "47ada23fc29032c53216606edb5771474521a5f58c651db201700601e0fd4132",
+      "extrapolation": false,
+      "generated_missing_frames": false,
+      "angular_wraps_removed_before_interpolation": true
+    },
+    "device": "cpu",
+    "height_m": 1.75,
+    "height_is_demo_assumption": true,
+    "mass_from_pose2sim_scaled_model_kg": 70.0,
+    "calibration_resolution_mismatch_diagnostic": true,
+    "scientific_accuracy_validated": false,
+    "native_windows_tested": false,
+    "wsl2_tested": false
+  }
+}

@@ -1,0 +1,22 @@
+[2026-10-11 15:11:26.535] [info] Loaded model HU3D_GaitDynamics_reduced from file model.osim
+[2026-10-11 15:11:26.536] [cout] [info] 
+               MODEL: HU3D_GaitDynamics_reduced
+         coordinates: 25
+              forces: 0
+           actuators: 0
+             muscles: 0
+            analyses: 0
+              probes: 0
+              bodies: 14
+              joints: 14
+         constraints: 2
+             markers: 0
+         controllers: 0
+  contact geometries: 0
+misc modelcomponents: 0
+[2026-10-11 15:11:26.536] [info] Running tool HU3D_ID_8Hz...
+[2026-10-11 15:11:26.542] [info] Storage: read data file = externe-belastingen.mot (nr=159 nc=19)
+[2026-10-11 15:11:26.543] [info] ExternalForce::predicted_grf_r Data source being set to HU3D standalone inverse dynamics
+[2026-10-11 15:11:26.543] [info] ExternalForce::predicted_grf_l Data source being set to HU3D standalone inverse dynamics
+[2026-10-11 15:11:26.545] [info] Storage: read data file = beweging-gefilterd.mot (nr=159 nc=26)
+[2026-10-11 15:11:26.594] [info] InverseDynamicsTool: 159 time frames in 33 millisecond(s).

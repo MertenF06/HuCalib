@@ -1,0 +1,836 @@
+{
+  "scientific_accuracy_validated": false,
+  "status": "diagnostic_transition_analysis_completed",
+  "source_sha256": "6499a19eaa99eee5fda2ec78472c3dc20143067b4f290f8b58009da41a2f8534",
+  "source_match": "regenerated_model_motion_and_existing_forces_not_identical_runs",
+  "rows": 159,
+  "sampling_interval_s": 0.010000000000000009,
+  "force_thresholds_N": [
+    20,
+    50,
+    100,
+    200
+  ],
+  "height_thresholds_m": [
+    0,
+    0.02,
+    0.05,
+    0.07
+  ],
+  "floor_offset_sensitivity_m": [
+    -0.02,
+    0,
+    0.02
+  ],
+  "hysteresis_on_off_N": [
+    100,
+    50
+  ],
+  "crossing_times": "linear interpolation between adjacent samples; not measured heel strike or toe off",
+  "COP_invalid_when_Fy_le_20N": true,
+  "phase_labels_are_diagnostics_not_validated_contact_detection": true,
+  "sides": {
+    "right": {
+      "force_threshold_intervals": {
+        "20": [
+          {
+            "start_s": 0.01667,
+            "end_s": 0.23667,
+            "samples": 23,
+            "sample_span_s": 0.22,
+            "left_censored": true,
+            "right_censored": false
+          },
+          {
+            "start_s": 0.45667,
+            "end_s": 1.59667,
+            "samples": 115,
+            "sample_span_s": 1.1400000000000001,
+            "left_censored": false,
+            "right_censored": true
+          }
+        ],
+        "50": [
+          {
+            "start_s": 0.01667,
+            "end_s": 0.22667,
+            "samples": 22,
+            "sample_span_s": 0.21000000000000002,
+            "left_censored": true,
+            "right_censored": false
+          },
+          {
+            "start_s": 0.68667,
+            "end_s": 0.75667,
+            "samples": 8,
+            "sample_span_s": 0.06999999999999995,
+            "left_censored": false,
+            "right_censored": false
+          },
+          {
+            "start_s": 1.20667,
+            "end_s": 1.59667,
+            "samples": 40,
+            "sample_span_s": 0.3900000000000001,
+            "left_censored": false,
+            "right_censored": true
+          }
+        ],
+        "100": [
+          {
+            "start_s": 0.01667,
+            "end_s": 0.21667,
+            "samples": 21,
+            "sample_span_s": 0.2,
+            "left_censored": true,
+            "right_censored": false
+          },
+          {
+            "start_s": 1.21667,
+            "end_s": 1.59667,
+            "samples": 39,
+            "sample_span_s": 0.3800000000000001,
+            "left_censored": false,
+            "right_censored": true
+          }
+        ],
+        "200": [
+          {
+            "start_s": 0.01667,
+            "end_s": 0.19667,
+            "samples": 19,
+            "sample_span_s": 0.18000000000000002,
+            "left_censored": true,
+            "right_censored": false
+          },
+          {
+            "start_s": 1.22667,
+            "end_s": 1.59667,
+            "samples": 38,
+            "sample_span_s": 0.3700000000000001,
+            "left_censored": false,
+            "right_censored": true
+          }
+        ]
+      },
+      "height_above_intervals": {
+        "0": [
+          {
+            "start_s": 0.26667,
+            "end_s": 1.25667,
+            "samples": 100,
+            "sample_span_s": 0.99,
+            "left_censored": false,
+            "right_censored": false
+          }
+        ],
+        "0.02": [
+          {
+            "start_s": 0.30667,
+            "end_s": 1.23667,
+            "samples": 94,
+            "sample_span_s": 0.9299999999999999,
+            "left_censored": false,
+            "right_censored": false
+          }
+        ],
+        "0.05": [
+          {
+            "start_s": 0.37667,
+            "end_s": 1.19667,
+            "samples": 83,
+            "sample_span_s": 0.8199999999999998,
+            "left_censored": false,
+            "right_censored": false
+          }
+        ],
+        "0.07": [
+          {
+            "start_s": 0.40667,
+            "end_s": 1.15667,
+            "samples": 76,
+            "sample_span_s": 0.7500000000000001,
+            "left_censored": false,
+            "right_censored": false
+          }
+        ]
+      },
+      "force_crossings": {
+        "20": [
+          {
+            "time_s": 0.2408186298624548,
+            "direction": "falling",
+            "bracket_s": [
+              0.23667,
+              0.24667
+            ]
+          },
+          {
+            "time_s": 0.454024737801028,
+            "direction": "rising",
+            "bracket_s": [
+              0.44667,
+              0.45667
+            ]
+          }
+        ],
+        "50": [
+          {
+            "time_s": 0.2320752715778793,
+            "direction": "falling",
+            "bracket_s": [
+              0.22667,
+              0.23667
+            ]
+          },
+          {
+            "time_s": 0.6838014404993177,
+            "direction": "rising",
+            "bracket_s": [
+              0.67667,
+              0.68667
+            ]
+          },
+          {
+            "time_s": 0.7569887896979605,
+            "direction": "falling",
+            "bracket_s": [
+              0.75667,
+              0.76667
+            ]
+          },
+          {
+            "time_s": 1.1990378049922141,
+            "direction": "rising",
+            "bracket_s": [
+              1.19667,
+              1.20667
+            ]
+          }
+        ],
+        "100": [
+          {
+            "time_s": 0.221458197290162,
+            "direction": "falling",
+            "bracket_s": [
+              0.21667,
+              0.22667
+            ]
+          },
+          {
+            "time_s": 1.2092082812965237,
+            "direction": "rising",
+            "bracket_s": [
+              1.20667,
+              1.21667
+            ]
+          }
+        ]
+      },
+      "height_crossings": {
+        "0.02": [
+          {
+            "time_s": 0.3034220831809428,
+            "direction": "rising",
+            "bracket_s": [
+              0.29667,
+              0.30667
+            ]
+          },
+          {
+            "time_s": 1.238470063867438,
+            "direction": "falling",
+            "bracket_s": [
+              1.23667,
+              1.24667
+            ]
+          }
+        ],
+        "0.05": [
+          {
+            "time_s": 0.36680233156205294,
+            "direction": "rising",
+            "bracket_s": [
+              0.36667,
+              0.37667
+            ]
+          },
+          {
+            "time_s": 1.2045417950655786,
+            "direction": "falling",
+            "bracket_s": [
+              1.19667,
+              1.20667
+            ]
+          }
+        ]
+      },
+      "hysteresis_intervals": [
+        {
+          "start_s": 0.01667,
+          "end_s": 0.22667,
+          "samples": 22,
+          "sample_span_s": 0.21000000000000002,
+          "left_censored": true,
+          "right_censored": false
+        },
+        {
+          "start_s": 1.21667,
+          "end_s": 1.59667,
+          "samples": 39,
+          "sample_span_s": 0.3800000000000001,
+          "left_censored": false,
+          "right_censored": true
+        }
+      ],
+      "phase_counts": {
+        "hoge_kracht_voet_nabij_grond": 57,
+        "hoge_kracht_voet_niet_nabij_grond": 3,
+        "kracht_te_laag_COP_onbruikbaar": 21,
+        "lage_restkracht_voet_vrij": 76,
+        "lichte_kracht_voet_nabij_grond": 2
+      },
+      "force_band_COP": {
+        "20-50": {
+          "samples": 68,
+          "outside_3cm_samples": 68,
+          "median_distance_m": 0.6961893277958582,
+          "max_distance_m": 1.1542770162632965
+        },
+        "50-100": {
+          "samples": 10,
+          "outside_3cm_samples": 10,
+          "median_distance_m": 0.5222059800580661,
+          "max_distance_m": 0.5405874169805898
+        },
+        "100-inf": {
+          "samples": 60,
+          "outside_3cm_samples": 8,
+          "median_distance_m": 0.0,
+          "max_distance_m": 0.17447601267561022
+        }
+      },
+      "floor_sensitive_contact_samples": 12,
+      "low_force_while_above_5cm_samples": 75,
+      "low_force_while_above_7cm_samples": 71,
+      "negative_Fy_samples": 0,
+      "floor_sensitivity": {
+        "-0.02": {
+          "height_2cm_crossings": [
+            {
+              "time_s": 0.2597409064425463,
+              "direction": "rising",
+              "bracket_s": [
+                0.25667,
+                0.26667
+              ]
+            },
+            {
+              "time_s": 1.2587111484760711,
+              "direction": "falling",
+              "bracket_s": [
+                1.25667,
+                1.26667
+              ]
+            }
+          ],
+          "high_force_not_near_samples": 5,
+          "low_force_raised_5cm_samples": 76
+        },
+        "0": {
+          "height_2cm_crossings": [
+            {
+              "time_s": 0.3034220831809428,
+              "direction": "rising",
+              "bracket_s": [
+                0.29667,
+                0.30667
+              ]
+            },
+            {
+              "time_s": 1.238470063867438,
+              "direction": "falling",
+              "bracket_s": [
+                1.23667,
+                1.24667
+              ]
+            }
+          ],
+          "high_force_not_near_samples": 3,
+          "low_force_raised_5cm_samples": 75
+        },
+        "0.02": {
+          "height_2cm_crossings": [
+            {
+              "time_s": 0.3465742527074234,
+              "direction": "rising",
+              "bracket_s": [
+                0.33667,
+                0.34667
+              ]
+            },
+            {
+              "time_s": 1.217134117977649,
+              "direction": "falling",
+              "bracket_s": [
+                1.21667,
+                1.22667
+              ]
+            }
+          ],
+          "high_force_not_near_samples": 1,
+          "low_force_raised_5cm_samples": 71
+        }
+      },
+      "transition_comparison_s": {
+        "force_below_100": 0.221458197290162,
+        "foot_above_2cm": 0.3034220831809428,
+        "force_above_100": 1.2092082812965237,
+        "foot_back_below_2cm": 1.238470063867438,
+        "unloading_precedes_height_crossing": 0.08196388589078082,
+        "loading_precedes_height_crossing": 0.029261782570914274
+      },
+      "main_raised_interval": {
+        "start_s": 0.37667,
+        "end_s": 1.19667,
+        "samples": 83,
+        "sample_span_s": 0.8199999999999998,
+        "left_censored": false,
+        "right_censored": false
+      },
+      "transition_window_sensitivity": {
+        "0.05": {
+          "high_force_samples_near_transition": 10,
+          "high_force_COP_outliers_near_transition": 6,
+          "high_force_samples_outside_window": 50,
+          "high_force_COP_outliers_outside_window": 2
+        },
+        "0.1": {
+          "high_force_samples_near_transition": 20,
+          "high_force_COP_outliers_near_transition": 8,
+          "high_force_samples_outside_window": 40,
+          "high_force_COP_outliers_outside_window": 0
+        },
+        "0.15": {
+          "high_force_samples_near_transition": 30,
+          "high_force_COP_outliers_near_transition": 8,
+          "high_force_samples_outside_window": 30,
+          "high_force_COP_outliers_outside_window": 0
+        }
+      }
+    },
+    "left": {
+      "force_threshold_intervals": {
+        "20": [
+          {
+            "start_s": 0.15667,
+            "end_s": 1.36667,
+            "samples": 122,
+            "sample_span_s": 1.21,
+            "left_censored": false,
+            "right_censored": false
+          },
+          {
+            "start_s": 1.56667,
+            "end_s": 1.59667,
+            "samples": 4,
+            "sample_span_s": 0.030000000000000027,
+            "left_censored": false,
+            "right_censored": true
+          }
+        ],
+        "50": [
+          {
+            "start_s": 0.16667,
+            "end_s": 1.35667,
+            "samples": 120,
+            "sample_span_s": 1.19,
+            "left_censored": false,
+            "right_censored": false
+          },
+          {
+            "start_s": 1.58667,
+            "end_s": 1.59667,
+            "samples": 2,
+            "sample_span_s": 0.010000000000000009,
+            "left_censored": false,
+            "right_censored": true
+          }
+        ],
+        "100": [
+          {
+            "start_s": 0.16667,
+            "end_s": 1.34667,
+            "samples": 119,
+            "sample_span_s": 1.18,
+            "left_censored": false,
+            "right_censored": false
+          }
+        ],
+        "200": [
+          {
+            "start_s": 0.18667,
+            "end_s": 1.31667,
+            "samples": 114,
+            "sample_span_s": 1.13,
+            "left_censored": false,
+            "right_censored": false
+          }
+        ]
+      },
+      "height_above_intervals": {
+        "0": [
+          {
+            "start_s": 0.01667,
+            "end_s": 1.08667,
+            "samples": 108,
+            "sample_span_s": 1.07,
+            "left_censored": true,
+            "right_censored": false
+          },
+          {
+            "start_s": 1.37667,
+            "end_s": 1.59667,
+            "samples": 23,
+            "sample_span_s": 0.21999999999999997,
+            "left_censored": false,
+            "right_censored": true
+          }
+        ],
+        "0.02": [
+          {
+            "start_s": 0.01667,
+            "end_s": 0.14667,
+            "samples": 14,
+            "sample_span_s": 0.13,
+            "left_censored": true,
+            "right_censored": false
+          },
+          {
+            "start_s": 0.27667,
+            "end_s": 0.42667,
+            "samples": 16,
+            "sample_span_s": 0.14999999999999997,
+            "left_censored": false,
+            "right_censored": false
+          },
+          {
+            "start_s": 1.40667,
+            "end_s": 1.59667,
+            "samples": 20,
+            "sample_span_s": 0.18999999999999995,
+            "left_censored": false,
+            "right_censored": true
+          }
+        ],
+        "0.05": [
+          {
+            "start_s": 0.01667,
+            "end_s": 0.01667,
+            "samples": 1,
+            "sample_span_s": 0.0,
+            "left_censored": true,
+            "right_censored": false
+          },
+          {
+            "start_s": 1.44667,
+            "end_s": 1.56667,
+            "samples": 13,
+            "sample_span_s": 0.1200000000000001,
+            "left_censored": false,
+            "right_censored": false
+          }
+        ],
+        "0.07": []
+      },
+      "force_crossings": {
+        "20": [
+          {
+            "time_s": 0.14770524122606335,
+            "direction": "rising",
+            "bracket_s": [
+              0.14667,
+              0.15667
+            ]
+          },
+          {
+            "time_s": 1.3759333282124566,
+            "direction": "falling",
+            "bracket_s": [
+              1.36667,
+              1.37667
+            ]
+          },
+          {
+            "time_s": 1.5627290211172715,
+            "direction": "rising",
+            "bracket_s": [
+              1.55667,
+              1.56667
+            ]
+          }
+        ],
+        "50": [
+          {
+            "time_s": 0.15692882440736503,
+            "direction": "rising",
+            "bracket_s": [
+              0.15667,
+              0.16667
+            ]
+          },
+          {
+            "time_s": 1.364847108915433,
+            "direction": "falling",
+            "bracket_s": [
+              1.35667,
+              1.36667
+            ]
+          },
+          {
+            "time_s": 1.5783117460521017,
+            "direction": "rising",
+            "bracket_s": [
+              1.57667,
+              1.58667
+            ]
+          }
+        ],
+        "100": [
+          {
+            "time_s": 0.16654558033515743,
+            "direction": "rising",
+            "bracket_s": [
+              0.15667,
+              0.16667
+            ]
+          },
+          {
+            "time_s": 1.3511565876388598,
+            "direction": "falling",
+            "bracket_s": [
+              1.34667,
+              1.35667
+            ]
+          }
+        ]
+      },
+      "height_crossings": {
+        "0.02": [
+          {
+            "time_s": 0.1547642689313299,
+            "direction": "falling",
+            "bracket_s": [
+              0.14667,
+              0.15667
+            ]
+          },
+          {
+            "time_s": 0.27635373740743324,
+            "direction": "rising",
+            "bracket_s": [
+              0.26667,
+              0.27667
+            ]
+          },
+          {
+            "time_s": 0.42763354459992403,
+            "direction": "falling",
+            "bracket_s": [
+              0.42667,
+              0.43667
+            ]
+          },
+          {
+            "time_s": 1.3984883481489625,
+            "direction": "rising",
+            "bracket_s": [
+              1.39667,
+              1.40667
+            ]
+          }
+        ],
+        "0.05": [
+          {
+            "time_s": 0.020893578886892576,
+            "direction": "falling",
+            "bracket_s": [
+              0.01667,
+              0.02667
+            ]
+          },
+          {
+            "time_s": 1.437576307753219,
+            "direction": "rising",
+            "bracket_s": [
+              1.43667,
+              1.44667
+            ]
+          },
+          {
+            "time_s": 1.5714936835765958,
+            "direction": "falling",
+            "bracket_s": [
+              1.56667,
+              1.57667
+            ]
+          }
+        ]
+      },
+      "hysteresis_intervals": [
+        {
+          "start_s": 0.16667,
+          "end_s": 1.35667,
+          "samples": 120,
+          "sample_span_s": 1.19,
+          "left_censored": false,
+          "right_censored": false
+        }
+      ],
+      "phase_counts": {
+        "hoge_kracht_voet_nabij_grond": 103,
+        "hoge_kracht_voet_niet_nabij_grond": 16,
+        "kracht_te_laag_COP_onbruikbaar": 33,
+        "lage_restkracht_voet_vrij": 4,
+        "lichte_kracht_voet_nabij_grond": 3
+      },
+      "force_band_COP": {
+        "20-50": {
+          "samples": 4,
+          "outside_3cm_samples": 3,
+          "median_distance_m": 0.052824417315029584,
+          "max_distance_m": 0.07788410806365201
+        },
+        "50-100": {
+          "samples": 3,
+          "outside_3cm_samples": 1,
+          "median_distance_m": 0.025169631757542384,
+          "max_distance_m": 0.03303174011184346
+        },
+        "100-inf": {
+          "samples": 119,
+          "outside_3cm_samples": 0,
+          "median_distance_m": 0.0,
+          "max_distance_m": 0.0
+        }
+      },
+      "floor_sensitive_contact_samples": 112,
+      "low_force_while_above_5cm_samples": 1,
+      "low_force_while_above_7cm_samples": 0,
+      "negative_Fy_samples": 13,
+      "floor_sensitivity": {
+        "-0.02": {
+          "height_2cm_crossings": [
+            {
+              "time_s": 1.0890510525142212,
+              "direction": "falling",
+              "bracket_s": [
+                1.08667,
+                1.09667
+              ]
+            },
+            {
+              "time_s": 1.3700465249639653,
+              "direction": "rising",
+              "bracket_s": [
+                1.36667,
+                1.37667
+              ]
+            }
+          ],
+          "high_force_not_near_samples": 93,
+          "low_force_raised_5cm_samples": 4
+        },
+        "0": {
+          "height_2cm_crossings": [
+            {
+              "time_s": 0.1547642689313299,
+              "direction": "falling",
+              "bracket_s": [
+                0.14667,
+                0.15667
+              ]
+            },
+            {
+              "time_s": 0.27635373740743324,
+              "direction": "rising",
+              "bracket_s": [
+                0.26667,
+                0.27667
+              ]
+            },
+            {
+              "time_s": 0.42763354459992403,
+              "direction": "falling",
+              "bracket_s": [
+                0.42667,
+                0.43667
+              ]
+            },
+            {
+              "time_s": 1.3984883481489625,
+              "direction": "rising",
+              "bracket_s": [
+                1.39667,
+                1.40667
+              ]
+            }
+          ],
+          "high_force_not_near_samples": 16,
+          "low_force_raised_5cm_samples": 1
+        },
+        "0.02": {
+          "height_2cm_crossings": [
+            {
+              "time_s": 0.04218128337110106,
+              "direction": "falling",
+              "bracket_s": [
+                0.03667,
+                0.04667
+              ]
+            },
+            {
+              "time_s": 1.4229361545173405,
+              "direction": "rising",
+              "bracket_s": [
+                1.41667,
+                1.42667
+              ]
+            },
+            {
+              "time_s": 1.5861436728334795,
+              "direction": "falling",
+              "bracket_s": [
+                1.57667,
+                1.58667
+              ]
+            }
+          ],
+          "high_force_not_near_samples": 0,
+          "low_force_raised_5cm_samples": 0
+        }
+      },
+      "transition_window_sensitivity": {
+        "0.05": {
+          "high_force_samples_near_transition": 10,
+          "high_force_COP_outliers_near_transition": 0,
+          "high_force_samples_outside_window": 109,
+          "high_force_COP_outliers_outside_window": 0
+        },
+        "0.1": {
+          "high_force_samples_near_transition": 20,
+          "high_force_COP_outliers_near_transition": 0,
+          "high_force_samples_outside_window": 99,
+          "high_force_COP_outliers_outside_window": 0
+        },
+        "0.15": {
+          "high_force_samples_near_transition": 30,
+          "high_force_COP_outliers_near_transition": 0,
+          "high_force_samples_outside_window": 89,
+          "high_force_COP_outliers_outside_window": 0
+        }
+      }
+    }
+  },
+  "source_preserved": true
+}

@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "created_at_utc": "2026-10-12T11:04:03.466678+00:00",
+  "source_session": "/workspace/artifacts/cloud-connection-demo/opname",
+  "stages": [
+    {
+      "name": "poseEstimation",
+      "status": "completed",
+      "seconds": 102.791,
+      "returncode": 0
+    },
+    {
+      "name": "synchronization",
+      "status": "completed",
+      "seconds": 2.185,
+      "returncode": 0
+    },
+    {
+      "name": "personAssociation",
+      "status": "completed",
+      "seconds": 1.423,
+      "returncode": 0
+    },
+    {
+      "name": "triangulation",
+      "status": "completed",
+      "seconds": 2.177,
+      "returncode": 0
+    },
+    {
+      "name": "filtering",
+      "status": "completed",
+      "seconds": 2.244,
+      "returncode": 0
+    },
+    {
+      "name": "markerAugmentation",
+      "status": "completed",
+      "seconds": 1.378,
+      "returncode": 0
+    },
+    {
+      "name": "kinematics",
+      "status": "completed",
+      "seconds": 7.443,
+      "returncode": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "project/kinematics/project_1-97_filt_butterworth_LSTM.mot",
+      "sha256": "b2418c7294d0563ec31a0939d44f30a9618a5f46fd1578b93b16f4cecc3ccb11",
+      "bytes": 103943
+    },
+    {
+      "path": "project/kinematics/project_1-97_filt_butterworth_LSTM.osim",
+      "sha256": "1d253bd0e79a881c226d79574eb813399ce4a7db6c7fab2df49120ea2034d570",
+      "bytes": 2314405
+    },
+    {
+      "path": "project/pose-3d/project_1-97.trc",
+      "sha256": "9576b20855585f33e853e7cf4ed30668d04b7d652e56ff9b9ad3d66f1fc6b73d",
+      "bytes": 129301
+    },
+    {
+      "path": "project/pose-3d/project_1-97_filt_butterworth.trc",
+      "sha256": "064592e2026583be4e14cbc28af7b64e37ec01335d6e74284b22448544a15b25",
+      "bytes": 127884
+    },
+    {
+      "path": "project/pose-3d/project_1-97_filt_butterworth_LSTM.trc",
+      "sha256": "ff5783abda62052177a54a792fa96f3a9ab5b80c12349b2f2a1d8b08a8010dda",
+      "bytes": 370965
+    }
+  ],
+  "diagnostic_resolution_mismatch": true,
+  "synchronization": "pose2sim_motion_estimation",
+  "scientific_accuracy_validated": false,
+  "session_id": "8b42b967-a5a3-42d3-a735-2c5f49a9bd64",
+  "inputs": [
+    {
+      "camera_id": "cam01",
+      "video_file": "cam01.mp4",
+      "sha256": "cf4f2816c86bea4bfbea255333d8626ff32a3ecabdab8b0fb147cea9167fde3a",
+      "decoded_frames": 100,
+      "fps": 60.0
+    },
+    {
+      "camera_id": "cam02",
+      "video_file": "cam02.mp4",
+      "sha256": "94ff87cf978b8406e8aa36ab3c5362e72848994e87652f0dc7a33c315e8e0442",
+      "decoded_frames": 100,
+      "fps": 60.0
+    },
+    {
+      "camera_id": "cam03",
+      "video_file": "cam03.mp4",
+      "sha256": "b8b329f832f178f27ecb78d024d5026b96c6adb36c387bfe2c0af85eab8a11ca",
+      "decoded_frames": 100,
+      "fps": 60.0
+    },
+    {
+      "camera_id": "cam04",
+      "video_file": "cam04.mp4",
+      "sha256": "b5c0e7863fd70d008e7178d3c556b045b0ea5f78fcd61ca548a0b2e807e641f7",
+      "decoded_frames": 100,
+      "fps": 60.0
+    }
+  ],
+  "warnings": [
+    {
+      "camera_id": "cam01",
+      "issue": "resolution_mismatch"
+    },
+    {
+      "camera_id": "cam02",
+      "issue": "resolution_mismatch"
+    },
+    {
+      "issue": "result_header_frame_count_mismatch",
+      "path": "project/pose-3d/project_1-97_filt_butterworth.trc",
+      "rows": 96,
+      "declared_rows": 97
+    }
+  ],
+  "session_sha256": "0aecfd0ae529533123b43e3fbace935455d47f0e2f8b6f4f18e20f91ba782fb2",
+  "frame_log_sha256": "67b3d8f5671e55b8c8420bce37b802174602d82f8d36ceaa6f8141cb53f8f832",
+  "source_metadata_sha256": {
+    "calibration.json": "00dc6ece112d5a2ffddc8146ccf9fc21031dff52737bdc73eb5029a780196bd3",
+    "session.json": "0aecfd0ae529533123b43e3fbace935455d47f0e2f8b6f4f18e20f91ba782fb2",
+    "frames.jsonl": "67b3d8f5671e55b8c8420bce37b802174602d82f8d36ceaa6f8141cb53f8f832",
+    "calibration.toml": "7be06417ea7380900236798d07ad2739fb8a740add0bbb55c3cae15c4084d10d"
+  },
+  "camera_mapping": [
+    {
+      "camera_id": "cam01",
+      "video": "project/videos/cam01.mp4",
+      "calibration_table": "cam_0",
+      "pose2sim_name": "cam01"
+    },
+    {
+      "camera_id": "cam02",
+      "video": "project/videos/cam02.mp4",
+      "calibration_table": "cam_1",
+      "pose2sim_name": "cam02"
+    },
+    {
+      "camera_id": "cam03",
+      "video": "project/videos/cam03.mp4",
+      "calibration_table": "cam_2",
+      "pose2sim_name": "cam03"
+    },
+    {
+      "camera_id": "cam04",
+      "video": "project/videos/cam04.mp4",
+      "calibration_table": "cam_3",
+      "pose2sim_name": "cam04"
+    }
+  ],
+  "config_template_sha256": "88c0324e4625b0977abc1bfc48542522a6b4efddb1e48542c67cebfe29dfd084",
+  "result_summary": [
+    {
+      "coordinates": 62,
+      "in_degrees": true,
+      "rows": 96,
+      "declared_rows": 96,
+      "all_values_finite": true,
+      "time_range_sec": [
+        0.01666667,
+        1.6
+      ],
+      "header_matches_data": true,
+      "path": "project/kinematics/project_1-97_filt_butterworth_LSTM.mot"
+    },
+    {
+      "markers": 22,
+      "units": "m",
+      "rows": 97,
+      "declared_rows": 97,
+      "all_values_finite": true,
+      "time_range_sec": [
+        0.016666666666666666,
+        1.6166666666666667
+      ],
+      "header_matches_data": true,
+      "path": "project/pose-3d/project_1-97.trc"
+    },
+    {
+      "markers": 22,
+      "units": "m",
+      "rows": 96,
+      "declared_rows": 97,
+      "all_values_finite": true,
+      "time_range_sec": [
+        0.0166666666666666,
+        1.6
+      ],
+      "header_matches_data": false,
+      "path": "project/pose-3d/project_1-97_filt_butterworth.trc"
+    },
+    {
+      "markers": 65,
+      "units": "m",
+      "rows": 96,
+      "declared_rows": 96,
+      "all_values_finite": true,
+      "time_range_sec": [
+        0.0166666666666666,
+        1.6
+      ],
+      "header_matches_data": true,
+      "path": "project/pose-3d/project_1-97_filt_butterworth_LSTM.trc"
+    }
+  ],
+  "environment": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "executable": "/workspace/retarget-venv/bin/python",
+    "pose2sim": "0.1.dev1+g68304b471",
+    "onnxruntime": "1.31.0",
+    "device": "cpu",
+    "backend": "onnxruntime"
+  },
+  "finished_at_utc": "2026-10-12T11:06:04.736765+00:00"
+}

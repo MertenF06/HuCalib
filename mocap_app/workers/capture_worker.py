@@ -49,7 +49,9 @@ class LiveCaptureWorker(QThread):
         @param requested_height  Capture height to request from webcams (0 = driver default).
         """
         super().__init__()
-        self._sources = sources
+        self._sources = [source for source in sources if source.enabled]
+        if len({source.source_id for source in self._sources}) != len(self._sources):
+            raise ValueError("Camera source IDs must be unique.")
         self._target_fps = max(1.0, target_fps)
         self._requested_width = max(0, int(requested_width))
         self._requested_height = max(0, int(requested_height))
@@ -111,12 +113,16 @@ class LiveCaptureWorker(QThread):
                 record_batch: dict[str, Any] = {}
                 grabbed_sources: list[str] = []
                 direct_frames: dict[str, Any] = {}
+                failure_reasons: dict[str, str] = {}
                 capture_started_by_source: dict[str, float] = {}
                 capture_completed_by_source: dict[str, float] = {}
+                started_ns: dict[str, int] = {}
+                completed_ns: dict[str, int] = {}
 
                 for source_id, capture in captures.items():
                     capture_started = time.time()
                     capture_started_by_source[source_id] = capture_started
+                    started_ns[source_id] = time.perf_counter_ns()
                     try:
                         ok = bool(capture.grab())
                     except Exception:  # noqa: BLE001 - keep capture alive if a backend lacks grab support
@@ -126,10 +132,17 @@ class LiveCaptureWorker(QThread):
                         source = source_by_id[source_id]
                         if source.kind == "video":
                             capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                            failure_reasons[source_id] = "video_end_or_grab_failed"
                             continue
-                        read_ok, frame = capture.read()
+                        try:
+                            read_ok, frame = capture.read()
+                        except Exception:
+                            LOGGER.exception("Capture read failed for source '%s'.", source_id)
+                            read_ok, frame = False, None
                         capture_completed_by_source[source_id] = time.time()
-                        if not read_ok:
+                        completed_ns[source_id] = time.perf_counter_ns()
+                        if not read_ok or frame is None:
+                            failure_reasons[source_id] = "read_failed"
                             self.error.emit(f"Capture read failed for source '{source_id}'.")
                             continue
                         # Copy so the frame is independent of any internal capture
@@ -141,9 +154,15 @@ class LiveCaptureWorker(QThread):
 
                 for source_id in grabbed_sources:
                     capture = captures[source_id]
-                    ok, frame = capture.retrieve()
+                    try:
+                        ok, frame = capture.retrieve()
+                    except Exception:
+                        LOGGER.exception("Capture retrieve failed for source '%s'.", source_id)
+                        ok, frame = False, None
                     capture_completed_by_source[source_id] = time.time()
-                    if not ok:
+                    completed_ns[source_id] = time.perf_counter_ns()
+                    if not ok or frame is None:
+                        failure_reasons[source_id] = "retrieve_failed"
                         self.error.emit(f"Capture retrieve failed for source '{source_id}'.")
                         continue
                     # Copy so the frame is independent of any internal capture
@@ -170,12 +189,26 @@ class LiveCaptureWorker(QThread):
                         batch_timestamp_sec=batch_timestamp_sec,
                         capture_started_sec=capture_started,
                         capture_completed_sec=capture_completed,
+                        capture_started_monotonic_ns=started_ns[source_id],
+                        capture_completed_monotonic_ns=completed_ns[source_id],
                     )
 
-                if record_batch:
+                if record_batch or failure_reasons:
                     with self._recorder_lock:
                         if self._recorder is not None:
-                            self._recorder.write_frames(record_batch)
+                            failures = {
+                                source_id: {
+                                    "reason": reason,
+                                    "capture_started_monotonic_ns": started_ns[source_id],
+                                    "capture_completed_monotonic_ns": completed_ns.get(source_id, time.perf_counter_ns()),
+                                    "timestamp_sec": capture_started_by_source[source_id],
+                                }
+                                for source_id, reason in failure_reasons.items()
+                            }
+                            self._recorder.write_frames(
+                                record_batch, packets=batch, failures=failures,
+                                batch_id=batch_id, capture_batch_index=batch_index,
+                            )
 
                 if batch:
                     self.batch_ready.emit(batch)

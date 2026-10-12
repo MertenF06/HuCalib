@@ -1,0 +1,3499 @@
+<?xml version='1.0' encoding='utf-8'?>
+<OpenSimDocument Version="40600">
+	<Model name="HU3D_GaitDynamics_reduced">
+		
+		<Ground name="ground">
+			
+			<FrameGeometry name="frame_geometry">
+				
+				<socket_frame>..</socket_frame>
+				
+				<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+			</FrameGeometry>
+			
+			<attached_geometry /><WrapObjectSet name="wrapobjectset">
+				<objects />
+				<groups />
+			</WrapObjectSet>
+		</Ground>
+		
+		<gravity>0 -9.8066499999999994 0</gravity>
+		
+		<credits>Full-body model adapted from Beaucage-Gauvreau et al., with Rajagopal et al. knee angles. Contact spheres and Muscles included. Free pelvis translation, added ball joint between head and torso, locked arm pronation/supination, clamped hip flexion to 150° instead of 120°, hip adduction -60° instead of -50°, hip rotation -70° instead of -40°, knee 155° instead of 120°.</credits>
+		
+		<publications>Pagnon, D., Domalain, M., Reveret, L. (2021). Pose2Sim: An End-to-End Workflow for 3D Markerless Sports Kinematics—Part 1: Robustness. Sensors, 21(19), 6530.</publications>
+		
+		<length_units>meters</length_units>
+		
+		<force_units>N</force_units>
+		
+		<BodySet name="bodyset">
+			<objects>
+				<Body name="pelvis">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects>
+							<WrapCylinder name="Gmax1_at_pelvis_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-0.59999999999999998 0.45000000000000001 0</xyz_body_rotation>
+								
+								<translation>-0.085360224016371986 -0.10974885944962112 0.069140353987214798</translation>
+								
+								<quadrant>-x</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.044567522720646922</radius>
+								
+								<length>0.16835707983930334</length>
+							</WrapCylinder>
+							<WrapCylinder name="Gmax2_at_pelvis_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-0.75 0.39000000000000001 0</xyz_body_rotation>
+								
+								<translation>-0.088685947029996867 -0.092011670043621749 0.077074492969354202</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.044614387983923261</radius>
+								
+								<length>0.11200348554781397</length>
+							</WrapCylinder>
+							<WrapCylinder name="Gmax3_at_pelvis_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-0.10000000000000001 0 0</xyz_body_rotation>
+								
+								<translation>-0.092011670043621749 -0.097554541732996547 0.077074492969354202</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.044347986831657485</radius>
+								
+								<length>0.11332032069289584</length>
+							</WrapCylinder>
+							<WrapCylinder name="Gmax1_at_pelvis_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0.59999999999999998 -0.45000000000000001 0</xyz_body_rotation>
+								
+								<translation>-0.085360224016371986 -0.10974885944962112 -0.069140353987214798</translation>
+								
+								<quadrant>-x</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.044567522720646922</radius>
+								
+								<length>0.16835707983930334</length>
+							</WrapCylinder>
+							<WrapCylinder name="Gmax2_at_pelvis_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0.75 -0.39000000000000001 0</xyz_body_rotation>
+								
+								<translation>-0.088685947029996867 -0.092011670043621749 -0.077074492969354202</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.044614387983923261</radius>
+								
+								<length>0.11200348554781397</length>
+							</WrapCylinder>
+							<WrapCylinder name="Gmax3_at_pelvis_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0.10000000000000001 0 0</xyz_body_rotation>
+								
+								<translation>-0.092011670043621749 -0.097554541732996547 -0.077074492969354202</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.044347986831657485</radius>
+								
+								<length>0.11332032069289584</length>
+							</WrapCylinder>
+							<WrapCylinder name="PS_at_brim_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-0.25 -0.27000000000000002 0.10000000000000001</xyz_body_rotation>
+								
+								<translation>-0.082034501002747104 -0.066514460272497647 0.074354216746906412</translation>
+								
+								<quadrant>-y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.055509146980162564</radius>
+								
+								<length>0.11302951010776795</length>
+							</WrapCylinder>
+							<WrapCylinder name="PS_at_brim_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0.25 0.27000000000000002 0.10000000000000001</xyz_body_rotation>
+								
+								<translation>-0.082034501002747104 -0.066514460272497647 -0.074354216746906412</translation>
+								
+								<quadrant>-y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.055509146980162564</radius>
+								
+								<length>0.11302951010776795</length>
+							</WrapCylinder>
+							<WrapCylinder name="IL_at_brim_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-0.32000000000000001 -0.23999999999999999 0.90000000000000002</xyz_body_rotation>
+								
+								<translation>-0.078708777989122208 -0.072057331961872459 0.085688701007105544</translation>
+								
+								<quadrant>-y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.060964054086984916</radius>
+								
+								<length>0.11297555929056072</length>
+							</WrapCylinder>
+							<WrapCylinder name="IL_at_brim_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0.32000000000000001 0.23999999999999999 0.90000000000000002</xyz_body_rotation>
+								
+								<translation>-0.078708777989122208 -0.072057331961872459 -0.085688701007105544</translation>
+								
+								<quadrant>-y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.060964054086984916</radius>
+								
+								<length>0.11297555929056072</length>
+							</WrapCylinder>
+						</objects>
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>9.8167143377686106</mass>
+					
+					<mass_center>-0.078376205687759729 0 0</mass_center>
+					
+					<inertia>0.10873923451291481 0.10873923451291481 0.059311606044153857 0 0 0</inertia>
+				</Body>
+				<Body name="femur_r">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects>
+							<WrapCylinder name="Gastroc_at_condyles_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 0 0</xyz_body_rotation>
+								
+								<translation>0.0052596414552748333 -0.43129059933253627 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.026298207276374164</radius>
+								
+								<length>0.10519282910549665</length>
+							</WrapCylinder>
+							<WrapCylinder name="KnExt_at_fem_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-0.062336599999999999 0.050760100000000002 0</xyz_body_rotation>
+								
+								<translation>0.0037746132482267157 -0.42364518451314875 0.0021996977687079515</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.026298207276374164</radius>
+								
+								<length>0.10519282910549665</length>
+							</WrapCylinder>
+							<WrapCylinder name="AB_at_femshaft_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>1.66157 0.186644 0</xyz_body_rotation>
+								
+								<translation>0.015403806737234299 -0.11844186593133396 0.024578304520499295</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.017356816802406951</radius>
+								
+								<length>0.073634980373847664</length>
+							</WrapCylinder>
+							<WrapCylinder name="AL_at_femshaft_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>1.77711 0.136489 0</xyz_body_rotation>
+								
+								<translation>0.032328596590504972 -0.24395163805026623 0.015898528612517449</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.021143758650204826</radius>
+								
+								<length>0.10519282910549665</length>
+							</WrapCylinder>
+							<WrapCylinder name="AMprox_at_femshaft_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>1.6112599999999999 0.18656 0</xyz_body_rotation>
+								
+								<translation>0.0054521338132549812 -0.076680102390793564 0.026722134377669314</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.022195686941259795</radius>
+								
+								<length>0.073634980373847664</length>
+							</WrapCylinder>
+							<WrapCylinder name="AMmid_at_femshaft_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>1.6113900000000001 0.13655999999999999 0</xyz_body_rotation>
+								
+								<translation>0.024207499797902418 -0.16905644758373473 0.021653102328733641</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.022511265428576285</radius>
+								
+								<length>0.12623139492659599</length>
+							</WrapCylinder>
+							<WrapCylinder name="AMdist_at_femshaft_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>1.7118800000000001 0.186636 0</xyz_body_rotation>
+								
+								<translation>0.033247771531228806 -0.27427557489650778 0.0098508876744133403</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.022932036744998271</radius>
+								
+								<length>0.21038565821099331</length>
+							</WrapCylinder>
+							<WrapCylinder name="AMisch_at_condyles_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>1.7111499999999999 -0.46336300000000002 0</xyz_body_rotation>
+								
+								<translation>-0.023827332913515152 -0.39639918984653411 -0.0033181710434550551</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.042077131642198666</radius>
+								
+								<length>0.25246278985319198</length>
+							</WrapCylinder>
+							<WrapCylinder name="PECT_at_femshaft_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>1.8129500000000001 0.27634399999999998 0</xyz_body_rotation>
+								
+								<translation>0.0064017515587219418 -0.088890991186188734 0.032021223143858711</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.015778924365824499</radius>
+								
+								<length>0.052596414552748341</length>
+							</WrapCylinder>
+						</objects>
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>7.7531788011650633</mass>
+					
+					<mass_center>0 -0.17882780947934432 0</mass_center>
+					
+					<inertia>0.12350493917478633 0.03237508114290516 0.13023821815892331 0 0 0</inertia>
+				</Body>
+				<Body name="patella_r">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects />
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>0.071851980633069051</mass>
+					
+					<mass_center>0.0018934709238989397 0.027770906883851115 0</mass_center>
+					
+					<inertia>2.6471932444483704e-06 1.2092231161922697e-05 1.2092231161922697e-05 0 0 0</inertia>
+				</Body>
+				<Body name="tibia_r">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects>
+							<WrapCylinder name="GasLat_at_shank_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>2.9672299999999998 -0.279725 -1.4781200000000001</xyz_body_rotation>
+								
+								<translation>-0.0079382575238331182 -0.079382575238331171 -0.0035400337606282823</translation>
+								
+								<quadrant>-y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.05900056267713804</radius>
+								
+								<length>0.10727375032206915</length>
+							</WrapCylinder>
+							<WrapCylinder name="GasMed_at_shank_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>2.9672299999999998 0.027972500000000001 -1.4781200000000001</xyz_body_rotation>
+								
+								<translation>-0.0079382575238331182 -0.079382575238331171 -0.0035400337606282823</translation>
+								
+								<quadrant>-y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.05900056267713804</radius>
+								
+								<length>0.10727375032206915</length>
+							</WrapCylinder>
+							<WrapCylinder name="GR_at_condyles_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 -0.40000000000000002 0</xyz_body_rotation>
+								
+								<translation>-0.0032182125096620749 -0.021454750064413834 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.038618550115944894</radius>
+								
+								<length>0.10727375032206916</length>
+							</WrapCylinder>
+							<WrapCylinder name="SM_at_condyles_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 -0.10000000000000001 0</xyz_body_rotation>
+								
+								<translation>-0.0010727375032206917 -0.021454750064413834 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.037760360113368349</radius>
+								
+								<length>0.10727375032206916</length>
+							</WrapCylinder>
+							<WrapCylinder name="ST_at_condyles_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 -0.20000000000000001 0</xyz_body_rotation>
+								
+								<translation>-0.0021454750064413834 -0.021991118816024179 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.045591343886879389</radius>
+								
+								<length>0.10727375032206915</length>
+							</WrapCylinder>
+							<WrapCylinder name="BF_at_gastroc_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 0 0</xyz_body_rotation>
+								
+								<translation>-0.062218775186800114 -0.06436425019324149 0</translation>
+								
+								<quadrant>y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.032182125096620745</radius>
+								
+								<length>0.16091062548310373</length>
+							</WrapCylinder>
+						</objects>
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>3.0903853619153541</mass>
+					
+					<mass_center>0 -0.20028009185130313 0</mass_center>
+					
+					<inertia>0.048344708137104918 0.0048920240376832359 0.049016162416786926 0 0 0</inertia>
+				</Body>
+				<Body name="talus_r">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects />
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>0.083354965931634648</mass>
+					
+					<mass_center>0 0 0</mass_center>
+					
+					<inertia>0.00078950394692371023 0.00078950394692371023 0.00078950394692371023 0 0 0</inertia>
+				</Body>
+				<Body name="calcn_r">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects />
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>1.041937074145433</mass>
+					
+					<mass_center>0.097322087021504244 0.029196626106451271 0</mass_center>
+					
+					<inertia>0.0011053055256931943 0.0030790653930024693 0.0032369661823872121 0 0 0</inertia>
+				</Body>
+				<Body name="toes_r">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects />
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>0.18054685620792063</mass>
+					
+					<mass_center>0.033673442109440468 0.0058393252212902546 -0.017031365228763244</mass_center>
+					
+					<inertia>7.8950394692371012e-05 0.00015790078938474202 0.00078950394692371023 0 0 0</inertia>
+				</Body>
+				<Body name="femur_l">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects>
+							<WrapCylinder name="Gastroc_at_condyles_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 0 0</xyz_body_rotation>
+								
+								<translation>0.0052151855489147156 -0.42764521501100666 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.026075927744573582</radius>
+								
+								<length>0.10430371097829433</length>
+							</WrapCylinder>
+							<WrapCylinder name="KnExt_at_fem_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0.062336599999999999 -0.050760100000000002 0</xyz_body_rotation>
+								
+								<translation>0.0037427092002919396 -0.42006442129710425 -0.0021811053306382104</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.026075927744573582</radius>
+								
+								<length>0.10430371097829433</length>
+							</WrapCylinder>
+							<WrapCylinder name="AB_at_femshaft_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-1.66157 -0.186644 0</xyz_body_rotation>
+								
+								<translation>0.01527360961339555 -0.11744076337601049 -0.024370562070078469</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.017210112311418564</radius>
+								
+								<length>0.07301259768480603</length>
+							</WrapCylinder>
+							<WrapCylinder name="AL_at_femshaft_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-1.77711 -0.136489 0</xyz_body_rotation>
+								
+								<translation>0.032055346583826257 -0.24188969309265257 -0.015764149966126469</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.020965045906637159</radius>
+								
+								<length>0.10430371097829433</length>
+							</WrapCylinder>
+							<WrapCylinder name="AMprox_at_femshaft_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-1.6112599999999999 -0.18656 0</xyz_body_rotation>
+								
+								<translation>0.0054060509096338968 -0.076031981510205682 -0.026496271699816103</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.022008083016420103</radius>
+								
+								<length>0.07301259768480603</length>
+							</WrapCylinder>
+							<WrapCylinder name="AMmid_at_femshaft_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-1.6113900000000001 -0.13655999999999999 0</xyz_body_rotation>
+								
+								<translation>0.02400289148887998 -0.16762753695032656 -0.021470084475194058</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.022320994149354983</radius>
+								
+								<length>0.12516445317395317</length>
+							</WrapCylinder>
+							<WrapCylinder name="AMdist_at_femshaft_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-1.7118800000000001 -0.186636 0</xyz_body_rotation>
+								
+								<translation>0.032966752410354599 -0.27195732385636551 -0.0097676253182733506</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.022738208993268162</radius>
+								
+								<length>0.20860742195658866</length>
+							</WrapCylinder>
+							<WrapCylinder name="AMisch_at_condyles_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-1.7111499999999999 0.46336300000000002 0</xyz_body_rotation>
+								
+								<translation>-0.023625937877404423 -0.39304871711661626 0.0032901249679860227</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.041721484391317724</radius>
+								
+								<length>0.25032890634790639</length>
+							</WrapCylinder>
+							<WrapCylinder name="PECT_at_femshaft_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-1.8129500000000001 -0.27634399999999998 0</xyz_body_rotation>
+								
+								<translation>0.0063476422301193512 -0.08813966058427708 -0.031750571140347683</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.015645556646744146</radius>
+								
+								<length>0.052151855489147164</length>
+							</WrapCylinder>
+						</objects>
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>7.7531788011650633</mass>
+					
+					<mass_center>0 -0.17731630866310036 0</mass_center>
+					
+					<inertia>0.121425968445127 0.031830108233188631 0.12804590548507791 0 0 0</inertia>
+				</Body>
+				<Body name="patella_l">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects />
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>0.071851980633069051</mass>
+					
+					<mass_center>0.0018774667976092976 0.0275361796982697 0</mass_center>
+					
+					<inertia>2.6026327814601533e-06 1.1888681451199514e-05 1.1888681451199514e-05 0 0 0</inertia>
+				</Body>
+				<Body name="tibia_l">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects>
+							<WrapCylinder name="GasLat_at_shank_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-2.9672299999999998 0.279725 -1.4781200000000001</xyz_body_rotation>
+								
+								<translation>-0.0078119172812760882 -0.078119172812760873 0.0034836928416501472</translation>
+								
+								<quadrant>-y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.058061547360835783</radius>
+								
+								<length>0.10556644974697416</length>
+							</WrapCylinder>
+							<WrapCylinder name="GasMed_at_shank_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-2.9672299999999998 -0.027972500000000001 -1.4781200000000001</xyz_body_rotation>
+								
+								<translation>-0.0078119172812760882 -0.078119172812760873 0.0034836928416501472</translation>
+								
+								<quadrant>-y</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.058061547360835783</radius>
+								
+								<length>0.10556644974697416</length>
+							</WrapCylinder>
+							<WrapCylinder name="GR_at_condyles_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 0.40000000000000002 0</xyz_body_rotation>
+								
+								<translation>-0.0031669934924092248 -0.02111328994939483 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.038003921908910693</radius>
+								
+								<length>0.10556644974697416</length>
+							</WrapCylinder>
+							<WrapCylinder name="SM_at_condyles_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 0.10000000000000001 0</xyz_body_rotation>
+								
+								<translation>-0.0010556644974697416 -0.02111328994939483 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.037159390310934903</radius>
+								
+								<length>0.10556644974697416</length>
+							</WrapCylinder>
+							<WrapCylinder name="ST_at_condyles_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 0.20000000000000001 0</xyz_body_rotation>
+								
+								<translation>-0.0021113289949394832 -0.021641122198129702 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.04486574114246402</radius>
+								
+								<length>0.10556644974697418</length>
+							</WrapCylinder>
+							<WrapCylinder name="BF_at_gastroc_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 0 0</xyz_body_rotation>
+								
+								<translation>-0.061228540853245014 -0.063339869848184488 0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>0.5</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.031669934924092244</radius>
+								
+								<length>0.15834967462046123</length>
+							</WrapCylinder>
+						</objects>
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>3.0903853619153541</mass>
+					
+					<mass_center>0 -0.19709256167760075 0</mass_center>
+					
+					<inertia>0.046818106724569625 0.0047375465137957356 0.047468358206855306 0 0 0</inertia>
+				</Body>
+				<Body name="talus_l">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects />
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>0.083354965931634648</mass>
+					
+					<mass_center>0 0 0</mass_center>
+					
+					<inertia>0.00078950394692371023 0.00078950394692371023 0.00078950394692371023 0 0 0</inertia>
+				</Body>
+				<Body name="calcn_l">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects />
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>1.041937074145433</mass>
+					
+					<mass_center>0.097322087021504244 0.029196626106451271 0</mass_center>
+					
+					<inertia>0.0011053055256931943 0.0030790653930024693 0.0032369661823872121 0 0 0</inertia>
+				</Body>
+				<Body name="toes_l">
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects />
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>0.18054685620792063</mass>
+					
+					<mass_center>0.033673442109440468 0.0058393252212902546 0.017031365228763244</mass_center>
+					
+					<inertia>7.8950394692371012e-05 0.00015790078938474202 0.00078950394692371023 0 0 0</inertia>
+				</Body>
+				<Body name="torso">
+					
+					<components>
+						<PhysicalOffsetFrame name="torso_geom_frame_1">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>-0.019506172024204328 0.38251127579171418 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_2">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>-0.019506172024204328 0.38251127579171418 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_3">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>-0.019506172024204328 0.38251127579171418 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_4">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>-0.019506172024204328 0.38251127579171418 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_5">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>-0.019506172024204328 0.38251127579171418 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_6">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>-0.019506172024204328 0.38251127579171418 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_7">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>-0.019506172024204328 0.38251127579171418 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_8">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_9">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_10">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_11">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_12">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_13">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_14">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_15">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_16">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_17">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_18">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_19">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0033303220529129342 0 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_geom_frame_20">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<attached_geometry /><socket_parent>..</socket_parent>
+							
+							<translation>0.0080879249856456968 -0.042818426394594863 0</translation>
+							
+							<orientation>-0 0 -0</orientation>
+						</PhysicalOffsetFrame>
+					</components>
+					
+					<FrameGeometry name="frame_geometry">
+						
+						<socket_frame>..</socket_frame>
+						
+						<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+					</FrameGeometry>
+					
+					<attached_geometry /><WrapObjectSet name="wrapobjectset">
+						<objects>
+							<WrapCylinder name="Cylinder">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>-0 -0 0</xyz_body_rotation>
+								
+								<translation>-0.19791628200168293 0.038060823461862105 -0</translation>
+								
+								<quadrant>all</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>1</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<radius>0.16175849971291395</radius>
+								
+								<length>0.23564036480335282</length>
+							</WrapCylinder>
+							<WrapEllipsoid name="Chest_r">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 -0.40000000000000002 0.20000000000000001</xyz_body_rotation>
+								
+								<translation>0 0.19981932317477605 0.0090630909539751083</translation>
+								
+								<quadrant>z</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>1</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<dimensions>0.070880221052206122 0.16171358276570244 0.11873020165906926</dimensions>
+							</WrapEllipsoid>
+							<WrapEllipsoid name="Chest_l">
+								
+								<active>true</active>
+								
+								<xyz_body_rotation>0 0.40000000000000002 0.20000000000000001</xyz_body_rotation>
+								
+								<translation>0 0.19981932317477605 -0.0090630909539751083</translation>
+								
+								<quadrant>-z</quadrant>
+								
+								<Appearance>
+									
+									<visible>false</visible>
+									
+									<opacity>1</opacity>
+									
+									<color>0 1 1</color>
+									
+									<SurfaceProperties>
+										
+										<representation>3</representation>
+									</SurfaceProperties>
+								</Appearance>
+								
+								<dimensions>0.070880221052206122 0.16171358276570244 0.11873020165906926</dimensions>
+							</WrapEllipsoid>
+						</objects>
+						<groups />
+					</WrapObjectSet>
+					
+					<mass>35.740775582234441</mass>
+					
+					<mass_center>0.016602907202496065 0.15627840127038614 4.7105593101343581e-05</mass_center>
+					
+					<inertia>2.811365572540613 0.76071659944153769 2.6592698581165175 0.0048555632398091589 -2.049110597699235e-05 9.1205643192813251e-05</inertia>
+				</Body>
+			</objects>
+			<groups />
+		</BodySet>
+		
+		<JointSet name="jointset">
+			<objects>
+				<CustomJoint name="ground_pelvis">
+					
+					<socket_parent_frame>ground_offset</socket_parent_frame>
+					
+					<socket_child_frame>pelvis_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="pelvis_tilt">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-1.5707963300000001 1.5707963300000001</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="pelvis_list">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-1.5707963300000001 1.5707963300000001</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="pelvis_rotation">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-1.5707963300000001 1.5707963300000001</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="pelvis_tx">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-5 5</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="pelvis_ty">
+							
+							<default_value>0.93999999999999995</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-1 2</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="pelvis_tz">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-3 3</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="ground_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/ground</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="pelvis_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/pelvis</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+					
+					<SpatialTransform>
+						
+						<TransformAxis name="rotation1">
+							
+							<coordinates>pelvis_tilt</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation2">
+							
+							<coordinates>pelvis_list</coordinates>
+							
+							<axis>1 0 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation3">
+							
+							<coordinates>pelvis_rotation</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation1">
+							
+							<coordinates>pelvis_tx</coordinates>
+							
+							<axis>1 0 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation2">
+							
+							<coordinates>pelvis_ty</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation3">
+							
+							<coordinates>pelvis_tz</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+					</SpatialTransform>
+				</CustomJoint>
+				<CustomJoint name="hip_r">
+					
+					<socket_parent_frame>pelvis_offset</socket_parent_frame>
+					
+					<socket_child_frame>femur_r_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="hip_flexion_r">
+							
+							<default_value>1.5670050666942832e-09</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-0.87 2.6179899999999998</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="hip_adduction_r">
+							
+							<default_value>-9.4634793044849591e-10</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-1.0471975511965976 0.52359878000000004</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="hip_rotation_r">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-1.2217304763960306 0.69813170000000002</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="pelvis_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/pelvis</socket_parent>
+							
+							<translation>-0.078376205687759729 -0.073276763733534922 0.094642943572662883</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="femur_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/femur_r</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+					
+					<SpatialTransform>
+						
+						<TransformAxis name="rotation1">
+							
+							<coordinates>hip_flexion_r</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation2">
+							
+							<coordinates>hip_adduction_r</coordinates>
+							
+							<axis>1 0 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation3">
+							
+							<coordinates>hip_rotation_r</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation1">
+							
+							<coordinates />
+							
+							<axis>1 0 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0</value>
+									</Constant>
+								</function>
+								<scale>1.1085743378749608</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation2">
+							
+							<coordinates />
+							
+							<axis>0 1 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0</value>
+									</Constant>
+								</function>
+								<scale>1.1085743378749608</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation3">
+							
+							<coordinates />
+							
+							<axis>0 0 1</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0</value>
+									</Constant>
+								</function>
+								<scale>1.1334484260199147</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+					</SpatialTransform>
+				</CustomJoint>
+				<CustomJoint name="walker_knee_r">
+					
+					<socket_parent_frame>femur_r_offset</socket_parent_frame>
+					
+					<socket_child_frame>tibia_r_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="knee_angle_r">
+							
+							<default_value>7.6916171281619415e-05</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>0 2.7052603405912108</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="femur_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/femur_r</socket_parent>
+							
+							<translation>-0.0085100998746346791 -0.42914466561878412 -0.002892802800401158</translation>
+							
+							<orientation>-1.64157 1.44618 1.5708</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="tibia_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/tibia_r</socket_parent>
+							
+							<translation>-0.0086779529418039136 -0.011301075048929342 -0.0015927362805318896</translation>
+							
+							<orientation>-1.64157 1.44618 1.5708</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+					
+					<SpatialTransform>
+						
+						<TransformAxis name="rotation1">
+							
+							<coordinates>knee_angle_r</coordinates>
+							
+							<axis>1 0 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation2">
+							
+							<coordinates>knee_angle_r</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<SimmSpline name="function">
+								<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+								<y> 0 0.0126809 0.0226969 0.0296054 0.0332049 0.0335354 0.0308779 0.0257548 0.0189295 0.011407 0.00443314 -0.00050475 -0.0016782</y>
+							</SimmSpline>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation3">
+							
+							<coordinates>knee_angle_r</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<SimmSpline name="function">
+								<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+								<y> 0 0.059461 0.109399 0.150618 0.18392 0.210107 0.229983 0.24435 0.254012 0.25977 0.262428 0.262788 0.261654</y>
+							</SimmSpline>
+						</TransformAxis>
+						
+						<TransformAxis name="translation1">
+							
+							<coordinates>knee_angle_r</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<SimmSpline name="function">
+										<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+										<y> 0 0.000479 0.000835 0.001086 0.001251 0.001346 0.001391 0.001403 0.0014 0.0014 0.001421 0.001481 0.001599</y>
+									</SimmSpline>
+								</function>
+								<scale>1.0519282910549665</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation2">
+							
+							<coordinates>knee_angle_r</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<SimmSpline name="function">
+										<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+										<y> 0 0.000988 0.001899 0.002734 0.003492 0.004173 0.004777 0.005305 0.005756 0.00613 0.006427 0.006648 0.006792</y>
+									</SimmSpline>
+								</function>
+								<scale>1.0519282910549665</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation3">
+							
+							<coordinates />
+							
+							<axis>1 0 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0</value>
+									</Constant>
+								</function>
+								<scale>1.0519282910549665</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+					</SpatialTransform>
+				</CustomJoint>
+				<CustomJoint name="patellofemoral_r">
+					
+					<socket_parent_frame>femur_r_offset</socket_parent_frame>
+					
+					<socket_child_frame>patella_r_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="knee_angle_r_beta">
+							
+							<default_value>7.6916171281619415e-05</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-99999.899999999994 99999.899999999994</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="femur_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/femur_r</socket_parent>
+							
+							<translation>-0.0085100998746346791 -0.42914466561878412 -0.002892802800401158</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="patella_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/patella_r</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+					
+					<SpatialTransform>
+						
+						<TransformAxis name="rotation1">
+							
+							<coordinates>knee_angle_r_beta</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<SimmSpline name="function">
+								<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+								<y> 0.00113686 -0.00629212 -0.105582 -0.253683 -0.414245 -0.579047 -0.747244 -0.91799 -1.09044 -1.26379 -1.43763 -1.61186 -1.78634</y>
+							</SimmSpline>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation2">
+							
+							<coordinates />
+							
+							<axis>0 1 0</axis>
+							
+							<Constant name="function">
+								<value>0</value>
+							</Constant>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation3">
+							
+							<coordinates />
+							
+							<axis>1 0 0</axis>
+							
+							<Constant name="function">
+								<value>0</value>
+							</Constant>
+						</TransformAxis>
+						
+						<TransformAxis name="translation1">
+							
+							<coordinates>knee_angle_r_beta</coordinates>
+							
+							<axis>1 0 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<SimmSpline name="function">
+										<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+										<y> 0.0524 0.0488 0.0437 0.0371 0.0296 0.0216 0.0136 0.0057 -0.0019 -0.0088 -0.0148 -0.0196 -0.0227</y>
+									</SimmSpline>
+								</function>
+								<scale>1.0519282910549665</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation2">
+							
+							<coordinates>knee_angle_r_beta</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<SimmSpline name="function">
+										<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+										<y> -0.0108 -0.019 -0.0263 -0.0322 -0.0367 -0.0395 -0.0408 -0.0404 -0.0384 -0.0349 -0.0301 -0.0245 -0.0187</y>
+									</SimmSpline>
+								</function>
+								<scale>1.0519282910549665</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation3">
+							
+							<coordinates />
+							
+							<axis>0 0 1</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0.0027499999999999998</value>
+									</Constant>
+								</function>
+								<scale>1.0519282910549665</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+					</SpatialTransform>
+				</CustomJoint>
+				<PinJoint name="ankle_r">
+					
+					<socket_parent_frame>tibia_r_offset</socket_parent_frame>
+					
+					<socket_child_frame>talus_r_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="ankle_angle_r">
+							
+							<default_value>0</default_value>
+							
+							<range>-3.1415926535897931 3.1415926535897931</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="tibia_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/tibia_r</socket_parent>
+							
+							<translation>-6.4015060805680147e-18 -0.46127712638489704 -2.0979458615944595e-17</translation>
+							
+							<orientation>0.17589561700459583 -0.10520752587666604 1.3877787807814457e-17</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="talus_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/talus_r</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>0.17589561700459577 -0.10520752587666604 1.3877787807814457e-17</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+				</PinJoint>
+				<PinJoint name="subtalar_r">
+					
+					<socket_parent_frame>talus_r_offset</socket_parent_frame>
+					
+					<socket_child_frame>calcn_r_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="subtalar_angle_r">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-0.34906585000000001 0.34906585000000001</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="talus_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/talus_r</socket_parent>
+							
+							<translation>-0.047463981840387623 -0.040826615505521031 0.0077079092921031357</translation>
+							
+							<orientation>-1.7681899999999999 0.906223 1.8196000000000001</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="calcn_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/calcn_r</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>-1.7681899999999999 0.906223 1.8196000000000001</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+				</PinJoint>
+				<PinJoint name="mtp_r">
+					
+					<socket_parent_frame>calcn_r_offset</socket_parent_frame>
+					
+					<socket_child_frame>toes_r_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="mtp_angle_r">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-0.52359878000000004 0.52359878000000004</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="calcn_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/calcn_r</socket_parent>
+							
+							<translation>0.17401189159444957 -0.001946441740430085 0.001051078539832246</translation>
+							
+							<orientation>-3.1415899999999999 0.61990100000000004 0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="toes_r_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/toes_r</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>-3.1415899999999999 0.61990100000000004 0</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+				</PinJoint>
+				<CustomJoint name="hip_l">
+					
+					<socket_parent_frame>pelvis_offset</socket_parent_frame>
+					
+					<socket_child_frame>femur_l_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="hip_flexion_l">
+							
+							<default_value>1.5670050666942832e-09</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-0.87 2.6179899999999998</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="hip_adduction_l">
+							
+							<default_value>-9.4634793044849591e-10</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-1.0471975511965976 0.52359878000000004</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+						<Coordinate name="hip_rotation_l">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-1.2217304763960306 0.69813170000000002</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="pelvis_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/pelvis</socket_parent>
+							
+							<translation>-0.078376205687759729 -0.073276763733534922 -0.094642943572662883</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="femur_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/femur_l</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+					
+					<SpatialTransform>
+						
+						<TransformAxis name="rotation1">
+							
+							<coordinates>hip_flexion_l</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation2">
+							
+							<coordinates>hip_adduction_l</coordinates>
+							
+							<axis>1 0 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> -1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation3">
+							
+							<coordinates>hip_rotation_l</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> -1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation1">
+							
+							<coordinates />
+							
+							<axis>1 0 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0</value>
+									</Constant>
+								</function>
+								<scale>1.1085743378749608</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation2">
+							
+							<coordinates />
+							
+							<axis>0 1 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0</value>
+									</Constant>
+								</function>
+								<scale>1.1085743378749608</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation3">
+							
+							<coordinates />
+							
+							<axis>0 0 1</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0</value>
+									</Constant>
+								</function>
+								<scale>1.1334484260199147</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+					</SpatialTransform>
+				</CustomJoint>
+				<CustomJoint name="walker_knee_l">
+					
+					<socket_parent_frame>femur_l_offset</socket_parent_frame>
+					
+					<socket_child_frame>tibia_l_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="knee_angle_l">
+							
+							<default_value>7.6916171281619415e-05</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>0 2.7052603405912108</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="femur_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/femur_l</socket_parent>
+							
+							<translation>-0.0084381702181440098 -0.4255174193070495 0.0028683520519030936</translation>
+							
+							<orientation>1.64157 -1.44618 1.5708</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="tibia_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/tibia_l</socket_parent>
+							
+							<translation>-0.0085398401788613718 -0.011121214347944233 0.0015673873059732241</translation>
+							
+							<orientation>1.64157 -1.44618 1.5708</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+					
+					<SpatialTransform>
+						
+						<TransformAxis name="rotation1">
+							
+							<coordinates>knee_angle_l</coordinates>
+							
+							<axis>-1 0 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation2">
+							
+							<coordinates>knee_angle_l</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<SimmSpline name="function">
+								<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+								<y> 0 0.0126809 0.0226969 0.0296054 0.0332049 0.0335354 0.0308779 0.0257548 0.0189295 0.011407 0.00443314 -0.00050475 -0.0016782</y>
+							</SimmSpline>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation3">
+							
+							<coordinates>knee_angle_l</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<SimmSpline name="function">
+								<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+								<y> 0 -0.059461 -0.109399 -0.150618 -0.18392 -0.210107 -0.229983 -0.24435 -0.254012 -0.25977 -0.262428 -0.262788 -0.261654</y>
+							</SimmSpline>
+						</TransformAxis>
+						
+						<TransformAxis name="translation1">
+							
+							<coordinates>knee_angle_l</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<SimmSpline name="function">
+										<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+										<y> 0 0.000479 0.000835 0.001086 0.001251 0.001346 0.001391 0.001403 0.0014 0.0014 0.001421 0.001481 0.001599</y>
+									</SimmSpline>
+								</function>
+								<scale>1.0430371097829432</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation2">
+							
+							<coordinates>knee_angle_l</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<SimmSpline name="function">
+										<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+										<y> 0 -0.000988 -0.001899 -0.002734 -0.003492 -0.004173 -0.004777 -0.005305 -0.005756 -0.00613 -0.006427 -0.006648 -0.006792</y>
+									</SimmSpline>
+								</function>
+								<scale>1.0430371097829432</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation3">
+							
+							<coordinates />
+							
+							<axis>1 0 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>0</value>
+									</Constant>
+								</function>
+								<scale>1.0430371097829432</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+					</SpatialTransform>
+				</CustomJoint>
+				<CustomJoint name="patellofemoral_l">
+					
+					<socket_parent_frame>femur_l_offset</socket_parent_frame>
+					
+					<socket_child_frame>patella_l_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="knee_angle_l_beta">
+							
+							<default_value>7.6916171281619415e-05</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-99999.899999999994 99999.899999999994</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="femur_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/femur_l</socket_parent>
+							
+							<translation>-0.0084381702181440098 -0.4255174193070495 0.0028683520519030936</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="patella_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/patella_l</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>0 0 0</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+					
+					<SpatialTransform>
+						
+						<TransformAxis name="rotation1">
+							
+							<coordinates>knee_angle_l_beta</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<SimmSpline name="function">
+								<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+								<y> 0.00113686 -0.00629212 -0.105582 -0.253683 -0.414245 -0.579047 -0.747244 -0.91799 -1.09044 -1.26379 -1.43763 -1.61186 -1.78634</y>
+							</SimmSpline>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation2">
+							
+							<coordinates />
+							
+							<axis>0 1 0</axis>
+							
+							<Constant name="function">
+								<value>0</value>
+							</Constant>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation3">
+							
+							<coordinates />
+							
+							<axis>1 0 0</axis>
+							
+							<Constant name="function">
+								<value>0</value>
+							</Constant>
+						</TransformAxis>
+						
+						<TransformAxis name="translation1">
+							
+							<coordinates>knee_angle_l_beta</coordinates>
+							
+							<axis>1 0 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<SimmSpline name="function">
+										<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+										<y> 0.0524 0.0488 0.0437 0.0371 0.0296 0.0216 0.0136 0.0057 -0.0019 -0.0088 -0.0148 -0.0196 -0.0227</y>
+									</SimmSpline>
+								</function>
+								<scale>1.0430371097829432</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation2">
+							
+							<coordinates>knee_angle_l_beta</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<SimmSpline name="function">
+										<x> 0 0.174533 0.349066 0.523599 0.698132 0.872665 1.0472 1.22173 1.39626 1.5708 1.74533 1.91986 2.0944</x>
+										<y> -0.0108 -0.019 -0.0263 -0.0322 -0.0367 -0.0395 -0.0408 -0.0404 -0.0384 -0.0349 -0.0301 -0.0245 -0.0187</y>
+									</SimmSpline>
+								</function>
+								<scale>1.0430371097829432</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation3">
+							
+							<coordinates />
+							
+							<axis>0 0 1</axis>
+							
+							<MultiplierFunction name="function">
+								<function>
+									<Constant name="function">
+										<value>-0.0027499999999999998</value>
+									</Constant>
+								</function>
+								<scale>1.0430371097829432</scale>
+							</MultiplierFunction>
+						</TransformAxis>
+					</SpatialTransform>
+				</CustomJoint>
+				<PinJoint name="ankle_l">
+					
+					<socket_parent_frame>tibia_l_offset</socket_parent_frame>
+					
+					<socket_child_frame>talus_l_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="ankle_angle_l">
+							
+							<default_value>0</default_value>
+							
+							<range>-3.1415926535897931 3.1415926535897931</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="tibia_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/tibia_l</socket_parent>
+							
+							<translation>-6.2996237936151044e-18 -0.45393573391198855 2.0866432953856209e-17</translation>
+							
+							<orientation>-0.17589561700459583 0.10520752587666626 1.3877787807814457e-17</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="talus_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/talus_l</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>-0.17589561700459577 0.10520752587666626 1.3877787807814457e-17</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+				</PinJoint>
+				<PinJoint name="subtalar_l">
+					
+					<socket_parent_frame>talus_l_offset</socket_parent_frame>
+					
+					<socket_child_frame>calcn_l_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="subtalar_angle_l">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-0.34906585000000001 0.34906585000000001</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="talus_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/talus_l</socket_parent>
+							
+							<translation>-0.047463981840387623 -0.040826615505521031 -0.0077079092921031357</translation>
+							
+							<orientation>1.7681899999999999 -0.906223 1.8196000000000001</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="calcn_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/calcn_l</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>1.7681899999999999 -0.906223 1.8196000000000001</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+				</PinJoint>
+				<PinJoint name="mtp_l">
+					
+					<socket_parent_frame>calcn_l_offset</socket_parent_frame>
+					
+					<socket_child_frame>toes_l_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="mtp_angle_l">
+							
+							<default_value>0</default_value>
+							
+							<default_speed_value>0</default_speed_value>
+							
+							<range>-0.52359878000000004 0.52359878000000004</range>
+							
+							<clamped>true</clamped>
+							
+							<locked>false</locked>
+							
+							<prescribed_function />
+							
+							<prescribed>false</prescribed>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="calcn_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/calcn_l</socket_parent>
+							
+							<translation>0.17401189159444957 -0.001946441740430085 -0.001051078539832246</translation>
+							
+							<orientation>-3.1415899999999999 -0.61990100000000004 0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="toes_l_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/toes_l</socket_parent>
+							
+							<translation>0 0 0</translation>
+							
+							<orientation>-3.1415899999999999 -0.61990100000000004 0</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+				</PinJoint>
+				<CustomJoint name="back">
+					
+					<socket_parent_frame>pelvis_offset</socket_parent_frame>
+					
+					<socket_child_frame>torso_offset</socket_child_frame>
+					
+					<coordinates>
+						<Coordinate name="lumbar_extension">
+							
+							<default_value>0</default_value>
+							
+							<range>-3.1415926535897931 3.1415926535897931</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+						</Coordinate>
+						<Coordinate name="lumbar_bending">
+							
+							<default_value>0</default_value>
+							
+							<range>-3.1415926535897931 3.1415926535897931</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+						</Coordinate>
+						<Coordinate name="lumbar_rotation">
+							
+							<default_value>0</default_value>
+							
+							<range>-3.1415926535897931 3.1415926535897931</range>
+							
+							<clamped>false</clamped>
+							
+							<locked>false</locked>
+						</Coordinate>
+					</coordinates>
+					
+					<frames>
+						<PhysicalOffsetFrame name="pelvis_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/pelvis</socket_parent>
+							
+							<translation>-0.080513386419860611 0.098641969830779816 -0.0020726180706809537</translation>
+							
+							<orientation>-0 0 0</orientation>
+						</PhysicalOffsetFrame>
+						<PhysicalOffsetFrame name="torso_offset">
+							
+							<FrameGeometry name="frame_geometry">
+								
+								<socket_frame>..</socket_frame>
+								
+								<scale_factors>0.20000000000000001 0.20000000000000001 0.20000000000000001</scale_factors>
+							</FrameGeometry>
+							
+							<socket_parent>/bodyset/torso</socket_parent>
+							
+							<translation>0.0073590112022312417 0.01063197170547632 -0.0020726180706809537</translation>
+							
+							<orientation>-0 0 0</orientation>
+						</PhysicalOffsetFrame>
+					</frames>
+					
+					<SpatialTransform>
+						
+						<TransformAxis name="rotation1">
+							
+							<coordinates>lumbar_extension</coordinates>
+							
+							<axis>0 0 1</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation2">
+							
+							<coordinates>lumbar_bending</coordinates>
+							
+							<axis>1 0 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="rotation3">
+							
+							<coordinates>lumbar_rotation</coordinates>
+							
+							<axis>0 1 0</axis>
+							
+							<LinearFunction name="function">
+								<coefficients> 1 0</coefficients>
+							</LinearFunction>
+						</TransformAxis>
+						
+						<TransformAxis name="translation1">
+							
+							<coordinates />
+							
+							<axis>1 0 0</axis>
+							
+							<Constant name="function">
+								<value>0</value>
+							</Constant>
+						</TransformAxis>
+						
+						<TransformAxis name="translation2">
+							
+							<coordinates />
+							
+							<axis>0 1 0</axis>
+							
+							<Constant name="function">
+								<value>0</value>
+							</Constant>
+						</TransformAxis>
+						
+						<TransformAxis name="translation3">
+							
+							<coordinates />
+							
+							<axis>0 0 1</axis>
+							
+							<Constant name="function">
+								<value>0</value>
+							</Constant>
+						</TransformAxis>
+					</SpatialTransform>
+				</CustomJoint>
+			</objects>
+			<groups />
+		</JointSet>
+		
+		<ControllerSet name="controllerset">
+			
+		</ControllerSet>
+		
+		<ConstraintSet name="constraintset">
+			<objects>
+				<CoordinateCouplerConstraint name="patellofemoral_knee_angle_r_con">
+					
+					<isEnforced>true</isEnforced>
+					
+					<coupled_coordinates_function>
+						<LinearFunction>
+							<coefficients> 1 0</coefficients>
+						</LinearFunction>
+					</coupled_coordinates_function>
+					
+					<independent_coordinate_names>knee_angle_r</independent_coordinate_names>
+					
+					<dependent_coordinate_name>knee_angle_r_beta</dependent_coordinate_name>
+					
+					<scale_factor>1</scale_factor>
+				</CoordinateCouplerConstraint>
+				<CoordinateCouplerConstraint name="patellofemoral_knee_angle_l_con">
+					
+					<isEnforced>true</isEnforced>
+					
+					<coupled_coordinates_function>
+						<LinearFunction>
+							<coefficients> 1 0</coefficients>
+						</LinearFunction>
+					</coupled_coordinates_function>
+					
+					<independent_coordinate_names>knee_angle_l</independent_coordinate_names>
+					
+					<dependent_coordinate_name>knee_angle_l_beta</dependent_coordinate_name>
+					
+					<scale_factor>1</scale_factor>
+				</CoordinateCouplerConstraint>
+			</objects>
+			<groups />
+		</ConstraintSet>
+		
+		<ForceSet name="forceset">
+			
+		</ForceSet>
+		
+		<MarkerSet name="markerset">
+			
+		</MarkerSet>
+		
+		<ContactGeometrySet name="contactgeometryset">
+			
+		</ContactGeometrySet>
+	</Model>
+</OpenSimDocument>

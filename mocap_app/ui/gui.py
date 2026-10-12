@@ -17,6 +17,7 @@ Page index map (stackedWidget):
 from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
+from mocap_app.core.branding import APP_NAME
 
 
 ## Folder with the bundled UI images (logo, window icon).
@@ -41,7 +42,7 @@ class Ui_MainWindow(object):
         """Create all widgets, layouts, menus and actions on ``MainWindow``."""
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1280, 800)
-        MainWindow.setMinimumSize(QtCore.QSize(960, 600))
+        MainWindow.setMinimumSize(QtCore.QSize(640, 400))
 
         icon = QtGui.QIcon()
         icon.addPixmap(_load_pixmap("hucalib_cube_icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
@@ -154,6 +155,7 @@ class Ui_MainWindow(object):
         self.lab_console_hint = QtWidgets.QLabel(
             "Probeer:  help  |  capture intrinsics 0  |  capture extrinsics  |  home / cameras / results"
         )
+        self.lab_console_hint.setWordWrap(True)
         self.lab_console_hint.setObjectName("lab_console_hint")
         self.lab_console_hint.setProperty("hint", True)
         console_header.addWidget(self.lab_console_hint)
@@ -234,7 +236,8 @@ class Ui_MainWindow(object):
 
         self.label_main_text = QtWidgets.QLabel(self.page_home)
         self.label_main_text.setObjectName("label_main_text")
-        self.label_main_text.setText("HuCalib")
+        self.label_main_text.setText(APP_NAME)
+        self.label_main_text.setWordWrap(True)
         self.label_main_text.setProperty("display", True)
         outer.addWidget(self.label_main_text)
 
@@ -694,7 +697,7 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow: QtWidgets.QMainWindow) -> None:
         """Set the translatable texts (window title, menus, actions)."""
         _t = QtCore.QCoreApplication.translate
-        MainWindow.setWindowTitle(_t("MainWindow", "HuCalib"))
+        MainWindow.setWindowTitle(_t("MainWindow", APP_NAME))
         self.menuFile.setTitle(_t("MainWindow", "&Bestand"))
         self.menuRun.setTitle(_t("MainWindow", "Uitvoeren"))
         self.menuHelp.setTitle(_t("MainWindow", "Help"))

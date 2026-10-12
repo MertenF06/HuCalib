@@ -135,6 +135,8 @@ class MainWindow(QMainWindow):
         self._video_recorder: VideoRecorder | None = None
         self._recording_finalize_worker: RecordingFinalizeWorker | None = None
         self._last_recording_dir: Path | None = None
+        self._last_analysis_session_dir: Path | None = None
+        self._analysis_dialog = None
         # True while the single "Start kalibratie" button drives the fully
         # automatic intrinsics -> solve -> extrinsics -> solve -> results chain.
         self._auto_calibration_active = False
@@ -2063,6 +2065,23 @@ class MainWindow(QMainWindow):
             suffix += 1
         return candidate
 
+    def _on_open_analysis(self) -> None:
+        """Open analysis controls without interrupting capture or recording."""
+        if (self._video_recorder is not None
+                or (self._live_worker is not None and self._live_worker.isRunning())
+                or (self._recording_finalize_worker is not None and self._recording_finalize_worker.isRunning())):
+            self._show_warning('Stop eerst de live weergave en wacht tot de opname is afgerond.')
+            return
+        if self._analysis_dialog is None:
+            from mocap_app.ui.analysis_dialog import AnalysisDialog
+            self._analysis_dialog = AnalysisDialog(
+                self._config.app_root / 'analysis-settings.ini',
+                self._last_analysis_session_dir,
+                self._project_results_dir(), self)
+        self._analysis_dialog.show()
+        self._analysis_dialog.raise_()
+        self._analysis_dialog.activateWindow()
+
     def _on_record_toggled(self, enabled: bool) -> None:
         """Start or stop recording the live capture to per-camera clips in a
         timestamped folder under the recordings directory."""
@@ -2085,8 +2104,13 @@ class MainWindow(QMainWindow):
         labels = {source.source_id: (source.label or source.source_id) for source in self._active_sources}
         fps = self._runtime_tuning.capture_fps if self._runtime_tuning.capture_fps > 0 else self._calibration_panel.target_fps()
         try:
-            self._video_recorder = VideoRecorder(output_dir=output_dir, fps=fps, labels=labels)
-        except OSError as exc:
+            bundle = self._current_calibration_bundle or self._calibration_manager.last_solution()
+            calibration_payload = self._calibration_repo.to_payload(bundle) if bundle is not None else None
+            self._video_recorder = VideoRecorder(
+                output_dir=output_dir, fps=fps, labels=labels,
+                sources=self._active_sources, calibration_payload=calibration_payload,
+            )
+        except (OSError, ValueError) as exc:
             LOGGER.error("Could not start recording: %s", exc)
             self._calibration_panel.set_recording_active(False)
             self._show_error(f"Kon de opname niet starten: {exc}")
@@ -2111,7 +2135,12 @@ class MainWindow(QMainWindow):
         if self._live_worker is not None and hasattr(self._live_worker, "detach_recorder"):
             self._live_worker.detach_recorder()
         self._calibration_panel.set_recording_active(False)
-        written = recorder.close()
+        try:
+            written = recorder.close()
+        except (OSError, RuntimeError, TimeoutError) as exc:
+            LOGGER.exception("Recording could not be finalized reliably.")
+            self._show_error(f"Kon de opname niet betrouwbaar afronden: {exc}\nMap: {recorder.output_dir}")
+            return
         self._set_dropped_frames(recorder.dropped_frames())
         if not written:
             self._calibration_panel.show_feedback("Opname gestopt; geen frames opgeslagen.", success=False)
@@ -2170,7 +2199,8 @@ class MainWindow(QMainWindow):
         box.setIcon(QMessageBox.Icon.Question)
         box.setText(
             f"Opname voltooid: {total_frames} frame(s) in {len(written)} bestand(en).\n"
-            f"{files_text}\n\nMap: {output_dir}\n\nWat wil je met deze opname doen?"
+            f"{files_text}\nSessiemanifest en framelog zijn bij de video's opgeslagen.\n"
+            f"\nMap: {output_dir}\n\nWat wil je met deze opname doen?"
         )
         keep_button = box.addButton("Bewaren", QMessageBox.ButtonRole.AcceptRole)
         rename_button = box.addButton("Naam aanpassen", QMessageBox.ButtonRole.ActionRole)
@@ -2185,6 +2215,9 @@ class MainWindow(QMainWindow):
         if clicked is rename_button:
             output_dir = self._rename_recording(output_dir) or output_dir
 
+        self._last_analysis_session_dir = output_dir
+        if self._analysis_dialog is not None and not self._analysis_dialog.busy:
+            self._analysis_dialog.session.setText(str(output_dir))
         self._calibration_panel.show_feedback(f"Opname bewaard in {output_dir}", success=True)
         self._set_status(f"Video opgeslagen in {output_dir}")
         self._prompt_open_recording_folder(output_dir)
@@ -3523,6 +3556,14 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # type: ignore[override]
         """Refuse to close while a solve runs; otherwise stop all workers,
         wait for a pending re-encode and persist the advanced settings."""
+        gait_setup = getattr(self, '_gait_setup_dialog', None)
+        gait_files = getattr(self, '_gait_files_dialog', None)
+        if ((self._analysis_dialog is not None and self._analysis_dialog.busy) or
+                (gait_setup is not None and gait_setup.busy) or
+                (gait_files is not None and gait_files.busy)):
+            self._show_warning('Wacht tot de analyse, modelconversie, installatie of krachtberekening is afgerond voordat je de app sluit.')
+            event.ignore()
+            return
         if self._intrinsics_solve_worker is not None and self._intrinsics_solve_worker.isRunning():
             QMessageBox.information(
                 self,

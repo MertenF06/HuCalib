@@ -7,6 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from mocap_app import __version__
+from mocap_app.core.config import AppConfig
 from mocap_app.ui.designed_main_window import (
     DesignedCalibrationPanel,
     _application_info_text,
@@ -29,6 +30,7 @@ class InfoDialogTests(TestCase):
 
     def test_info_text_contains_version_credits_and_client(self) -> None:
         text = _application_info_text()
+        self.assertIn('HU3D kinematics', text)
 
         self.assertIn(f"Versie {__version__}", text)
         self.assertIn("Merten Flantua", text)
@@ -38,6 +40,12 @@ class InfoDialogTests(TestCase):
         self.assertIn("Daniël Wit Ariza", text)
         self.assertIn("Jan Piccardt Brouwer", text)
         self.assertIn("Hogeschool Utrecht - Quest project 2026", text)
+
+    def test_old_saved_name_is_migrated_without_losing_preferences(self):
+        config = AppConfig()
+        config._apply_settings_dict({'app_name': 'HuCalib', 'ui_scale': 1.25})
+        self.assertEqual(config.app_name, 'HU3D kinematics')
+        self.assertEqual(config.ui_scale, 1.25)
 
     def test_show_info_opens_information_dialog(self) -> None:
         window = object()
@@ -50,6 +58,6 @@ class InfoDialogTests(TestCase):
 
         show_information.assert_called_once_with(
             window,
-            "Info over HuCalib",
+            "Info over HU3D kinematics",
             _application_info_text(),
         )

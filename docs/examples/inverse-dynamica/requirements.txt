@@ -1,0 +1,6 @@
+# Standalone demonstration only; not application dependencies.
+# Tested on Linux x86_64 with CPython 3.12.14; requires OpenSim Python bindings.
+opensim==4.6
+numpy==2.5.4
+scipy==1.18.1
+matplotlib==3.10.3

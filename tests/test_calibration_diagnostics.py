@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -112,12 +113,10 @@ class CalibrationDiagnosticsRegressionTests(unittest.TestCase):
             def put_nowait(_item: object) -> None:
                 raise queue.Full
 
-        recorder = object.__new__(VideoRecorder)
-        recorder._closed = False
-        recorder._write_queue = FullQueue()
-        recorder._dropped_batches = 0
-        recorder._dropped_frames = 0
-        recorder.write_frames({"cam-1": object(), "cam-2": object(), "cam-3": object()})
+        recorder = VideoRecorder(Path(self._temp_dir.name) / "opname", fps=25)
+        with patch.object(recorder._write_queue, "put_nowait", FullQueue.put_nowait):
+            recorder.write_frames({"cam-1": object(), "cam-2": object(), "cam-3": object()})
+        recorder.close()
 
         self.window._set_dropped_frames(recorder.dropped_frames())
 

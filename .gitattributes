@@ -1,0 +1,2 @@
+# Calibration checksums describe the original bytes on every build platform.
+testdata/pose2sim-demo/Calib_qualisys.toml text eol=lf

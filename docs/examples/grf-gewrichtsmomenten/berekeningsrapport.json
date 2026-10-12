@@ -1,0 +1,140 @@
+{
+  "method": "GRF contribution: (CoP - joint parent frame origin) cross ipsilateral force",
+  "joint_origin": "origin of the OpenSim joint parent PhysicalOffsetFrame",
+  "joint_axes": "orthonormal XYZ axes of that same parent joint frame, right hand rule; no side mirroring",
+  "clinical_flexion_adduction_rotation_labels_assigned": false,
+  "net_joint_moments_or_inverse_dynamics": false,
+  "gravity_inertia_muscles_other_external_loads_included": false,
+  "free_contact_moment": "unknown; omitted because the GaitDynamics torque columns are placeholders equal to zero",
+  "units": {
+    "moment": "Nm",
+    "position": "m",
+    "force": "N",
+    "time": "s"
+  },
+  "input_sha256": {
+    "ground_reaction_forces.mot": "9a05bc496dbfed7501328013de15d6c5fe2baa542ae78f390b60d700c12f19df",
+    "motion.mot": "d6257cbd5d838d6f014f0009cf5f6116393e4c57be0a727a3b3fa05575db54c2",
+    "model.osim": "7fa12645ba99a67aa7d5de46076c27c20f4448045725c29b83f1309ed0db8141",
+    "model-numerical.osim": "27c65d04092ea10049b165a25912585347df63d866ef83edc711f20a7141aa96"
+  },
+  "opensim_version": "version 4.6-2026-06-22-85aaf64, build date 18:14:53 Jun 22 2026",
+  "force_export_duplicates_identical": true,
+  "motion_rows": 96,
+  "force_rows": 159,
+  "sampling_rate_hz": 100,
+  "time_range_s": [
+    0.01667,
+    1.59667
+  ],
+  "time_alignment": "actual-time linear coordinate interpolation, radians unwrapped, exact 100 Hz inference grid",
+  "max_force_timestamp_rounding_s": 3.3300000001901253e-06,
+  "extrapolation": false,
+  "contact_threshold_Fy_N": 20,
+  "threshold_basis": "pinned GaitDynamics inverse_norm_cops zeros CoP when Fy < 20 N",
+  "invalid_CoP_samples": {
+    "rechts": 21,
+    "links": 33
+  },
+  "csv_missing_values": "blank cells are undefined, not zero",
+  "plots": "no filtering; no-contact samples omitted",
+  "models_verified_kinematically_equivalent": true,
+  "max_model_joint_position_difference_m": 0.0,
+  "max_model_joint_rotation_matrix_difference": 0.0,
+  "max_parent_child_frame_origin_distance_m": {
+    "heup_rechts": 0.0,
+    "heup_links": 0.0,
+    "knie_rechts": 0.005822908687496312,
+    "knie_links": 0.005572436955541724,
+    "enkel_rechts": 0.0,
+    "enkel_links": 0.0
+  },
+  "validation": {
+    "orthonormal_frames": true,
+    "moment_norm_preserved": true,
+    "moment_perpendicular_to_force": true,
+    "global_translation_invariance": true,
+    "global_rotation_covariance": true,
+    "moment_shift_between_joint_points": true
+  },
+  "ranges_local_Nm": {
+    "heup_rechts_Mx_Nm": [
+      11.502224848959646,
+      94.4561007971193
+    ],
+    "heup_rechts_My_Nm": [
+      -6.21891995318577,
+      29.88676617830862
+    ],
+    "heup_rechts_Mz_Nm": [
+      -5.890802190973006,
+      90.36578054858997
+    ],
+    "heup_links_Mx_Nm": [
+      -51.67758557404897,
+      82.35562968810632
+    ],
+    "heup_links_My_Nm": [
+      -32.60204183520214,
+      3.1007572481203334
+    ],
+    "heup_links_Mz_Nm": [
+      -10.370637867683781,
+      91.60011761147908
+    ],
+    "knie_rechts_Mx_Nm": [
+      -32.413950755803754,
+      85.21363945797316
+    ],
+    "knie_rechts_My_Nm": [
+      -29.35393934052392,
+      -0.4661642208921144
+    ],
+    "knie_rechts_Mz_Nm": [
+      2.178359214688724,
+      59.23358770769905
+    ],
+    "knie_links_Mx_Nm": [
+      -94.32084590943909,
+      10.421139905443761
+    ],
+    "knie_links_My_Nm": [
+      -38.65432252527464,
+      7.185975856522914
+    ],
+    "knie_links_Mz_Nm": [
+      -53.305159181704866,
+      10.390070918032459
+    ],
+    "enkel_rechts_Mx_Nm": [
+      -55.09447361301134,
+      36.36325468991758
+    ],
+    "enkel_rechts_My_Nm": [
+      -11.571492851612195,
+      32.60157655348454
+    ],
+    "enkel_rechts_Mz_Nm": [
+      -13.861808512398694,
+      147.98924832622149
+    ],
+    "enkel_links_Mx_Nm": [
+      -5.139619948620305,
+      40.90108200807653
+    ],
+    "enkel_links_My_Nm": [
+      -9.528395337563644,
+      12.63463684158731
+    ],
+    "enkel_links_Mz_Nm": [
+      1.2410028747295874,
+      90.3081085523702
+    ]
+  },
+  "limitations": [
+    "Forces and CoP are predictions, not measurements; moment accuracy is not validated.",
+    "Local model XYZ components are not automatically generalized coordinate loads or anatomical clinical joint moments.",
+    "The knee is a coupled joint with translation; the fixed parent joint frame origin is an explicit reference, not a unique instantaneous knee rotation centre.",
+    "Low but nonzero predicted forces can still yield unstable CoP above the 20 N cutoff."
+  ]
+}

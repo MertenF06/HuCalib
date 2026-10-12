@@ -1,0 +1,353 @@
+{
+  "project": {
+    "project_dir": "/workspace/artifacts/cloud-connection-pose2sim/project",
+    "multi_person": false,
+    "participant_height": "auto",
+    "participant_mass": 70.0,
+    "frame_rate": 60.0,
+    "frame_range": "auto",
+    "exclude_from_batch": []
+  },
+  "pose": {
+    "pose_model": "Body_with_feet",
+    "mode": "balanced",
+    "det_frequency": 4,
+    "device": "cpu",
+    "backend": "onnxruntime",
+    "parallel_workers_pose": 1,
+    "display_detection": false,
+    "overwrite_pose": true,
+    "save_video": "none",
+    "output_format": "openpose",
+    "handle_LR_swap": false,
+    "undistort_points": false,
+    "average_likelihood_threshold": 0.5,
+    "tracking_mode": "sports2d",
+    "predict_displacement": false,
+    "match_by": "keypoints",
+    "max_distance_px": 250,
+    "min_iou": 0.2,
+    "max_unseen_frames": 100,
+    "CUSTOM": [
+      {
+        "name": "Hip",
+        "id": 19,
+        "children": [
+          {
+            "name": "RHip",
+            "id": 12,
+            "children": [
+              {
+                "name": "RKnee",
+                "id": 14,
+                "children": [
+                  {
+                    "name": "RAnkle",
+                    "id": 16,
+                    "children": [
+                      {
+                        "name": "RBigToe",
+                        "id": 21,
+                        "children": [
+                          {
+                            "name": "RSmallToe",
+                            "id": 23
+                          }
+                        ]
+                      },
+                      {
+                        "name": "RHeel",
+                        "id": 25
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "LHip",
+            "id": 11,
+            "children": [
+              {
+                "name": "LKnee",
+                "id": 13,
+                "children": [
+                  {
+                    "name": "LAnkle",
+                    "id": 15,
+                    "children": [
+                      {
+                        "name": "LBigToe",
+                        "id": 20,
+                        "children": [
+                          {
+                            "name": "LSmallToe",
+                            "id": 22
+                          }
+                        ]
+                      },
+                      {
+                        "name": "LHeel",
+                        "id": 24
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Neck",
+            "id": 18,
+            "children": [
+              {
+                "name": "Head",
+                "id": 17,
+                "children": [
+                  {
+                    "name": "Nose",
+                    "id": 0
+                  }
+                ]
+              },
+              {
+                "name": "RShoulder",
+                "id": 6,
+                "children": [
+                  {
+                    "name": "RElbow",
+                    "id": 8,
+                    "children": [
+                      {
+                        "name": "RWrist",
+                        "id": 10
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "LShoulder",
+                "id": 5,
+                "children": [
+                  {
+                    "name": "LElbow",
+                    "id": 7,
+                    "children": [
+                      {
+                        "name": "LWrist",
+                        "id": 9
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "synchronization": {
+    "synchronization_gui": false,
+    "display_sync_plots": false,
+    "save_sync_plots": true,
+    "keypoints_to_consider": "all",
+    "approx_time_maxspeed": "auto",
+    "time_range_around_maxspeed": 2.0,
+    "likelihood_threshold_synchronization": 0.4,
+    "filter_cutoff": 6,
+    "filter_order": 4
+  },
+  "calibration": {
+    "calibration_type": "convert",
+    "convert": {
+      "convert_from": "qualisys",
+      "caliscope": {},
+      "qualisys": {
+        "binning_factor": 1
+      },
+      "optitrack": {},
+      "vicon": {},
+      "opencap": {},
+      "easymocap": {},
+      "biocv": {},
+      "anipose": {},
+      "freemocap": {}
+    },
+    "calculate": {
+      "save_debug_images": true,
+      "intrinsics": {
+        "board_type": "charuco",
+        "corners_nb": [
+          4,
+          7
+        ],
+        "square_size": 60,
+        "marker_resolution": 5,
+        "show_detection_intrinsics": true,
+        "overwrite_intrinsics": true,
+        "extract_every_N_sec": 1
+      },
+      "extrinsics": {
+        "extrinsics_method": "scene",
+        "show_reprojection_error": true,
+        "calculate_extrinsics": true,
+        "moving_cameras": false,
+        "scene": {
+          "object_coords_3d": [
+            [
+              -2.0,
+              0.3,
+              0.0
+            ],
+            [
+              -2.0,
+              0.0,
+              0.0
+            ],
+            [
+              -2.0,
+              0.0,
+              0.05
+            ],
+            [
+              -2.0,
+              -0.3,
+              0.0
+            ],
+            [
+              0.0,
+              0.3,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.05
+            ],
+            [
+              0.0,
+              -0.3,
+              0.0
+            ]
+          ]
+        },
+        "static": {
+          "board_position": "vertical",
+          "corners_nb": [
+            4,
+            7
+          ],
+          "square_size": 60,
+          "marker_resolution": 5
+        },
+        "charuco": {
+          "corners_nb": [
+            4,
+            7
+          ],
+          "square_size": 60,
+          "marker_resolution": 5
+        },
+        "keypoints": {}
+      }
+    }
+  },
+  "personAssociation": {
+    "single_person": {
+      "likelihood_threshold_association": 0.3,
+      "reproj_error_threshold_association": 20,
+      "tracked_keypoint": "Neck"
+    },
+    "multi_person": {
+      "reconstruction_error_threshold": 0.1,
+      "min_affinity": 0.2
+    }
+  },
+  "triangulation": {
+    "reproj_error_threshold_triangulation": 15,
+    "likelihood_threshold_triangulation": 0.3,
+    "min_cameras_for_triangulation": 2,
+    "predict_displacement": false,
+    "match_by": "keypoints",
+    "max_distance_m": 1.0,
+    "max_unseen_frames": 100,
+    "interp_if_gap_smaller_than": 20,
+    "interpolation": "linear",
+    "remove_incomplete_frames": false,
+    "sections_to_keep": "all",
+    "min_chunk_size": 10,
+    "fill_large_gaps_with": "last_value",
+    "show_interp_indices": true,
+    "make_c3d": true
+  },
+  "filtering": {
+    "reject_outliers": true,
+    "filter": true,
+    "type": "butterworth",
+    "display_figures": false,
+    "save_filt_plots": false,
+    "make_c3d": true,
+    "butterworth": {
+      "cut_off_frequency": 6,
+      "order": 4
+    },
+    "kalman": {
+      "trust_ratio": 500,
+      "smooth": true
+    },
+    "one_euro": {
+      "cut_off_frequency": 4,
+      "beta": 1.5,
+      "d_cut_off_frequency": 1.0
+    },
+    "gcv_spline": {
+      "cut_off_frequency": "auto",
+      "smoothing_factor": 1.0
+    },
+    "acc_minimizing": {
+      "cut_off_frequency": 6
+    },
+    "loess": {
+      "nb_values_used": 5
+    },
+    "gaussian": {
+      "sigma_kernel": 1
+    },
+    "median": {
+      "kernel_size": 3
+    },
+    "butterworth_on_speed": {
+      "cut_off_frequency": 10,
+      "order": 4
+    }
+  },
+  "markerAugmentation": {
+    "feet_on_floor": false,
+    "make_c3d": true
+  },
+  "kinematics": {
+    "use_augmentation": true,
+    "use_simple_model": false,
+    "filter_ik": false,
+    "ik_filter_type": "acc_minimizing",
+    "make_bvh": false,
+    "right_left_symmetry": true,
+    "default_height": 1.7,
+    "parallel_workers_kinematics": 1,
+    "remove_individual_scaling_setup": true,
+    "remove_individual_ik_setup": true,
+    "large_hip_knee_angles": 90,
+    "trimmed_extrema_percent": 50
+  },
+  "logging": {
+    "use_custom_logging": false
+  }
+}

@@ -1,0 +1,4 @@
+# Optional, separate analysis environment. Never install this into HuCalib's
+# environment: Pose2Sim brings its own OpenCV and scientific dependencies.
+# Tested upstream commit; update deliberately after integration validation.
+pose2sim @ git+https://github.com/perfanalytics/pose2sim.git@68304b47195dac80bc341cdfd9669140609358c4

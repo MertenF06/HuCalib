@@ -14,6 +14,12 @@ from typing import Any
 _BARE_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
+def camera_sort_key(source_id: str) -> list[tuple[int, Any]]:
+    """Stable natural ID order, independent of labels (cam2 before cam10)."""
+    return [(1, int(part)) if part.isdigit() else (0, part)
+            for part in re.split(r'(\d+)', source_id)]
+
+
 def to_json(payload: dict[str, Any]) -> str:
     """Serialize the calibration payload to pretty-printed JSON."""
     return json.dumps(payload, indent=2)
@@ -31,7 +37,9 @@ def to_toml(payload: dict[str, Any]) -> str:
     return "\n".join(_dump_table(cleaned, [])).strip() + "\n"
 
 
-def build_motion_capture_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+def build_motion_capture_payload(
+    payload: dict[str, Any], source_ids: list[str] | None = None,
+) -> tuple[dict[str, Any], list[str]]:
     """Build an aniposelib/Anipose-compatible calibration mapping.
 
     Each usable camera becomes a ``[cam_N]`` table with ``name``, ``size``,
@@ -47,8 +55,11 @@ def build_motion_capture_payload(payload: dict[str, Any]) -> tuple[dict[str, Any
     skipped: list[str] = []
     errors: list[float] = []
     index = 0
-    for source_id in sorted(cameras.keys()):
-        camera = cameras[source_id]
+    ordered_ids = sorted(cameras.keys(), key=camera_sort_key) if source_ids is None else list(source_ids)
+    if len(set(ordered_ids)) != len(ordered_ids):
+        raise ValueError("Calibration camera IDs must be unique.")
+    for source_id in ordered_ids:
+        camera = cameras.get(source_id, {})
         intrinsics = camera.get("intrinsics")
         distortion = camera.get("distortion")
         rotation = camera.get("rotation")
@@ -67,7 +78,7 @@ def build_motion_capture_payload(payload: dict[str, Any]) -> tuple[dict[str, Any
             skipped.append(str(source_id))
             continue
         result[f"cam_{index}"] = {
-            "name": str(camera.get("source_id", source_id)),
+            "name": str(source_id),
             "size": [int(size[0]), int(size[1])],
             "matrix": [[float(value) for value in row] for row in intrinsics],
             "distortions": [float(value) for value in distortion],

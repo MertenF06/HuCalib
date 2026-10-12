@@ -1,0 +1,3 @@
+# Build the GUI in its own environment, separate from Pose2Sim.
+-r requirements.txt
+PyInstaller>=6.10,<7

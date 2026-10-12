@@ -12,6 +12,10 @@ from typing import Any
 
 import cv2
 
+from mocap_app.io.calibration_export import camera_sort_key
+from mocap_app.io.recording_session import RecordingSession
+from mocap_app.models.types import CameraSourceConfig, FramePacket
+
 LOGGER = logging.getLogger(__name__)
 
 # Only rewrite the clip to the measured frame rate when it deviates from the
@@ -34,12 +38,11 @@ class VideoRecorder:
     (no overlays, mirroring or undistortion), ready to validate the
     calibration in external tooling.
 
-    Encoding runs on a dedicated writer thread: ``write_frames`` only enqueues
-    the batch, so the capture loop is never slowed down by the (potentially
-    slow) video encode and the live view stays smooth while recording. When the
+    Encoding runs on a dedicated writer thread: ``write_frames`` queues images
+    and journals failed capture/drop outcomes without waiting for video encode. When the
     encoder cannot keep up the newest batches are dropped; the measured frame
-    rate (and the re-encode correction based on it) keeps the saved clips
-    playing back at real-time speed regardless.
+    rate can correct average playback speed, but cannot recover lost frames or
+    synchronization. The journal retains the actual gaps for later analysis.
     """
 
     def __init__(
@@ -47,23 +50,33 @@ class VideoRecorder:
         output_dir: Path,
         fps: float,
         labels: dict[str, str] | None = None,
+        *,
+        sources: list[CameraSourceConfig] | None = None,
+        calibration_payload: dict[str, Any] | None = None,
     ) -> None:
         """Create the output folder and start the encoder thread.
 
         @param output_dir  Folder that receives one clip per source.
         @param fps         Nominal frame rate the clips are written at.
-        @param labels      Optional user-facing names per source id, used for
-                           the clip file names.
+        @param labels      Optional user-facing names, stored in the manifest.
+        @param sources     Explicit camera order is derived from their unique IDs.
+        @param calibration_payload Immutable calibration snapshot for this session.
         """
         self._output_dir = Path(output_dir)
         self._output_dir.mkdir(parents=True, exist_ok=True)
+        if any(self._output_dir.iterdir()):
+            raise FileExistsError("Recording folder must be empty; existing files are preserved.")
         self._fps = max(1.0, float(fps))
         self._labels = dict(labels or {})
+        self._session = RecordingSession(self._output_dir, self._fps, self._labels, sources, calibration_payload)
+        self._state_lock = threading.RLock()
+        self._batch_index = 0
+        self._writer_error: Exception | None = None
         self._writers: dict[str, cv2.VideoWriter] = {}
         self._paths: dict[str, Path] = {}
         self._sizes: dict[str, tuple[int, int]] = {}
         self._frame_counts: dict[str, int] = {}
-        # Wall-clock span of the recording, used to derive the real average frame
+        # Monotonic span of successfully encoded frames, used for average frame
         # rate so the saved clip plays back at the correct speed (the nominal fps
         # is rarely achieved exactly by the capture loop).
         self._first_frame_at: float | None = None
@@ -71,7 +84,7 @@ class VideoRecorder:
         self._dropped_batches = 0
         self._dropped_frames = 0
         self._closed = False
-        self._write_queue: queue.Queue[dict[str, Any] | None] = queue.Queue(
+        self._write_queue: queue.Queue[tuple[dict[str, Any], dict[str, dict[str, Any]]] | None] = queue.Queue(
             maxsize=_WRITE_QUEUE_MAX_BATCHES
         )
         self._writer_thread = threading.Thread(
@@ -85,11 +98,8 @@ class VideoRecorder:
         return self._output_dir
 
     def _safe_name(self, source_id: str) -> str:
-        """Turn the source's label (or id) into a filesystem-safe file stem."""
-        label = self._labels.get(source_id, source_id)
-        cleaned = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in label)
-        cleaned = cleaned.strip("_")
-        return cleaned or source_id
+        """Canonical names follow manifest order; labels never affect paths."""
+        return self._session.camera(source_id)['video_stem']
 
     def _ensure_writer(self, source_id: str, frame) -> cv2.VideoWriter | None:
         """Return the writer for ``source_id``, opening it on first use.
@@ -114,6 +124,7 @@ class VideoRecorder:
             (int(width), int(height)),
         )
         if not writer.isOpened():
+            writer.release()
             # Fall back to a more universally available codec/container.
             path = self._output_dir / f"{name}.avi"
             writer = cv2.VideoWriter(
@@ -123,6 +134,7 @@ class VideoRecorder:
                 (int(width), int(height)),
             )
         if not writer.isOpened():
+            writer.release()
             LOGGER.error("Could not open a VideoWriter for source '%s' (%dx%d).", source_id, width, height)
             return None
 
@@ -130,58 +142,136 @@ class VideoRecorder:
         self._paths[source_id] = path
         self._sizes[source_id] = (int(width), int(height))
         self._frame_counts[source_id] = 0
+        self._session.video_opened(source_id, path, self._sizes[source_id], self._fps)
         return writer
 
-    def write_frames(self, frames: dict[str, Any]) -> None:
-        """Queue a batch for encoding. Called from the capture thread; never
-        blocks — when the encoder lags behind, the batch is dropped instead."""
-        if self._closed or not frames:
+    def write_frames(
+        self, frames: dict[str, Any], *, packets: dict[str, FramePacket] | None = None,
+        failures: dict[str, dict[str, Any]] | None = None, batch_id: str | None = None,
+        capture_batch_index: int | None = None,
+    ) -> None:
+        """Hand off images without waiting for encoding; journal missing frames.
+
+        Small metadata writes still use disk I/O. Every known camera gets one
+        terminal outcome per submitted batch, including all-camera failures.
+        Calls without packets remain supported, with handoff timestamps rather
+        than fabricated sensor/read timestamps.
+        """
+        if not frames and not failures:
             return
-        try:
-            self._write_queue.put_nowait(dict(frames))
-        except queue.Full:
-            self._dropped_batches += 1
-            self._dropped_frames += len(frames)
-            return
-        # Timestamps track only batches that were actually accepted, so the
-        # measured frame rate matches the frames that end up in the clips.
-        now = time.perf_counter()
-        if self._first_frame_at is None:
-            self._first_frame_at = now
-        self._last_frame_at = now
+        with self._state_lock:
+            if self._closed:
+                return
+            if self._writer_error is not None:
+                raise RuntimeError('Recording journal/encoder failed.') from self._writer_error
+            packets, failures = packets or {}, failures or {}
+            for source_id in sorted(set(frames) | set(failures), key=camera_sort_key):
+                self._session.camera(source_id)
+            for source_id, packet in packets.items():
+                if packet.source_id != source_id:
+                    raise ValueError('Frame packet camera ID does not match its dictionary key.')
+            self._batch_index += 1
+            submitted_ns = time.perf_counter_ns()
+            batch_id = batch_id or f"recording_{self._batch_index}"
+            rows: dict[str, dict[str, Any]] = {}
+            valid_frames: dict[str, Any] = {}
+            for source_id in self._session.camera_ids:
+                packet = packets.get(source_id)
+                failure = failures.get(source_id, {})
+                started = (packet.capture_started_monotonic_ns if packet else failure.get('capture_started_monotonic_ns'))
+                completed = (packet.capture_completed_monotonic_ns if packet else failure.get('capture_completed_monotonic_ns'))
+                has_read_time = started is not None and completed is not None
+                row = {
+                    'camera_id': source_id, 'batch_id': batch_id, 'batch_index': self._batch_index,
+                    'capture_batch_index': capture_batch_index,
+                    'source_frame_index': packet.frame_index if packet else None,
+                    'capture_started_monotonic_ns': started, 'capture_completed_monotonic_ns': completed,
+                    'timestamp_monotonic_ns': (started + completed) // 2 if has_read_time else submitted_ns,
+                    'timestamp_kind': 'host_read_midpoint' if has_read_time else 'recorder_handoff',
+                    'timestamp_unix_sec': packet.timestamp_sec if packet else failure.get('timestamp_sec'),
+                    'submitted_monotonic_ns': submitted_ns,
+                }
+                rows[source_id] = row
+                if source_id in failures or frames.get(source_id) is None:
+                    reason = failure.get('reason', 'frame_not_received')
+                    self._session.event(row, 'capture_failed', reason=reason)
+                    self._dropped_frames += 1
+                else:
+                    valid_frames[source_id] = frames[source_id]
+            if not valid_frames:
+                return
+            queued_rows = {key: rows[key] for key in valid_frames}
+            try:
+                self._write_queue.put_nowait((dict(valid_frames), queued_rows))
+            except queue.Full:
+                self._dropped_batches += 1
+                self._dropped_frames += len(valid_frames)
+                for row in queued_rows.values():
+                    self._session.event(row, 'queue_dropped', reason='encoder_queue_full')
 
     def _writer_loop(self) -> None:
-        """Encoder thread: drain the queue until the ``None`` sentinel arrives."""
-        while True:
-            item = self._write_queue.get()
-            if item is None:
-                return
-            for source_id, frame in item.items():
-                try:
-                    self._write_frame(source_id, frame)
-                except Exception:  # noqa: BLE001 - one bad frame must not end the recording
-                    LOGGER.exception("Failed to encode a frame for source '%s'.", source_id)
+        """Drain images; the same thread owns writer release and journal close."""
+        try:
+            while True:
+                item = self._write_queue.get()
+                if item is None:
+                    break
+                frames, rows = item
+                for source_id, frame in frames.items():
+                    row = rows[source_id]
+                    try:
+                        index, resized = self._write_frame(source_id, frame)
+                    except Exception as exc:  # keep other cameras recording
+                        LOGGER.exception("Failed to encode a frame for source '%s'.", source_id)
+                        with self._state_lock:
+                            self._dropped_frames += 1
+                        self._session.event(row, 'encode_failed', reason=str(exc))
+                    else:
+                        self._session.event(row, 'written', video_frame_index=index, resized=resized)
+                        timestamp = row['timestamp_monotonic_ns'] / 1e9
+                        with self._state_lock:
+                            if self._first_frame_at is None:
+                                self._first_frame_at = timestamp
+                            self._last_frame_at = timestamp
+        except Exception as exc:
+            # Logging failure must be surfaced, not silently reported as success.
+            self._writer_error = exc
+            LOGGER.exception('Recording encoder/journal failed.')
+        finally:
+            try:
+                for writer in self._writers.values():
+                    writer.release()
+                if self._writer_error is None:
+                    self._session.finish()
+            except Exception as exc:
+                self._writer_error = exc
+                LOGGER.exception('Recording files/manifest could not be finalized.')
 
-    def _write_frame(self, source_id: str, frame: Any) -> None:
-        """Encode one frame, resizing it when the source changed resolution
-        after the writer was opened."""
-        if frame is None:
-            return
+    def _write_frame(self, source_id: str, frame: Any) -> tuple[int, bool]:
+        """Submit to the codec and return its 1-based video index.
+
+        VideoWriter does not acknowledge durable storage. The journal's
+        ``written`` means the codec call returned; decoding remains the
+        independent integrity check (also used by our video smoke test).
+        """
         writer = self._ensure_writer(source_id, frame)
         if writer is None:
-            return
+            raise RuntimeError('video_writer_unavailable')
         expected = self._sizes[source_id]
-        if (int(frame.shape[1]), int(frame.shape[0])) != expected:
+        resized = (int(frame.shape[1]), int(frame.shape[0])) != expected
+        if resized:
             frame = cv2.resize(frame, expected)
         writer.write(frame)
-        self._frame_counts[source_id] += 1
+        with self._state_lock:
+            self._frame_counts[source_id] += 1
+            return self._frame_counts[source_id], resized
 
     def total_frames(self) -> int:
         """Total number of frames encoded so far, summed over all sources."""
         return sum(self._frame_counts.values())
 
     def dropped_frames(self) -> int:
-        """Number of individual camera frames dropped before encoding."""
+        """Known missing frames: capture failures, queue drops and encoder errors."""
         return self._dropped_frames
 
     def measured_fps(self) -> float | None:
@@ -197,38 +287,32 @@ class VideoRecorder:
         return (max_frames - 1) / duration
 
     def close(self) -> dict[str, Path]:
-        """Drain the encoder, release the writers and return the written clip paths.
+        """Drain and finalize videos and metadata before returning clip paths.
 
-        This only stops writing; correcting the clips to the real measured frame
-        rate (see :meth:`needs_frame_rate_correction` / :meth:`correct_frame_rate`)
-        is done separately so the potentially slow re-encode can run off the UI
-        thread.
+        The encoding thread owns releases: a slow encoder must never race
+        against a main-thread release or re-encode of its still-open files.
         """
-        if not self._closed:
+        with self._state_lock:
+            send_stop = not self._closed
             self._closed = True
-            # Sentinel ends the writer loop after the queued batches are encoded.
-            self._write_queue.put(None)
-            self._writer_thread.join(timeout=30)
-            if self._writer_thread.is_alive():
-                LOGGER.warning("Recording encoder thread did not finish in time; closing anyway.")
-        if self._dropped_batches > 0:
-            LOGGER.warning(
-                "Recording encoder lagged behind capture: dropped %d frame(s) across %d batch(es).",
-                self._dropped_frames,
-                self._dropped_batches,
-            )
-        for writer in self._writers.values():
-            try:
-                writer.release()
-            except Exception:  # noqa: BLE001 - best effort cleanup
-                LOGGER.exception("Failed to release a VideoWriter cleanly.")
-        written = {
-            source_id: path
-            for source_id, path in self._paths.items()
-            if self._frame_counts.get(source_id, 0) > 0
-        }
-        self._writers.clear()
-        return written
+        if send_stop:
+            # Do not wait for space while holding the state lock: the encoder
+            # needs that lock to finish each queued image.
+            while self._writer_thread.is_alive():
+                try:
+                    self._write_queue.put(None, timeout=0.1)
+                    break
+                except queue.Full:
+                    continue
+        self._writer_thread.join(timeout=30)
+        if self._writer_thread.is_alive():
+            raise TimeoutError('Encoder is still finalizing; recording files have not been released.')
+        if self._writer_error is not None:
+            raise RuntimeError('Recording could not be finalized reliably.') from self._writer_error
+        if self._dropped_frames:
+            LOGGER.warning('Recording has %d missing frame(s). See frames.jsonl.', self._dropped_frames)
+        return {source_id: path for source_id, path in self._paths.items()
+                if self._frame_counts.get(source_id, 0) > 0}
 
     def needs_frame_rate_correction(self) -> bool:
         """Whether the measured frame rate deviates from the nominal one enough
@@ -255,9 +339,16 @@ class VideoRecorder:
             size = self._sizes.get(source_id)
             if size is None:
                 continue
-            self._reencode_to_fps(path, measured, size)
+            self._session.correction(source_id, None, 'in_progress')
+            try:
+                success = self._reencode_to_fps(path, measured, size)
+            except Exception:
+                self._session.correction(source_id, None, 'failed')
+                raise
+            self._session.correction(source_id, measured if success else None,
+                                     'corrected' if success else 'failed')
 
-    def _reencode_to_fps(self, path: Path, fps: float, size: tuple[int, int]) -> None:
+    def _reencode_to_fps(self, path: Path, fps: float, size: tuple[int, int]) -> bool:
         """Rewrite ``path`` at ``fps`` so it plays back at real-time speed.
 
         Reads the just-written clip back frame by frame and writes a new file at
@@ -269,32 +360,43 @@ class VideoRecorder:
         if not cap.isOpened():
             cap.release()
             LOGGER.warning("Could not reopen '%s' to correct its frame rate.", path)
-            return
+            return False
 
         fourcc_code = "mp4v" if path.suffix.lower() == ".mp4" else "XVID"
         tmp_path = path.with_name(f"{path.stem}_fps_tmp{path.suffix}")
         writer = cv2.VideoWriter(str(tmp_path), cv2.VideoWriter_fourcc(*fourcc_code), fps, size)
         if not writer.isOpened():
             cap.release()
+            writer.release()
             LOGGER.warning("Could not open a re-encode writer for '%s'.", path)
-            return
+            return False
 
+        frame_count = 0
         try:
             while True:
                 ok, frame = cap.read()
                 if not ok:
                     break
                 writer.write(frame)
+                frame_count += 1
         finally:
             cap.release()
             writer.release()
 
+        source_id = next(key for key, value in self._paths.items() if value == path)
+        if frame_count != self._frame_counts[source_id]:
+            tmp_path.unlink(missing_ok=True)
+            LOGGER.warning('Frame-rate correction would lose frames; keeping original %s.', path)
+            return False
         try:
             os.replace(tmp_path, path)
             LOGGER.info("Re-encoded '%s' to %.2f fps (measured).", path.name, fps)
+            return True
         except OSError:
             LOGGER.exception("Could not replace '%s' with its re-encoded version.", path)
             try:
                 tmp_path.unlink(missing_ok=True)
             except OSError:
                 pass
+
+            return False

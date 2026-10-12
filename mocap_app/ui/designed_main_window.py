@@ -54,6 +54,7 @@ from PySide6.QtWidgets import (
 )
 
 from mocap_app import __version__
+from mocap_app.core.branding import APP_NAME
 from mocap_app.io.calibration_io import ChessboardDetectionResult
 from mocap_app.models.types import (
     CalibrationBoardSettings,
@@ -66,6 +67,7 @@ from mocap_app.models.types import (
 from mocap_app.ui.main_window import MainWindow as FunctionalMainWindow
 from mocap_app.ui.gui import Ui_MainWindow
 from mocap_app.ui.guiStyle import apply_styles
+from mocap_app.ui.window_geometry import fit_window_to_screen
 
 
 LOGGER = logging.getLogger(__name__)
@@ -91,7 +93,7 @@ def _application_info_text() -> str:
     """Build the text shown by Help > Info."""
     contributors = "\n".join(_CONTRIBUTORS)
     return (
-        f"HuCalib\nVersie {__version__}\n\n"
+        f"{APP_NAME}\nVersie {__version__}\n\n"
         f"Bijdragers:\n{contributors}\n\n"
         "In opdracht van Hogeschool Utrecht - Quest project 2026."
     )
@@ -2603,7 +2605,7 @@ class DesignedCalibrationPanel(QtCore.QObject):
 
     def _show_info(self) -> None:
         """Show the application info dialog (version and credits)."""
-        QMessageBox.information(self.window, "Info over HuCalib", _application_info_text())
+        QMessageBox.information(self.window, f"Info over {APP_NAME}", _application_info_text())
 
     def _warn_capture_restart_needed(self) -> None:
         """Capture FPS/resolution are applied to the camera only when live capture
@@ -4183,6 +4185,9 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self.btn_camera_load_video.setToolTip(
             "Laad een videobestand om de intrinsics/extrinsics daaruit te berekenen"
         )
+        self.btn_camera_analyze = QPushButton('Bewegingsanalyse…', self.frame)
+        self.btn_camera_analyze.setToolTip('Controleer een afgeronde opname en analyseer deze met Pose2Sim')
+        self.btn_camera_analyze.clicked.connect(self._on_open_analysis)
 
         live_actions = QWidget(self.frame)
         live_actions_layout = QHBoxLayout(live_actions)
@@ -4198,6 +4203,7 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         video_actions_layout.setSpacing(6)
         video_actions_layout.addWidget(self.btn_camera_record)
         video_actions_layout.addWidget(self.btn_camera_load_video)
+        video_actions_layout.addWidget(self.btn_camera_analyze)
 
         top_layout = self.frame.layout()
         if isinstance(top_layout, QGridLayout):
@@ -4298,12 +4304,27 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self.frame_menu.setMinimumWidth(120)
         self.frame_menu.setMaximumWidth(360)
         self.frame_pages.setMinimumWidth(420)
-        self.frame_console.setMinimumHeight(125)
+        self.frame_console.setMinimumHeight(100)
+
+        # Keep the existing pages intact while allowing their controls to be
+        # reached on small screens and with larger Windows display scaling.
+        self._pages_scroll = QScrollArea(self.centralwidget)
+        self._pages_scroll.setObjectName('scroll_main_pages')
+        self._pages_scroll.setWidgetResizable(True)
+        self._pages_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._pages_scroll.setWidget(self.frame_pages)
+        self._menu_scroll = QScrollArea(self.centralwidget)
+        self._menu_scroll.setObjectName('scroll_navigation')
+        self._menu_scroll.setWidgetResizable(True)
+        self._menu_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._menu_scroll.setMinimumWidth(140)
+        self._menu_scroll.setMaximumWidth(360)
+        self._menu_scroll.setWidget(self.frame_menu)
 
         self._right_splitter = QSplitter(Qt.Orientation.Vertical, self.centralwidget)
         self._right_splitter.setObjectName("splitter_content_console")
         self._right_splitter.setChildrenCollapsible(False)
-        self._right_splitter.addWidget(self.frame_pages)
+        self._right_splitter.addWidget(self._pages_scroll)
         self._right_splitter.addWidget(self.frame_console)
         self._right_splitter.setStretchFactor(0, 5)
         self._right_splitter.setStretchFactor(1, 2)
@@ -4312,7 +4333,7 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
         self._main_splitter = QSplitter(Qt.Orientation.Horizontal, self.centralwidget)
         self._main_splitter.setObjectName("splitter_main")
         self._main_splitter.setChildrenCollapsible(False)
-        self._main_splitter.addWidget(self.frame_menu)
+        self._main_splitter.addWidget(self._menu_scroll)
         self._main_splitter.addWidget(self._right_splitter)
         self._main_splitter.setStretchFactor(0, 0)
         self._main_splitter.setStretchFactor(1, 1)
@@ -4422,6 +4443,36 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
     def _setup_ui(self) -> None:
         """Override the base setup: the designed widgets are already in place."""
         self._designed_status_bar().showMessage("Idle")
+        self.menuAnalysis = QtWidgets.QMenu('Analyse', self)
+        self.actionAnalyzeRecording = QtGui.QAction('Bewegingsanalyse…', self)
+        self.actionAnalyzeRecording.triggered.connect(self._on_open_analysis)
+        self.menuAnalysis.addAction(self.actionAnalyzeRecording)
+        self.actionGaitDynamicsFiles = QtGui.QAction('GaitDynamics met bestaande bestanden…', self)
+        self.actionGaitDynamicsFiles.triggered.connect(self._open_gaitdynamics_files)
+        self.menuAnalysis.addAction(self.actionGaitDynamicsFiles)
+        self.actionInstallGaitDynamics = QtGui.QAction('GaitDynamics installeren…', self)
+        self.actionInstallGaitDynamics.triggered.connect(self._open_gaitdynamics_setup)
+        self.menuAnalysis.addAction(self.actionInstallGaitDynamics)
+        self.menuBar.insertMenu(self.menuHelp.menuAction(), self.menuAnalysis)
+
+    def _open_gaitdynamics_files(self):
+        from mocap_app.ui.gaitdynamics_dialog import GaitDynamicsDialog
+        existing = getattr(self, '_gait_files_dialog', None)
+        if existing is None:
+            existing = self._gait_files_dialog = GaitDynamicsDialog(None, None, self)
+            existing.setModal(True)
+        existing.show()
+        existing.raise_()
+        existing.activateWindow()
+
+    def _open_gaitdynamics_setup(self):
+        from mocap_app.ui.gaitdynamics_setup_dialog import GaitDynamicsSetupDialog
+        existing = getattr(self, '_gait_setup_dialog', None)
+        if existing is not None and existing.busy:
+            existing.raise_()
+            return
+        self._gait_setup_dialog = GaitDynamicsSetupDialog(self)
+        self._gait_setup_dialog.exec()
 
     def _designed_status_bar(self):
         """Return the status bar, calling it when ``statusBar`` is a method."""
@@ -4520,4 +4571,4 @@ class DesignedMainWindow(FunctionalMainWindow, Ui_MainWindow):
 
     def _apply_initial_window_geometry(self) -> None:
         """Set the initial window size for the designed shell."""
-        self.resize(1280, 800)
+        fit_window_to_screen(self, QtCore.QSize(1280, 800))

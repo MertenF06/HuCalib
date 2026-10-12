@@ -1,0 +1,117 @@
+name: Pose2Sim-modelconversie-en-CPU-proef
+
+on:
+  push:
+    branches: [feat/recording-session-metadata]
+    paths:
+      - '.github/workflows/pose2sim-gaitdynamics.yml'
+      - 'mocap_app/analysis/model_conversion.py'
+      - 'mocap_app/analysis/gaitdynamics*.py'
+      - 'tools/smoke_pose2sim_gaitdynamics.py'
+      - 'tools/smoke_wsl_gaitdynamics.py'
+      - 'tests/test_model_conversion_integration.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  model-conversion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      MPLBACKEND: Agg
+      CUDA_VISIBLE_DEVICES: ''
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Qt-systeembibliotheken voor de Linux-interfaceproef
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libopengl0
+      - name: Twee gescheiden rekenomgevingen
+        run: |
+          python -m venv .venv-pose
+          .venv-pose/bin/python -m pip install -r requirements-pose2sim.txt
+          python -m venv .venv-gait
+          .venv-gait/bin/python -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+          .venv-gait/bin/python -m pip install -r requirements-gaitdynamics.txt
+      - name: Geometrische conversie- en afwijzingsproeven
+        shell: bash
+        run: .venv-pose/bin/python -m unittest discover -s tests -p test_model_conversion_integration.py -v 2>&1 | tee conversion-tests.log
+      - name: Officiële video's en GaitDynamics-modellen
+        run: |
+          .venv-pose/bin/python tools/prepare_windows_demo.py --output Demo
+          .venv-gait/bin/python tools/setup_gaitdynamics.py --output gait-runtime
+      - name: Volledige bewegingsanalyse en krachtvoorspelling
+        shell: bash
+        run: .venv-pose/bin/python tools/smoke_pose2sim_gaitdynamics.py --demo Demo --output model-validation --runtime gait-runtime --gait-python .venv-gait/bin/python 2>&1 | tee model-pipeline.log
+      - name: Dezelfde viercameraresultaten via de Windows-adapter (WSL-transport nagebootst)
+        shell: bash
+        run: >-
+          .venv-gait/bin/python tools/smoke_wsl_gaitdynamics.py --runtime gait-runtime
+          --motion model-validation/conversion/motion.mot
+          --model model-validation/conversion/model.osim
+          --output model-validation/transport-result 2>&1 | tee transport-pipeline.log
+      - name: Resultaat of laatste fout publiceren
+        if: always()
+        env:
+          TEST_FAILED: ${{ job.status == 'failure' }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import json
+          root = Path('model-validation')
+          paths = [root / 'validation.json', root / 'conversion/conversion.json', root / 'gaitdynamics/gaitdynamics.log', root / 'transport-result/transport-validation.json', root / 'transport-result/gaitdynamics.log', Path('transport-pipeline.log'), Path('model-pipeline.log'), Path('conversion-tests.log')]
+          paths += sorted((root / 'pose2sim').glob('*.log'), key=lambda p: p.stat().st_mtime)[-1:]
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              for p in paths:
+                  if p.exists():
+                      value = p.read_text(errors='replace')[-2300:]
+                      summary.write(f'### {p}\n```text\n{value}\n```\n')
+                      if os.environ['TEST_FAILED'] == 'true':
+                          value = value.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                          print(f'::error title=Modelconversie {p.name}::{value}')
+          validation = root / 'validation.json'
+          if validation.exists():
+              value = json.dumps(json.loads(validation.read_text()))
+              print('::notice title=Volledige Pose2Sim-GaitDynamics-proef::' + value)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Pose2Sim-GaitDynamics-result-${{ github.sha }}
+          path: |
+            conversion-tests.log
+            model-pipeline.log
+            transport-pipeline.log
+            model-validation/validation.json
+            model-validation/conversion/
+            model-validation/gaitdynamics/
+            model-validation/transport-result/
+            model-validation/pose2sim/analysis.json
+            model-validation/pose2sim/*.log
+          if-no-files-found: ignore
+          retention-days: 14
+  windows-conversion:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+      POSE2SIM_TEST_MODEL: test-source-model.osim
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: OpenSim en conversie-interface installeren
+        run: python -m pip install opensim==4.6 scipy PySide6
+      - name: Vastgelegd Pose2Sim-bronmodel
+        run: |
+          python -c "from pathlib import Path; import urllib.request, hashlib; data=urllib.request.urlopen('https://raw.githubusercontent.com/perfanalytics/pose2sim/68304b47195dac80bc341cdfd9669140609358c4/Pose2Sim/OpenSim_Setup/Model_Pose2Sim_muscles_flex.osim').read(); assert hashlib.sha256(data).hexdigest()=='53f84b9552b1c5eceee3768fa820b75bd675daeea473f918cffeb5c6337f0c13'; Path('test-source-model.osim').write_bytes(data)"
+      - name: Windows-geometrie en echte asynchrone interfaceproef
+        run: python -m unittest discover -s tests -p test_model_conversion_integration.py -v
